@@ -120,10 +120,29 @@ public class RStudioWindow {
 # built this before still has the old binary sitting beside the new one - and a
 # script that names only the old one photographs yesterday's editor and reports
 # it as today's. That is the harness fault this project has had most often.
+# **The solution's own output directory first.** Since 2026-08-23 RStudio.sln
+# builds all four programs into <repo>\x64\Release\ together, so that the
+# editor finds the compilers it drives beside itself - and the window landed
+# there with them. This script went on looking only under winforms\, found
+# nothing, and said "no window built" on a machine that had just built one.
+# Building the project on its own still writes winforms\x64\..., so both are
+# looked for, newest first.
 if ($Editor -eq "") {
     $here = Split-Path -Parent $MyInvocation.MyCommand.Path
-    foreach ($guess in @("$here\x64\Release\RStudio.exe", "$here\x64\Debug\RStudio.exe",
-                         "$here\x64\Release\ed1gui.exe", "$here\x64\Debug\ed1gui.exe")) {
+    $repo = Split-Path -Parent $here
+    $guesses = @()
+    foreach ($what in @("Release", "Debug")) {
+        $guesses += "$repo\x64\$what\RStudio.exe"      # the solution's
+        $guesses += "$here\x64\$what\RStudio.exe"      # the project's own
+    }
+    # And the name it had before 2026-08-22, because a machine that has built
+    # this before still has the old binary sitting beside the new one, and a
+    # script that finds that one photographs yesterday's editor and reports it
+    # as today's. That is the harness fault this project has had most often.
+    foreach ($what in @("Release", "Debug")) {
+        $guesses += "$here\x64\$what\ed1gui.exe"
+    }
+    foreach ($guess in $guesses) {
         if (Test-Path $guess) { $Editor = $guess; break }
     }
 }

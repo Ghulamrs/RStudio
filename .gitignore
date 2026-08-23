@@ -20,6 +20,10 @@ tests/session.exe
 *.xcodeproj/project.xcworkspace/
 DerivedData/
 winforms/x64/
+
+# Visual Studio's per-user project settings. Written the first time the window
+# is opened in the IDE, and nobody else's business.
+*.vcxproj.user
 winforms/obj/
 *.pdb
 *.log

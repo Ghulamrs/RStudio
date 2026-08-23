@@ -1910,6 +1910,98 @@ void whatACallStackLooksLike() {
 
 // The whole conversation, against a program cc1 built. Needs both a debugger
 // and a compiler, so it says when it is skipping rather than passing quietly.
+// The same thing for the machine's *C++* compiler, which on Windows is the
+// only combination that can be debugged at all.
+//
+// cc1's Windows target emits MASM and MASM carries no line table, so the case
+// above is right to skip there - dbg_here() says DebuggerNone and there is
+// genuinely nothing to stop in. What that hid is that cl writes CodeView into
+// a .pdb and cdb reads it, and *that* pair works on that machine. It had no
+// test: the marker rename had to be driven by hand to prove cdb still stopped
+// a program, which is a thing a suite should be doing.
+//
+// One test for all three machines, because "the machine's C++ compiler" is
+// already resolved for us - cl with cdb on Windows, clang++ with lldb on a
+// Mac, g++ with gdb on the Linux box.
+void stoppingTheHostsOwnCompiler() {
+    std::printf("stopping what the machine's own C++ compiler built\n");
+
+    editor::Toolchain tool;
+    editor::ToolchainKind kind = editor::hostCppToolchain();
+    editor::DebuggerKind which = editor::dbg_for(kind, editor::hostArch());
+    if (which == editor::DebuggerNone) {
+        std::printf("  (no debugger for %s here)\n", editor::toolchainName(kind));
+        return;
+    }
+
+    std::string dir = editor::path::join(editor::path::tempDir(), "rstudio-hostcpp-debug");
+    editor::path::removeTree(dir);
+    editor::path::makeDirectories(dir);
+
+    std::string source = editor::path::join(dir, "stepped.cpp");
+    writeSource(source,
+              "static int twice(int n)\n"
+              "{\n"
+              "    int doubled = n * 2;\n"
+              "    return doubled;\n"
+              "}\n"
+              "\n"
+              "int main()\n"
+              "{\n"
+              "    int total = 0;\n"
+              "    for (int i = 1; i <= 3; ++i) {\n"
+              "        total = total + twice(i);\n"
+              "    }\n"
+              "    return total;\n"
+              "}\n");
+
+    // Built the way the editor builds it, so the flags that carry the debug
+    // information are the editor's own rather than this test's idea of them.
+    editor::prepareFor(kind);
+    editor::Recipe recipe = editor::programRecipe(tool, kind, source, editor::LangCpp,
+                                                  editor::hostArch(), editor::ConfigDebug);
+    if (std::system(shellCommand(recipe.command + kNowhere).c_str()) != 0 ||
+        !editor::path::exists(recipe.assemblyPath)) {
+        std::printf("  (%s built nothing to debug)\n", editor::toolchainName(kind));
+        editor::path::removeTree(dir);
+        return;
+    }
+
+    editor::Debugger debugger;
+    check(debugger.start(which, recipe.assemblyPath),
+          "the debugger starts on what the host's C++ compiler built");
+    if (!debugger.running()) {
+        editor::path::removeTree(dir);
+        for (size_t i = 0; i < recipe.leftovers.size(); ++i)
+            editor::path::remove(recipe.leftovers[i]);
+        return;
+    }
+
+    check(debugger.breakAt(source, 11), "a breakpoint is set on a line of C++");
+
+    editor::Stop at = debugger.run();
+    check(at.stopped, "and running stops on it");
+    check(at.line == 11, "on the line it was asked for");
+    check(at.function == "main", "in the function that line is in");
+
+    editor::Stop into = debugger.stepInto();
+    check(into.stopped && into.function == "twice", "stepping into the call arrives inside it");
+
+    std::vector<editor::StackFrame> stack = debugger.frames();
+    bool sawCaller = false;
+    for (size_t i = 0; i < stack.size(); ++i)
+        if (stack[i].function == "main") sawCaller = true;
+    check(sawCaller, "and the stack says which function it was called from");
+
+    debugger.stop();
+    check(!debugger.running(), "and it stops when it is told to");
+
+    editor::path::remove(recipe.assemblyPath);
+    for (size_t i = 0; i < recipe.leftovers.size(); ++i)
+        editor::path::remove(recipe.leftovers[i]);
+    editor::path::removeTree(dir);
+}
+
 void debuggingForReal() {
     std::printf("stopping, stepping and looking, for real\n");
 
@@ -4059,6 +4151,7 @@ int main(int argc, char** argv) {
     aStepThatWentNowhere();
     whatACallStackLooksLike();
     debuggingForReal();
+    stoppingTheHostsOwnCompiler();
     debuggingCppForReal();
     theSeamTheWindowUses();
     theWindowsProjectBuild();
