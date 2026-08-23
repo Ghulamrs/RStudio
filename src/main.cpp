@@ -69,7 +69,7 @@ int main(int argc, char** argv) {
                 "           [--shc path] [--cxx path]\n"
                 "           [--width n] [--tabs] [--case-indent] [--plain]\n"
                 "  RStudio - the console half, which is ed1 on Linux\n"
-                "  and macOS and winconsole on Windows. ed1gui is the same editor\n"
+                "  and macOS and RStudioConsole on Windows. RStudioGui is the same editor\n"
                 "  in a window, over the same core.\n"
                 "\n"
                 "  --toolchain    auto (the default) lets the file choose: C goes\n"

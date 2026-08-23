@@ -1,5 +1,5 @@
-#ifndef ED1_BRIDGE_H
-#define ED1_BRIDGE_H
+#ifndef RSTUDIO_BRIDGE_H
+#define RSTUDIO_BRIDGE_H
 
 // The seam between the managed form and the native editor, and the reason it
 // exists is worth writing down.
@@ -18,7 +18,7 @@
 //
 // Every const char* returned is owned by the thing that returned it and stays
 // good until the next call on that thing, or until it is freed. Anything
-// returned as char* is the caller's, and ed1_free takes it back.
+// returned as char* is the caller's, and rstudio_free takes it back.
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,52 +28,52 @@ extern "C" {
    integers so that the form can speak about them without including the
    headers that define them. bridge.cpp checks they still agree. */
 enum {
-    ED1_KIND_NORMAL = 0, ED1_KIND_KEYWORD, ED1_KIND_TYPE, ED1_KIND_STRING,
-    ED1_KIND_CHAR, ED1_KIND_COMMENT, ED1_KIND_PREPROC, ED1_KIND_NUMBER,
-    ED1_KIND_LABEL
+    RSTUDIO_KIND_NORMAL = 0, RSTUDIO_KIND_KEYWORD, RSTUDIO_KIND_TYPE, RSTUDIO_KIND_STRING,
+    RSTUDIO_KIND_CHAR, RSTUDIO_KIND_COMMENT, RSTUDIO_KIND_PREPROC, RSTUDIO_KIND_NUMBER,
+    RSTUDIO_KIND_LABEL
 };
-enum { ED1_LANG_PLAIN = 0, ED1_LANG_C, ED1_LANG_CPP, ED1_LANG_SHALIMAR, ED1_LANG_ASM };
+enum { RSTUDIO_LANG_PLAIN = 0, RSTUDIO_LANG_C, RSTUDIO_LANG_CPP, RSTUDIO_LANG_SHALIMAR, RSTUDIO_LANG_ASM };
 
 // Which language's punctuation the layout rules follow. Not the same question
 // as which language the file is - assembly and plain text are laid out by
 // neither - so it is a value of its own rather than a Language.
-enum { ED1_DIALECT_C = 0, ED1_DIALECT_SHALIMAR };
-enum { ED1_TOOL_AUTO = 0, ED1_TOOL_CC1, ED1_TOOL_MSVC, ED1_TOOL_SHC, ED1_TOOL_CXX };
-enum { ED1_CONFIG_DEBUG = 0, ED1_CONFIG_RELEASE };
+enum { RSTUDIO_DIALECT_C = 0, RSTUDIO_DIALECT_SHALIMAR };
+enum { RSTUDIO_TOOL_AUTO = 0, RSTUDIO_TOOL_CC1, RSTUDIO_TOOL_MSVC, RSTUDIO_TOOL_SHC, RSTUDIO_TOOL_CXX };
+enum { RSTUDIO_CONFIG_DEBUG = 0, RSTUDIO_CONFIG_RELEASE };
 
 /* Catches a crash and writes the faulting address and a symbolised stack to
    ed1-fault.log. There is no WinDbg on the machine this is built for, and
    dbghelp is, so the program carries its own. Does nothing off Windows. */
-void ed1_watch_for_faults(const char* logPath);
+void rstudio_watch_for_faults(const char* logPath);
 
 /* ---- laying code out ---------------------------------------------------- */
 
 /* The whole buffer in, the whole buffer out, lines separated by \n. */
-char* ed1_reindent(const char* text, int width, int tabs, int caseIndent,
+char* rstudio_reindent(const char* text, int width, int tabs, int caseIndent,
                    int dialect);
 
 /* What a newline typed at row and col should be followed by. */
-char* ed1_indent_after_newline(const char* text, int row, int col,
+char* rstudio_indent_after_newline(const char* text, int row, int col,
                                int width, int tabs, int caseIndent, int dialect);
 
 /* The leading space one line should have, for the tab key and for a line whose
    own layout changed the moment a brace was typed on it. */
-char* ed1_indent_for(const char* text, int row, int width, int tabs, int caseIndent,
+char* rstudio_indent_for(const char* text, int row, int width, int tabs, int caseIndent,
                      int dialect);
 
-void ed1_free(char* what);
+void rstudio_free(char* what);
 
 /* ---- finding and replacing ---------------------------------------------- */
 
 /* 1 when found, and where it was written into row and col. Both wrap once and
    stop where they started. */
-int ed1_find_next(const char* text, const char* needle, int row, int col,
+int rstudio_find_next(const char* text, const char* needle, int row, int col,
                   int* foundRow, int* foundCol);
-int ed1_find_previous(const char* text, const char* needle, int row, int col,
+int rstudio_find_previous(const char* text, const char* needle, int row, int col,
                       int* foundRow, int* foundCol);
 
 /* The whole text with every occurrence replaced, and how many there were. */
-char* ed1_replace_all(const char* text, const char* needle, const char* with,
+char* rstudio_replace_all(const char* text, const char* needle, const char* with,
                       int* howMany);
 
 /* ---- colouring ---------------------------------------------------------- */
@@ -92,22 +92,22 @@ char* ed1_replace_all(const char* text, const char* needle, const char* with,
 /* Where an unreadable configuration was put, or empty. Worth saying once at
    startup: the settings went back to their defaults and the old file is still
    there to look at. */
-const char* ed1_settings_set_aside(void);
+const char* rstudio_settings_set_aside(void);
 
-const char* ed1_code_font(void);
-int ed1_remember_code_font(const char* described);
+const char* rstudio_code_font(void);
+int rstudio_remember_code_font(const char* described);
 
-void ed1_undo_suspend(void* windowHandle);
-void ed1_undo_resume(void* windowHandle);
+void rstudio_undo_suspend(void* windowHandle);
+void rstudio_undo_resume(void* windowHandle);
 
-int ed1_language_for(const char* path);
+int rstudio_language_for(const char* path);
 
 /* Which layout rules a language wants. */
-int ed1_dialect_for(int language);
+int rstudio_dialect_for(int language);
 
 /* One kind per byte of the line, written into kinds. `state` carries the block
    comment across lines and is read and written. Returns how many were set. */
-int ed1_highlight(const char* line, int language, int* state,
+int rstudio_highlight(const char* line, int language, int* state,
                   unsigned char* kinds, int kindsSize);
 
 /* ---- what a build produced ---------------------------------------------- */
@@ -116,66 +116,66 @@ int ed1_highlight(const char* line, int language, int* state,
    already laid out a line at a time. Not debug information, whatever the target
    writes: this build stops at the assembly, so there is nothing running to
    debug. This is what there is to know instead. */
-char* ed1_describe_build(const char* assembly);
+char* rstudio_describe_build(const char* assembly);
 
 /* What the panel says above that listing - what debug information this target
    has, and what the listing is instead. The terminal front end shows the same
    words, because both ask here rather than writing them out. */
-char* ed1_debug_note(int kind, const char* arch);
+char* rstudio_debug_note(int kind, const char* arch);
 
 /* ---- the project -------------------------------------------------------- */
 
-typedef struct Ed1Project Ed1Project;
+typedef struct RStudioProject RStudioProject;
 
-Ed1Project* ed1_project_new(void);
-void ed1_project_free(Ed1Project* project);
+RStudioProject* rstudio_project_new(void);
+void rstudio_project_free(RStudioProject* project);
 
 /* 1 when a project was read, 0 when there is none or it is broken; the reason
    goes into error when there is one. */
-int ed1_project_load(Ed1Project* project, const char* directory,
+int rstudio_project_load(RStudioProject* project, const char* directory,
                      char* error, int errorSize);
 
-const char* ed1_project_name(Ed1Project* project);
-int ed1_project_groups(Ed1Project* project);
-const char* ed1_project_group_name(Ed1Project* project, int group);
-int ed1_project_files(Ed1Project* project, int group);
-const char* ed1_project_file(Ed1Project* project, int group, int file);
-const char* ed1_project_absolute(Ed1Project* project, const char* relative);
+const char* rstudio_project_name(RStudioProject* project);
+int rstudio_project_groups(RStudioProject* project);
+const char* rstudio_project_group_name(RStudioProject* project, int group);
+int rstudio_project_files(RStudioProject* project, int group);
+const char* rstudio_project_file(RStudioProject* project, int group, int file);
+const char* rstudio_project_absolute(RStudioProject* project, const char* relative);
 
-int ed1_project_indent_width(Ed1Project* project);
-int ed1_project_indent_tabs(Ed1Project* project);
-int ed1_project_case_indent(Ed1Project* project);
-int ed1_project_toolchain(Ed1Project* project);
-int ed1_project_config(Ed1Project* project);
-const char* ed1_project_arch(Ed1Project* project);
+int rstudio_project_indent_width(RStudioProject* project);
+int rstudio_project_indent_tabs(RStudioProject* project);
+int rstudio_project_case_indent(RStudioProject* project);
+int rstudio_project_toolchain(RStudioProject* project);
+int rstudio_project_config(RStudioProject* project);
+const char* rstudio_project_arch(RStudioProject* project);
 
 /* ---- changing the project ------------------------------------------------ */
 
 /* The shape a path may have: the root, or one directory under it, and no
    deeper. It comes from the core so that both front ends keep one rule; the
    reason goes into `why` when the answer is no. */
-int ed1_project_allows(const char* relative, char* why, int whySize);
+int rstudio_project_allows(const char* relative, char* why, int whySize);
 
-int ed1_project_loaded(Ed1Project* project);
-const char* ed1_project_root(Ed1Project* project);
-void ed1_project_set_root(Ed1Project* project, const char* path);
+int rstudio_project_loaded(RStudioProject* project);
+const char* rstudio_project_root(RStudioProject* project);
+void rstudio_project_set_root(RStudioProject* project, const char* path);
 
 /* Puts the project away: nothing loaded, and RStudio.json left exactly as it was.
    Closing a project is a change to what is being looked at and not to what the
    project is, so nothing is written and nothing is removed from it. */
-void ed1_project_close(Ed1Project* project);
-const char* ed1_project_relative(Ed1Project* project, const char* path);
-const char* ed1_project_file_name(void);
+void rstudio_project_close(RStudioProject* project);
+const char* rstudio_project_relative(RStudioProject* project, const char* path);
+const char* rstudio_project_file_name(void);
 
 /* Each of these does the disk work, keeps the project's list in step and
    writes the project back out - all of it in the core, so the window and the
    terminal do the same thing rather than two similar things. 1 when it worked;
    the message and the path say what happened and stay good until the next one. */
-int ed1_create_file(Ed1Project* project, const char* relative, const char* group);
-int ed1_rename_file(Ed1Project* project, const char* fromAbsolute, const char* toRelative);
-int ed1_delete_file(Ed1Project* project, const char* absolute);
-int ed1_move_to_group(Ed1Project* project, const char* absolute, const char* group);
-int ed1_add_existing(Ed1Project* project, const char* absolute, const char* group);
+int rstudio_create_file(RStudioProject* project, const char* relative, const char* group);
+int rstudio_rename_file(RStudioProject* project, const char* fromAbsolute, const char* toRelative);
+int rstudio_delete_file(RStudioProject* project, const char* absolute);
+int rstudio_move_to_group(RStudioProject* project, const char* absolute, const char* group);
+int rstudio_add_existing(RStudioProject* project, const char* absolute, const char* group);
 /* A project made out of what is already in a directory, for when there is no
    RStudio.json to read - and the two things that decide where the editor opens
    when it is given nothing: the project it was last in, and the small one made
@@ -184,199 +184,199 @@ int ed1_add_existing(Ed1Project* project, const char* absolute, const char* grou
    All three have been in the core since the terminal half used them; the
    window simply never asked, so it opened on an empty pane where the terminal
    opened on your work. */
-int ed1_begin_from_what_is_there(Ed1Project* project, const char* directory);
-const char* ed1_last_project(void);
-int ed1_remember_project(const char* directory);
-const char* ed1_demo_directory(void);
+int rstudio_begin_from_what_is_there(RStudioProject* project, const char* directory);
+const char* rstudio_last_project(void);
+int rstudio_remember_project(const char* directory);
+const char* rstudio_demo_directory(void);
 
-int ed1_begin_project(Ed1Project* project, const char* directory, const char* name,
+int rstudio_begin_project(RStudioProject* project, const char* directory, const char* name,
                       const char* firstFile);
-int ed1_save_project(Ed1Project* project);
+int rstudio_save_project(RStudioProject* project);
 
-const char* ed1_outcome_message(Ed1Project* project);
-const char* ed1_outcome_path(Ed1Project* project);
+const char* rstudio_outcome_message(RStudioProject* project);
+const char* rstudio_outcome_path(RStudioProject* project);
 
 /* ---- compilers ---------------------------------------------------------- */
 
-const char* ed1_arch(int index);              /* 0, 1, 2 */
-const char* ed1_toolchain_name(int kind);
+const char* rstudio_arch(int index);              /* 0, 1, 2 */
+const char* rstudio_toolchain_name(int kind);
 
 /* What the core calls a language and a configuration. Here so that both front
    ends say the same words for the same thing - the terminal's status bar has
    had these since the beginning and the window had no way to ask for them. */
-const char* ed1_language_name(int language);
-const char* ed1_config_name(int config);
-int ed1_resolve(int toolchainKind, int language);
-int ed1_can_compile(int kind, int language);
-const char* ed1_refusal(int kind, int language);
-int ed1_uses_arch(int kind);
+const char* rstudio_language_name(int language);
+const char* rstudio_config_name(int config);
+int rstudio_resolve(int toolchainKind, int language);
+int rstudio_can_compile(int kind, int language);
+const char* rstudio_refusal(int kind, int language);
+int rstudio_uses_arch(int kind);
 
 /* Whether a build for this target can be run on this machine, which is not the
    same question as whether it can be compiled - every target compiles to
    assembly anywhere, and only the host's own goes on to a program. The second
    gives the reason when the answer is no, and an empty string when it is yes. */
-int ed1_runs_here(int kind, const char* arch);
-const char* ed1_why_not_run(int kind, const char* arch);
-const char* ed1_host_arch(void);
+int rstudio_runs_here(int kind, const char* arch);
+const char* rstudio_why_not_run(int kind, const char* arch);
+const char* rstudio_host_arch(void);
 
-const char* ed1_shown_command(const char* cc1, const char* cl, const char* shc, int kind,
+const char* rstudio_shown_command(const char* cc1, const char* cl, const char* shc, int kind,
                               const char* source, int language, const char* arch,
                               int config);
 
-typedef struct Ed1Build Ed1Build;
+typedef struct RStudioBuild RStudioBuild;
 
-Ed1Build* ed1_build(const char* cc1, const char* cl, const char* shc, int kind, const char* source,
+RStudioBuild* rstudio_build(const char* cc1, const char* cl, const char* shc, int kind, const char* source,
                     int language, const char* arch, int config);
 
 /* The project's own program, as against the file in front of you. Which of the
    two you meant is said by which one you asked for; neither needs the other to
    be unavailable, and compiling one file never needs a project at all.
 
-   ed1_project_target_ready works out the sources and answers 1 when there is
-   something to build. When it answers 0, ed1_project_target_why is one line
-   for a status bar and ed1_project_target_detail is the rest of it for a box
+   rstudio_project_target_ready works out the sources and answers 1 when there is
+   something to build. When it answers 0, rstudio_project_target_why is one line
+   for a status bar and rstudio_project_target_detail is the rest of it for a box
    with room - the refusal that matters being a project holding both C and C++,
    which cc1 and cl cannot be asked to build between them. */
-int ed1_project_builds(Ed1Project* project);
-int ed1_project_target_ready(Ed1Project* project);
-const char* ed1_project_target_why(Ed1Project* project);
-const char* ed1_project_target_detail(Ed1Project* project);
-int ed1_project_target_language(Ed1Project* project);
-int ed1_project_target_sources(Ed1Project* project);
+int rstudio_project_builds(RStudioProject* project);
+int rstudio_project_target_ready(RStudioProject* project);
+const char* rstudio_project_target_why(RStudioProject* project);
+const char* rstudio_project_target_detail(RStudioProject* project);
+int rstudio_project_target_language(RStudioProject* project);
+int rstudio_project_target_sources(RStudioProject* project);
 
 /* The same target by the parts it is actually built from: one per group, each
    with its own compiler. A target of C and C++ has two, and there is no single
    language or compiler that describes it - which is what these are for.
-   ed1_project_part_toolchain takes the same compiler paths and override kind
-   as ed1_build_target, since what a part goes to depends on all of them. */
-int ed1_project_target_parts(Ed1Project* project);
-const char* ed1_project_part_group(Ed1Project* project, int index);
-int ed1_project_part_language(Ed1Project* project, int index);
-int ed1_project_part_toolchain(Ed1Project* project, int index, const char* cc1,
+   rstudio_project_part_toolchain takes the same compiler paths and override kind
+   as rstudio_build_target, since what a part goes to depends on all of them. */
+int rstudio_project_target_parts(RStudioProject* project);
+const char* rstudio_project_part_group(RStudioProject* project, int index);
+int rstudio_project_part_language(RStudioProject* project, int index);
+int rstudio_project_part_toolchain(RStudioProject* project, int index, const char* cc1,
                                const char* cl, const char* shc, int kind);
-const char* ed1_project_target_source(Ed1Project* project, int index);
-const char* ed1_project_target_program(Ed1Project* project);
+const char* rstudio_project_target_source(RStudioProject* project, int index);
+const char* rstudio_project_target_program(RStudioProject* project);
 
 /* How the project's program is stepped through, which is not answered by
    asking about one compiler: a target built from two groups can have a
    debugger that sees one of them and not the other.
 
-   ed1_project_debug_plan works it out and answers 1 when F8 can do anything at
-   all. When it answers 0, ed1_project_why_not_debug is the reason. After a 1,
-   ed1_project_debug_kind is the compiler to start with - which is not always
+   rstudio_project_debug_plan works it out and answers 1 when F8 can do anything at
+   all. When it answers 0, rstudio_project_why_not_debug is the reason. After a 1,
+   rstudio_project_debug_kind is the compiler to start with - which is not always
    the one the target's language would suggest - and the blind groups are the
    ones whose code carries no debug information, worth saying before the build
    rather than after somebody has tried to stop in one.
 
    The plan is kept on the project, as the parts are, so the strings outlive
-   the call. Ask ed1_project_target_ready first, as with the build. */
-int ed1_project_debug_plan(Ed1Project* project, const char* cc1, const char* cl,
+   the call. Ask rstudio_project_target_ready first, as with the build. */
+int rstudio_project_debug_plan(RStudioProject* project, const char* cc1, const char* cl,
                            const char* shc, int kind, const char* arch);
-int ed1_project_debug_kind(Ed1Project* project);
-const char* ed1_project_why_not_debug(Ed1Project* project);
-int ed1_project_blind_groups(Ed1Project* project);
-const char* ed1_project_blind_group(Ed1Project* project, int index);
+int rstudio_project_debug_kind(RStudioProject* project);
+const char* rstudio_project_why_not_debug(RStudioProject* project);
+int rstudio_project_blind_groups(RStudioProject* project);
+const char* rstudio_project_blind_group(RStudioProject* project, int index);
 
-/* Builds it. Ask ed1_project_target_ready first: this answers null when there
+/* Builds it. Ask rstudio_project_target_ready first: this answers null when there
    is nothing to build, and the reason is where that call left it. */
-Ed1Build* ed1_build_target(Ed1Project* project, const char* cc1, const char* cl, const char* shc,
+RStudioBuild* rstudio_build_target(RStudioProject* project, const char* cc1, const char* cl, const char* shc,
                            int kind, const char* arch, int config);
-void ed1_build_free(Ed1Build* built);
+void rstudio_build_free(RStudioBuild* built);
 
-int ed1_build_ok(Ed1Build* built);
-const char* ed1_build_output(Ed1Build* built);
-const char* ed1_build_assembly(Ed1Build* built);   /* joined with \n */
-int ed1_build_assembly_lines(Ed1Build* built);
-int ed1_build_has_error(Ed1Build* built);
+int rstudio_build_ok(RStudioBuild* built);
+const char* rstudio_build_output(RStudioBuild* built);
+const char* rstudio_build_assembly(RStudioBuild* built);   /* joined with \n */
+int rstudio_build_assembly_lines(RStudioBuild* built);
+int rstudio_build_has_error(RStudioBuild* built);
 /* Which file the error is in. It used to go without saying - a build was one
    file and that was the one you were looking at - and a project build is
    several, so it has to be asked. */
-const char* ed1_build_error_file(Ed1Build* built);
-int ed1_build_error_line(Ed1Build* built);
-int ed1_build_error_column(Ed1Build* built);
-const char* ed1_build_error_message(Ed1Build* built);
+const char* rstudio_build_error_file(RStudioBuild* built);
+int rstudio_build_error_line(RStudioBuild* built);
+int rstudio_build_error_column(RStudioBuild* built);
+const char* rstudio_build_error_message(RStudioBuild* built);
 
 /* Compiling, linking and running, which is three things that can each go their
-   own way: ed1_ran_built says a program came out, ed1_ran_ran says it was
-   started, and ed1_ran_status is what it returned once it had. A program that
+   own way: rstudio_ran_built says a program came out, rstudio_ran_ran says it was
+   started, and rstudio_ran_status is what it returned once it had. A program that
    returns 1 is not a build that failed. */
-typedef struct Ed1Ran Ed1Ran;
+typedef struct RStudioRan RStudioRan;
 
-Ed1Ran* ed1_run(const char* cc1, const char* cl, const char* shc, int kind, const char* source,
+RStudioRan* rstudio_run(const char* cc1, const char* cl, const char* shc, int kind, const char* source,
                 int language, const char* arch, int config);
 
 /* Runs a program that is already built - the project's, once it has been. */
-Ed1Ran* ed1_run_built(const char* program);
-void ed1_run_free(Ed1Ran* ran);
+RStudioRan* rstudio_run_built(const char* program);
+void rstudio_run_free(RStudioRan* ran);
 
-int ed1_ran_built(Ed1Ran* ran);
-int ed1_ran_ran(Ed1Ran* ran);
-int ed1_ran_status(Ed1Ran* ran);
-const char* ed1_ran_output(Ed1Ran* ran);
-int ed1_ran_has_error(Ed1Ran* ran);
-int ed1_ran_error_line(Ed1Ran* ran);
-int ed1_ran_error_column(Ed1Ran* ran);
-const char* ed1_ran_error_message(Ed1Ran* ran);
+int rstudio_ran_built(RStudioRan* ran);
+int rstudio_ran_ran(RStudioRan* ran);
+int rstudio_ran_status(RStudioRan* ran);
+const char* rstudio_ran_output(RStudioRan* ran);
+int rstudio_ran_has_error(RStudioRan* ran);
+int rstudio_ran_error_line(RStudioRan* ran);
+int rstudio_ran_error_column(RStudioRan* ran);
+const char* rstudio_ran_error_message(RStudioRan* ran);
 
-const char* ed1_shown_run_command(const char* cc1, const char* cl, const char* shc, int kind,
+const char* rstudio_shown_run_command(const char* cc1, const char* cl, const char* shc, int kind,
                                   const char* source, int language, const char* arch,
                                   int config);
 
 /* Who this is and whose it is, a line at a time joined with \n. The window puts
    it in a box and the terminal prints it in its panel; neither writes it. */
-char* ed1_about(void);
+char* rstudio_about(void);
 
 /* ---- stopping on a line ------------------------------------------------- */
 
 /* A program built and left where it is, which is what a debugger attaches to.
    Freeing the handle removes the program with it. */
-typedef struct Ed1Program Ed1Program;
+typedef struct RStudioProgram RStudioProgram;
 
-Ed1Program* ed1_build_program(const char* cc1, const char* cl, const char* shc, int kind, const char* source,
+RStudioProgram* rstudio_build_program(const char* cc1, const char* cl, const char* shc, int kind, const char* source,
                               int language, const char* arch, int config);
-void ed1_program_free(Ed1Program* built);
+void rstudio_program_free(RStudioProgram* built);
 
-int ed1_program_ok(Ed1Program* built);
-const char* ed1_program_path(Ed1Program* built);
-const char* ed1_program_output(Ed1Program* built);
-int ed1_program_has_error(Ed1Program* built);
-int ed1_program_error_line(Ed1Program* built);
-int ed1_program_error_column(Ed1Program* built);
-const char* ed1_program_error_message(Ed1Program* built);
+int rstudio_program_ok(RStudioProgram* built);
+const char* rstudio_program_path(RStudioProgram* built);
+const char* rstudio_program_output(RStudioProgram* built);
+int rstudio_program_has_error(RStudioProgram* built);
+int rstudio_program_error_line(RStudioProgram* built);
+int rstudio_program_error_column(RStudioProgram* built);
+const char* rstudio_program_error_message(RStudioProgram* built);
 
 /* Which debugger can read what this compiler writes for this target: 0 none,
    1 lldb, 2 gdb. Not a question about the machine alone - on Windows a C file
    goes to cc1 and comes out as MASM with no line table, while a C++ file goes
    to cl and comes out with CodeView in a .pdb. */
-int ed1_debugger_for(int kind, const char* arch);
-const char* ed1_debugger_name(int kind);
-const char* ed1_no_debugger_because(int kind, const char* arch);
+int rstudio_debugger_for(int kind, const char* arch);
+const char* rstudio_debugger_name(int kind);
+const char* rstudio_no_debugger_because(int kind, const char* arch);
 
 /* And the question that comes before it: whether a program this compiler
    builds carries its own way of stopping and needs no debugger at all. Only
    shc does - a Shalimar program stops itself.
 
    The order matters and is the whole of what the window used to get wrong.
-   ed1_debugger_for answers 0 for shc and is right to; reading that as a
+   rstudio_debugger_for answers 0 for shc and is right to; reading that as a
    refusal refuses the one language that needs nothing to be installed. So this
    is asked first, exactly as the terminal half asks it. */
-int ed1_debugger_stops_itself(int kind);
+int rstudio_debugger_stops_itself(int kind);
 
 /* Why a release build cannot be stopped, which is not the same reason for the
    two: a C build is missing -g, and a Shalimar one links a runtime with no
    debugger in it - there being no -g here to have left out. The key that
    changes it is the front end's own and is not part of this sentence. */
-const char* ed1_release_cannot_stop(int kind);
+const char* rstudio_release_cannot_stop(int kind);
 
 /* And why a start that was asked for did not happen, in the terms that apply:
    a debugger that is not installed, or a program that never said it was
    ready. */
-const char* ed1_why_it_did_not_start(int kind, const char* arch);
+const char* rstudio_why_it_did_not_start(int kind, const char* arch);
 
-typedef struct Ed1Debugger Ed1Debugger;
+typedef struct RStudioDebugger RStudioDebugger;
 
-Ed1Debugger* ed1_debugger_new(void);
-void ed1_debugger_free(Ed1Debugger* debugger);
+RStudioDebugger* rstudio_debugger_new(void);
+void rstudio_debugger_free(RStudioDebugger* debugger);
 
 /* Starts whichever of the two applies, and the handle holds both: gdb, lldb or
    cdb on one side, and a Shalimar program's own session on the other. It takes
@@ -384,15 +384,15 @@ void ed1_debugger_free(Ed1Debugger* debugger);
    two it is, is decided from those - and deciding it here rather than in the
    window is what keeps one answer to it. Everything below asks the handle
    which half is live rather than being told. */
-int ed1_debugger_start(Ed1Debugger* debugger, int kind, const char* arch,
+int rstudio_debugger_start(RStudioDebugger* debugger, int kind, const char* arch,
                        const char* program);
-int ed1_debugger_running(Ed1Debugger* debugger);
-void ed1_debugger_stop(Ed1Debugger* debugger);
+int rstudio_debugger_running(RStudioDebugger* debugger);
+void rstudio_debugger_stop(RStudioDebugger* debugger);
 
 /* Which half that is. The window asks it for one thing only - whether to offer
    the keys for what a Shalimar program cannot do - and the three sentences
    below are what it says instead of offering them. */
-int ed1_debugging_shalimar(Ed1Debugger* debugger);
+int rstudio_debugging_shalimar(RStudioDebugger* debugger);
 
 /* The Debug tab's line where the variables would be, right for whichever half
    is live: this place has none, or no place ever will. Empty means two
@@ -401,27 +401,27 @@ int ed1_debugging_shalimar(Ed1Debugger* debugger);
    The two below are empty when the thing can be done, and the reason when it
    cannot - so the window puts up what it is given rather than deciding for
    itself which case it is in. */
-const char* ed1_locals_none_because(Ed1Debugger* debugger);
-const char* ed1_cannot_watch(Ed1Debugger* debugger);
-const char* ed1_cannot_walk_stack(Ed1Debugger* debugger);
+const char* rstudio_locals_none_because(RStudioDebugger* debugger);
+const char* rstudio_cannot_watch(RStudioDebugger* debugger);
+const char* rstudio_cannot_walk_stack(RStudioDebugger* debugger);
 
-int ed1_debugger_break(Ed1Debugger* debugger, const char* file, int line);
-int ed1_debugger_clear(Ed1Debugger* debugger);
+int rstudio_debugger_break(RStudioDebugger* debugger, const char* file, int line);
+int rstudio_debugger_clear(RStudioDebugger* debugger);
 
 /* Each of these moves the program and keeps what came of it, which is then
-   read with the ed1_stop_ calls below. */
-void ed1_debugger_run(Ed1Debugger* debugger);
-void ed1_debugger_resume(Ed1Debugger* debugger);
-void ed1_debugger_step_over(Ed1Debugger* debugger);
-void ed1_debugger_step_into(Ed1Debugger* debugger);
-void ed1_debugger_step_out(Ed1Debugger* debugger);
+   read with the rstudio_stop_ calls below. */
+void rstudio_debugger_run(RStudioDebugger* debugger);
+void rstudio_debugger_resume(RStudioDebugger* debugger);
+void rstudio_debugger_step_over(RStudioDebugger* debugger);
+void rstudio_debugger_step_into(RStudioDebugger* debugger);
+void rstudio_debugger_step_out(RStudioDebugger* debugger);
 
-int ed1_stop_stopped(Ed1Debugger* debugger);
-int ed1_stop_exited(Ed1Debugger* debugger);
-int ed1_stop_status(Ed1Debugger* debugger);
-const char* ed1_stop_file(Ed1Debugger* debugger);
-int ed1_stop_line(Ed1Debugger* debugger);
-const char* ed1_stop_function(Ed1Debugger* debugger);
+int rstudio_stop_stopped(RStudioDebugger* debugger);
+int rstudio_stop_exited(RStudioDebugger* debugger);
+int rstudio_stop_status(RStudioDebugger* debugger);
+const char* rstudio_stop_file(RStudioDebugger* debugger);
+int rstudio_stop_line(RStudioDebugger* debugger);
+const char* rstudio_stop_function(RStudioDebugger* debugger);
 
 /* What the debugger itself printed on its way to that stop - cdb's or lldb's
    own words, and the debugged program's output along with them, since a
@@ -432,83 +432,83 @@ const char* ed1_stop_function(Ed1Debugger* debugger);
    not. So a stop the window could not make sense of was reported as "the
    debugger stopped answering" with nothing under it, while the terminal
    printed what had actually been said. */
-const char* ed1_stop_said(Ed1Debugger* debugger);
+const char* rstudio_stop_said(RStudioDebugger* debugger);
 
 /* And the same thing with the debugger's own words taken out: what the program
    printed on its way to this stop, for the console. Empty when it printed
    nothing. The filtering is dbg_programOutput's, on the native side, so both
    front ends show the same thing. */
-const char* ed1_stop_output(Ed1Debugger* debugger);
+const char* rstudio_stop_output(RStudioDebugger* debugger);
 
 /* Whether a stop that named no place is a program standing where there is no
    source - stepping off the end of main - rather than a debugger that died.
    The first is carried on from; the second is the end of the session. */
-int ed1_stop_no_source(Ed1Debugger* debugger);
+int rstudio_stop_no_source(RStudioDebugger* debugger);
 
 /* What is in scope where it stopped, read after a move. */
-int ed1_locals_count(Ed1Debugger* debugger);
-const char* ed1_local_name(Ed1Debugger* debugger, int index);
-const char* ed1_local_type(Ed1Debugger* debugger, int index);
-const char* ed1_local_value(Ed1Debugger* debugger, int index);
+int rstudio_locals_count(RStudioDebugger* debugger);
+const char* rstudio_local_name(RStudioDebugger* debugger, int index);
+const char* rstudio_local_type(RStudioDebugger* debugger, int index);
+const char* rstudio_local_value(RStudioDebugger* debugger, int index);
 
 // How a variable is written in the Debug tab, which variable a line of it is
 // about, and the setting of one. The window writes the line with the first and
 // reads it back with the second rather than counting rows of its own, exactly
 // as it does with the frames - see dbg_variableLine.
 //
-// ed1_set_variable answers 0 when the debugger would not take it, and
-// ed1_set_complaint is what it said about that: its own words name the mistake
+// rstudio_set_variable answers 0 when the debugger would not take it, and
+// rstudio_set_complaint is what it said about that: its own words name the mistake
 // better than any this could invent. A set that worked re-reads the locals, so
-// ed1_local_* answer with what is in there afterwards.
-const char* ed1_local_text(Ed1Debugger* debugger, int index);
-int ed1_locals_on_line(Ed1Debugger* debugger, const char* line);
-int ed1_set_variable(Ed1Debugger* debugger, const char* name, const char* value);
-const char* ed1_set_complaint(Ed1Debugger* debugger);
+// rstudio_local_* answer with what is in there afterwards.
+const char* rstudio_local_text(RStudioDebugger* debugger, int index);
+int rstudio_locals_on_line(RStudioDebugger* debugger, const char* line);
+int rstudio_set_variable(RStudioDebugger* debugger, const char* name, const char* value);
+const char* rstudio_set_complaint(RStudioDebugger* debugger);
 
 // Expressions the debugger keeps answering, read again after every move and
 // every change of frame - that being the whole of what a watch is. The list
 // lives in the core beside the debugger rather than in either front end, so
 // that both refresh them at exactly the same moments.
 //
-// ed1_watch_set with an empty expression takes that watch away; there is no
+// rstudio_watch_set with an empty expression takes that watch away; there is no
 // list here that needs a key of its own for removing something.
-void ed1_watch_add(Ed1Debugger* debugger, const char* expression);
-int ed1_watch_count(Ed1Debugger* debugger);
-const char* ed1_watch_text(Ed1Debugger* debugger, int index);
-const char* ed1_watch_expression(Ed1Debugger* debugger, int index);
-int ed1_watch_on_line(Ed1Debugger* debugger, const char* line);
-void ed1_watch_set(Ed1Debugger* debugger, int index, const char* expression);
+void rstudio_watch_add(RStudioDebugger* debugger, const char* expression);
+int rstudio_watch_count(RStudioDebugger* debugger);
+const char* rstudio_watch_text(RStudioDebugger* debugger, int index);
+const char* rstudio_watch_expression(RStudioDebugger* debugger, int index);
+int rstudio_watch_on_line(RStudioDebugger* debugger, const char* line);
+void rstudio_watch_set(RStudioDebugger* debugger, int index, const char* expression);
 
 // And how it got there: the frame it is standing in first, and what called it
 // after that. One frame is a program standing in main, which the Debug tab
 // says nothing about - see dbg_readFrames for why the stack stops there.
-int ed1_stack_count(Ed1Debugger* debugger);
-const char* ed1_stack_function(Ed1Debugger* debugger, int index);
-const char* ed1_stack_file(Ed1Debugger* debugger, int index);
-int ed1_stack_line(Ed1Debugger* debugger, int index);
+int rstudio_stack_count(RStudioDebugger* debugger);
+const char* rstudio_stack_function(RStudioDebugger* debugger, int index);
+const char* rstudio_stack_file(RStudioDebugger* debugger, int index);
+int rstudio_stack_line(RStudioDebugger* debugger, int index);
 
 // How a frame is written in the Debug tab, and which frame a line of that tab
 // is about - -1 for a line that is not one. The window writes the line with
 // the first and reads it back with the second rather than counting rows of its
 // own, so that the row it acts on is the row the core named. See dbg_frameLine.
-const char* ed1_stack_text(Ed1Debugger* debugger, int index);
-int ed1_stack_on_line(Ed1Debugger* debugger, const char* line);
+const char* rstudio_stack_text(RStudioDebugger* debugger, int index);
+int rstudio_stack_on_line(RStudioDebugger* debugger, const char* line);
 
 // Which frame the variables are to be read from. All three debuggers keep a
 // current frame and answer with its variables, so this is what makes a
-// caller's locals readable at all; ed1_locals_* answer from it afterwards.
+// caller's locals readable at all; rstudio_locals_* answer from it afterwards.
 // Every move puts it back to 0, the frame the program stopped in.
 //
-// ed1_looking_text is the line that says whose they are, empty at frame 0
+// rstudio_looking_text is the line that says whose they are, empty at frame 0
 // where the stop's own line already says it.
-int ed1_debugger_look_at(Ed1Debugger* debugger, int which);
+int rstudio_debugger_look_at(RStudioDebugger* debugger, int which);
 
 // The tab's first line, which names the frame the program stopped in. The
 // window writes it with this and compares a clicked row against it, so that
 // enter on that row is enter on frame 0 - see dbg_stopLine.
-const char* ed1_stop_line_text(const char* file, int line, const char* function);
-int ed1_looking_at(Ed1Debugger* debugger);
-const char* ed1_looking_text(Ed1Debugger* debugger);
+const char* rstudio_stop_line_text(const char* file, int line, const char* function);
+int rstudio_looking_at(RStudioDebugger* debugger);
+const char* rstudio_looking_text(RStudioDebugger* debugger);
 
 #ifdef __cplusplus
 }

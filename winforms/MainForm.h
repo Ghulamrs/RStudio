@@ -9,7 +9,7 @@
 
 #include "bridge.h"
 
-namespace ed1gui {
+namespace rstudiogui {
 
 using namespace System;
 using namespace System::Windows::Forms;
@@ -114,9 +114,11 @@ protected:
     // the product name belonged to the pair and each binary kept its own; that
     // is reversed, and there is one name now: RStudio and RStudioGui.
     //
-    // The C++ namespace is still ed1gui. That is code identity rather than a
-    // name anybody sees, and renaming it would touch every file in here for
-    // nothing.
+    // The C++ namespace and the C entry points followed on 2026-08-23. They
+    // had been left alone as code identity rather than a name anybody sees,
+    // which was true and was still the last place the old name lived. It is
+    // `rstudiogui` and `rstudio_` now, and nothing is called ed1 any more
+    // except the temporary files a build leaves in the system temp directory.
     //
     // It is not CC1 Studio, which is the VS Code extension for the same
     // compiler.
@@ -130,28 +132,28 @@ protected:
     ~MainForm() { this->!MainForm(); }
     !MainForm() {
         if (project_ != nullptr) {
-            ed1_project_free(project_);
+            rstudio_project_free(project_);
             project_ = nullptr;
         }
         // A debugger left running would outlive the window that started it,
         // and the program it is attached to would be left in the temporary
         // directory. Freeing the handle removes both.
         if (built_ != nullptr) {
-            ed1_program_free(built_);
+            rstudio_program_free(built_);
             built_ = nullptr;
         }
         if (targetBuilt_ != nullptr) {
-            ed1_build_free(targetBuilt_);
+            rstudio_build_free(targetBuilt_);
             targetBuilt_ = nullptr;
         }
         if (debugger_ != nullptr) {
-            ed1_debugger_free(debugger_);
+            rstudio_debugger_free(debugger_);
             debugger_ = nullptr;
         }
     }
 
 private:
-    Ed1Project* project_;
+    RStudioProject* project_;
 
     // Everything the core needs to be told is kept as managed text and handed
     // over as UTF-8 at the moment of the call.
@@ -169,8 +171,8 @@ private:
     // editor's own note and are kept by file, so they survive a file being
     // closed and opened again; the debugger and the program it is attached to
     // are native and are freed in OnFormClosed.
-    Ed1Debugger* debugger_;
-    Ed1Program* built_;
+    RStudioDebugger* debugger_;
+    RStudioProgram* built_;
     // The three Debug items that need a stack or a variable, kept so that they
     // can be greyed while a Shalimar program is the thing that is stopped.
     ToolStripMenuItem^ upTheStack_;
@@ -185,10 +187,10 @@ private:
     // single file's temporary program, or the project's own. The project's is
     // built where the project keeps it and is not the editor's to remove.
     String^ workProgram_;
-    // A project build's result. Not an Ed1Program, and the difference matters:
+    // A project build's result. Not an RStudioProgram, and the difference matters:
     // freeing one of those removes the program with it, which is right for the
     // temporary thing a single file makes and quite wrong for the project's.
-    Ed1Build* targetBuilt_;
+    RStudioBuild* targetBuilt_;
     // Breakpoints, filed under OneName so that one file has one set of them
     // however its path was spelled - the same rule that keeps one file to one
     // tab. breakNames_ holds the spelling to hand a debugger, since OneName is
@@ -312,14 +314,14 @@ private:
     // A char* the core allocated, taken as a string and handed back to it.
     static String^ TakeUtf8(char* text) {
         String^ out = FromUtf8(text);
-        ed1_free(text);
+        rstudio_free(text);
         return out;
     }
 
     // ---- building the window ----------------------------------------------
 
     void Start(String^ projectDirectory, array<String^>^ files) {
-        project_ = ed1_project_new();
+        project_ = rstudio_project_new();
         arch_ = "x86_64-windows";
 
         // Beside the editor first, which is where the product puts cc1.exe,
@@ -329,10 +331,10 @@ private:
         cc1_ = Named("CC1", "cc1");
         cl_ = Named("CL", "cl");
         shc_ = Named("SHC", "shc");
-        toolKind_ = ED1_TOOL_AUTO;
+        toolKind_ = RSTUDIO_TOOL_AUTO;
         languageChoice_ = -1;
-        config_ = ED1_CONFIG_DEBUG;
-        debugger_ = ed1_debugger_new();
+        config_ = RSTUDIO_CONFIG_DEBUG;
+        debugger_ = rstudio_debugger_new();
         built_ = nullptr;
         targetBuilt_ = nullptr;
         workProgram_ = nullptr;
@@ -364,8 +366,8 @@ private:
         // one in your own files - both of which the core does; only the asking
         // was missing here.
         if (projectDirectory == nullptr) {
-            String^ last = FromUtf8(ed1_last_project());
-            if (last->Length == 0) last = FromUtf8(ed1_demo_directory());
+            String^ last = FromUtf8(rstudio_last_project());
+            if (last->Length == 0) last = FromUtf8(rstudio_demo_directory());
             if (last->Length > 0 && System::IO::Directory::Exists(last))
                 projectDirectory = last;
         }
@@ -618,7 +620,7 @@ private:
         targetItems_ = gcnew System::Collections::Generic::List<ToolStripMenuItem^>();
         for (int i = 0; i < 3; ++i) {
             ToolStripMenuItem^ one = gcnew ToolStripMenuItem(
-                FromUtf8(ed1_arch(i)), nullptr, gcnew EventHandler(this, &MainForm::OnTarget));
+                FromUtf8(rstudio_arch(i)), nullptr, gcnew EventHandler(this, &MainForm::OnTarget));
             one->ShortcutKeyDisplayString = "Ctrl+T";   // shown, not bound - see ProcessCmdKey
             targetItems_->Add(one);
             target->DropDownItems->Add(one);
@@ -808,7 +810,7 @@ private:
         // If the settings would not parse they have been kept and replaced, and
         // that is worth one line: the font and the last project have gone back
         // to their defaults, and somebody should know why.
-        String^ kept = FromUtf8(ed1_settings_set_aside());
+        String^ kept = FromUtf8(rstudio_settings_set_aside());
         if (kept != nullptr && kept->Length > 0)
             what_->Text = "bad configuration file - kept as " +
                           System::IO::Path::GetFileName(kept) + ", a new one made";
@@ -874,15 +876,15 @@ private:
 
     // The first file the project lists, if it lists one.
     void OpenFirstOfProject() {
-        int groups = ed1_project_groups(project_);
+        int groups = rstudio_project_groups(project_);
         for (int group = 0; group < groups; ++group) {
-            if (ed1_project_files(project_, group) < 1) continue;
+            if (rstudio_project_files(project_, group) < 1) continue;
 
-            String^ relative = FromUtf8(ed1_project_file(project_, group, 0));
+            String^ relative = FromUtf8(rstudio_project_file(project_, group, 0));
             array<Byte>^ bytes = Utf8Of(relative);
             pin_ptr<Byte> pinned = &bytes[0];
             String^ full = FromUtf8(
-                ed1_project_absolute(project_, reinterpret_cast<const char*>(pinned)));
+                rstudio_project_absolute(project_, reinterpret_cast<const char*>(pinned)));
             if (full->Length > 0 && System::IO::File::Exists(full)) OpenPath(full);
             return;
         }
@@ -891,7 +893,7 @@ private:
     // Which directory the project is in, where it can be read. "Where would a
     // new file go" is not a question the window should leave anyone asking.
     String^ RootNow() {
-        String^ root = FromUtf8(ed1_project_root(project_));
+        String^ root = FromUtf8(rstudio_project_root(project_));
         if (root == nullptr || root->Length == 0) root = projectDirectory_;
         return root;
     }
@@ -955,7 +957,7 @@ private:
     // default: a settings file carried from another machine may name a font
     // that is not here, and that is not worth a complaint on startup.
     System::Drawing::Font^ RememberedFont() {
-        String^ said = FromUtf8(ed1_code_font());
+        String^ said = FromUtf8(rstudio_code_font());
         if (said != nullptr && said->Length > 0) {
             int cut = said->LastIndexOf(' ');
             if (cut > 0) {
@@ -1350,12 +1352,12 @@ private:
     void SayDebugTab(String^ assembly) {
         array<Byte>^ bytes = Utf8Of(assembly == nullptr ? "" : assembly);
         pin_ptr<Byte> pinned = &bytes[0];
-        String^ found = TakeUtf8(ed1_describe_build(reinterpret_cast<const char*>(pinned)));
+        String^ found = TakeUtf8(rstudio_describe_build(reinterpret_cast<const char*>(pinned)));
 
         array<Byte>^ archBytes = Utf8Of(arch_ == nullptr ? "" : arch_);
         pin_ptr<Byte> archPin = &archBytes[0];
-        String^ note = TakeUtf8(ed1_debug_note(
-            ed1_resolve(toolKind_, LanguageNow()),
+        String^ note = TakeUtf8(rstudio_debug_note(
+            rstudio_resolve(toolKind_, LanguageNow()),
             reinterpret_cast<const char*>(archPin)));
 
         debug_->Text = String::Join(
@@ -1381,12 +1383,12 @@ private:
         if (languageChoice_ >= 0) return languageChoice_;
         array<Byte>^ bytes = Utf8Of(path_ == nullptr ? "" : path_);
         pin_ptr<Byte> pinned = &bytes[0];
-        return ed1_language_for(reinterpret_cast<const char*>(pinned));
+        return rstudio_language_for(reinterpret_cast<const char*>(pinned));
     }
 
     // Shalimar is not C with fewer rules: ':' is its assignment where C reads
     // a label, and laying one out as the other walks every assignment left.
-    int DialectNow() { return ed1_dialect_for(LanguageNow()); }
+    int DialectNow() { return rstudio_dialect_for(LanguageNow()); }
 
     // Lay out what is selected, or the whole file when nothing is - the same
     // rule the terminal half follows, and for the same reason: the whole file
@@ -1397,7 +1399,7 @@ private:
         array<Byte>^ bytes = Utf8Of(text_->Text->Replace("\r\n", "\n"));
         pin_ptr<Byte> pinned = &bytes[0];
 
-        String^ laid = TakeUtf8(ed1_reindent(reinterpret_cast<const char*>(pinned),
+        String^ laid = TakeUtf8(rstudio_reindent(reinterpret_cast<const char*>(pinned),
                                              indentWidth_, indentTabs_, indentCase_,
                                              DialectNow()));
 
@@ -1468,7 +1470,7 @@ private:
 
         // The indentation is decided by the same function the terminal editor
         // calls, on the same text.
-        String^ lead = TakeUtf8(ed1_indent_after_newline(
+        String^ lead = TakeUtf8(rstudio_indent_after_newline(
             reinterpret_cast<const char*>(pinned), row, column, indentWidth_, indentTabs_,
             indentCase_, DialectNow()));
 
@@ -1497,12 +1499,12 @@ private:
     void BeginColouring() {
         colouring_ = true;
         if (text_ != nullptr && text_->IsHandleCreated)
-            ed1_undo_suspend(text_->Handle.ToPointer());
+            rstudio_undo_suspend(text_->Handle.ToPointer());
     }
 
     void EndColouring() {
         if (text_ != nullptr && text_->IsHandleCreated)
-            ed1_undo_resume(text_->Handle.ToPointer());
+            rstudio_undo_resume(text_->Handle.ToPointer());
         colouring_ = false;
     }
 
@@ -1657,7 +1659,7 @@ private:
             pin_ptr<Byte> abovePin = &above[0];
             array<Byte>^ ignored = gcnew array<Byte>(above->Length);
             pin_ptr<Byte> ignoredPin = &ignored[0];
-            ed1_highlight(reinterpret_cast<const char*>(abovePin), language, &state,
+            rstudio_highlight(reinterpret_cast<const char*>(abovePin), language, &state,
                           ignoredPin, ignored->Length);
         }
 
@@ -1680,7 +1682,7 @@ private:
             array<Byte>^ kinds = gcnew array<Byte>(bytes->Length);
             pin_ptr<Byte> kindPin = &kinds[0];
 
-            int howMany = ed1_highlight(reinterpret_cast<const char*>(linePin), language,
+            int howMany = rstudio_highlight(reinterpret_cast<const char*>(linePin), language,
                                         &state, kindPin, kinds->Length);
 
             int at = text_->GetFirstCharIndexFromLine(row);
@@ -1697,7 +1699,7 @@ private:
 
                 int width =
                     System::Text::Encoding::UTF8->GetString(bytes, byte, end - byte)->Length;
-                if (width > 0 && kind != ED1_KIND_NORMAL) {
+                if (width > 0 && kind != RSTUDIO_KIND_NORMAL) {
                     text_->Select(at + column, width);
                     text_->SelectionColor = ColourOf(kind);
                 }
@@ -1742,7 +1744,7 @@ private:
                 pin_ptr<Byte> linePin = &bytes[0];
                 array<Byte>^ kinds = gcnew array<Byte>(bytes->Length);
                 pin_ptr<Byte> kindPin = &kinds[0];
-                ed1_highlight(reinterpret_cast<const char*>(linePin), language, &state,
+                rstudio_highlight(reinterpret_cast<const char*>(linePin), language, &state,
                               kindPin, kinds->Length);
             }
             stateGood_ = true;
@@ -1763,7 +1765,7 @@ private:
             pin_ptr<Byte> linePin = &bytes[0];
             array<Byte>^ kinds = gcnew array<Byte>(bytes->Length);
             pin_ptr<Byte> kindPin = &kinds[0];
-            int howMany = ed1_highlight(reinterpret_cast<const char*>(linePin), language,
+            int howMany = rstudio_highlight(reinterpret_cast<const char*>(linePin), language,
                                         &state, kindPin, kinds->Length);
 
             int column = 0;
@@ -1775,7 +1777,7 @@ private:
 
                 int width =
                     System::Text::Encoding::UTF8->GetString(bytes, byte, end - byte)->Length;
-                if (width > 0 && kind != ED1_KIND_NORMAL) {
+                if (width > 0 && kind != RSTUDIO_KIND_NORMAL) {
                     text_->Select(at + column, width);
                     text_->SelectionColor = ColourOf(kind);
                 }
@@ -1792,14 +1794,14 @@ private:
 
     System::Drawing::Color ColourOf(Byte kind) {
         switch (kind) {
-            case ED1_KIND_KEYWORD: return System::Drawing::Color::Blue;
-            case ED1_KIND_TYPE:    return System::Drawing::Color::Teal;
-            case ED1_KIND_STRING:  return System::Drawing::Color::FromArgb(0, 128, 0);
-            case ED1_KIND_CHAR:    return System::Drawing::Color::FromArgb(0, 128, 0);
-            case ED1_KIND_COMMENT: return System::Drawing::Color::Gray;
-            case ED1_KIND_PREPROC: return System::Drawing::Color::Purple;
-            case ED1_KIND_NUMBER:  return System::Drawing::Color::FromArgb(180, 100, 0);
-            case ED1_KIND_LABEL:   return System::Drawing::Color::FromArgb(150, 120, 0);
+            case RSTUDIO_KIND_KEYWORD: return System::Drawing::Color::Blue;
+            case RSTUDIO_KIND_TYPE:    return System::Drawing::Color::Teal;
+            case RSTUDIO_KIND_STRING:  return System::Drawing::Color::FromArgb(0, 128, 0);
+            case RSTUDIO_KIND_CHAR:    return System::Drawing::Color::FromArgb(0, 128, 0);
+            case RSTUDIO_KIND_COMMENT: return System::Drawing::Color::Gray;
+            case RSTUDIO_KIND_PREPROC: return System::Drawing::Color::Purple;
+            case RSTUDIO_KIND_NUMBER:  return System::Drawing::Color::FromArgb(180, 100, 0);
+            case RSTUDIO_KIND_LABEL:   return System::Drawing::Color::FromArgb(150, 120, 0);
             default:               return System::Drawing::Color::Black;
         }
     }
@@ -1865,10 +1867,10 @@ private:
         pin_ptr<Byte> needlePin = &needle[0];
 
         int foundRow = 0, foundColumn = 0;
-        int found = forwards ? ed1_find_next(reinterpret_cast<const char*>(textPin),
+        int found = forwards ? rstudio_find_next(reinterpret_cast<const char*>(textPin),
                                              reinterpret_cast<const char*>(needlePin), row,
                                              column, &foundRow, &foundColumn)
-                             : ed1_find_previous(reinterpret_cast<const char*>(textPin),
+                             : rstudio_find_previous(reinterpret_cast<const char*>(textPin),
                                                  reinterpret_cast<const char*>(needlePin), row,
                                                  column, &foundRow, &foundColumn);
         if (found == 0) {
@@ -1912,7 +1914,7 @@ private:
         pin_ptr<Byte> replacementPin = &replacement[0];
 
         int howMany = 0;
-        String^ changed = TakeUtf8(ed1_replace_all(
+        String^ changed = TakeUtf8(rstudio_replace_all(
             reinterpret_cast<const char*>(textPin), reinterpret_cast<const char*>(needlePin),
             reinterpret_cast<const char*>(replacementPin), &howMany));
 
@@ -1943,7 +1945,7 @@ private:
 
         array<Byte>^ text = WholeText();
         pin_ptr<Byte> textPin = &text[0];
-        String^ want = TakeUtf8(ed1_indent_for(reinterpret_cast<const char*>(textPin), row,
+        String^ want = TakeUtf8(rstudio_indent_for(reinterpret_cast<const char*>(textPin), row,
                                                indentWidth_, indentTabs_, indentCase_,
                                                DialectNow()));
         if (want == line->Substring(0, lead)) return;
@@ -2014,7 +2016,7 @@ private:
         array<Byte>^ error = gcnew array<Byte>(512);
         pin_ptr<Byte> errorPin = &error[0];
 
-        int loaded = ed1_project_load(project_, reinterpret_cast<const char*>(pinned),
+        int loaded = rstudio_project_load(project_, reinterpret_cast<const char*>(pinned),
                                       reinterpret_cast<char*>(errorPin), error->Length);
         if (loaded == 0) {
             String^ why = FromUtf8(reinterpret_cast<const char*>(errorPin));
@@ -2029,18 +2031,18 @@ private:
             // never written over; then the pane shows the directory and the
             // message says what is wrong with it.
             if (why->Length == 0 &&
-                ed1_begin_from_what_is_there(project_,
+                rstudio_begin_from_what_is_there(project_,
                                              reinterpret_cast<const char*>(pinned)) != 0) {
                 FillTree();
-                indentWidth_ = ed1_project_indent_width(project_);
-                indentTabs_ = ed1_project_indent_tabs(project_);
-                indentCase_ = ed1_project_case_indent(project_);
-                toolKind_ = ed1_project_toolchain(project_);
-                config_ = ed1_project_config(project_);
-                arch_ = FromUtf8(ed1_project_arch(project_));
+                indentWidth_ = rstudio_project_indent_width(project_);
+                indentTabs_ = rstudio_project_indent_tabs(project_);
+                indentCase_ = rstudio_project_case_indent(project_);
+                toolKind_ = rstudio_project_toolchain(project_);
+                config_ = rstudio_project_config(project_);
+                arch_ = FromUtf8(rstudio_project_arch(project_));
                 ShowChoices();
-                ed1_remember_project(reinterpret_cast<const char*>(pinned));
-                what_->Text = FromUtf8(ed1_outcome_message(project_));
+                rstudio_remember_project(reinterpret_cast<const char*>(pinned));
+                what_->Text = FromUtf8(rstudio_outcome_message(project_));
                 SayWhere();
                 return;
             }
@@ -2049,30 +2051,30 @@ private:
 
             // No project file still leaves a directory that paths are counted
             // from, so the file commands work either way.
-            ed1_project_set_root(project_, reinterpret_cast<const char*>(pinned));
+            rstudio_project_set_root(project_, reinterpret_cast<const char*>(pinned));
             SayWhere();
             return;
         }
 
         FillTree();
 
-        indentWidth_ = ed1_project_indent_width(project_);
-        indentTabs_ = ed1_project_indent_tabs(project_);
-        indentCase_ = ed1_project_case_indent(project_);
-        toolKind_ = ed1_project_toolchain(project_);
-        config_ = ed1_project_config(project_);
-        arch_ = FromUtf8(ed1_project_arch(project_));
+        indentWidth_ = rstudio_project_indent_width(project_);
+        indentTabs_ = rstudio_project_indent_tabs(project_);
+        indentCase_ = rstudio_project_case_indent(project_);
+        toolKind_ = rstudio_project_toolchain(project_);
+        config_ = rstudio_project_config(project_);
+        arch_ = FromUtf8(rstudio_project_arch(project_));
         ShowChoices();
 
         // Remembered, so that starting the window with nothing opens here -
         // which the terminal half has always done and this never did.
         array<Byte>^ opened = Utf8Of(directory);
         pin_ptr<Byte> openedPin = &opened[0];
-        ed1_remember_project(reinterpret_cast<const char*>(openedPin));
+        rstudio_remember_project(reinterpret_cast<const char*>(openedPin));
 
         what_->Text = String::Format("ready - {0}, {1} groups",
-                                     FromUtf8(ed1_project_name(project_)),
-                                     ed1_project_groups(project_));
+                                     FromUtf8(rstudio_project_name(project_)),
+                                     rstudio_project_groups(project_));
         SayWhere();
     }
 
@@ -2081,34 +2083,34 @@ private:
     void FillTree() {
         tree_->Nodes->Clear();
 
-        int groups = ed1_project_groups(project_);
+        int groups = rstudio_project_groups(project_);
         for (int group = 0; group < groups; ++group) {
-            TreeNode^ node = gcnew TreeNode(FromUtf8(ed1_project_group_name(project_, group)));
-            int files = ed1_project_files(project_, group);
+            TreeNode^ node = gcnew TreeNode(FromUtf8(rstudio_project_group_name(project_, group)));
+            int files = rstudio_project_files(project_, group);
             for (int file = 0; file < files; ++file) {
-                String^ relative = FromUtf8(ed1_project_file(project_, group, file));
+                String^ relative = FromUtf8(rstudio_project_file(project_, group, file));
                 TreeNode^ leaf = gcnew TreeNode(relative);
 
                 array<Byte>^ rel = Utf8Of(relative);
                 pin_ptr<Byte> relPin = &rel[0];
                 leaf->Tag = FromUtf8(
-                    ed1_project_absolute(project_, reinterpret_cast<const char*>(relPin)));
+                    rstudio_project_absolute(project_, reinterpret_cast<const char*>(relPin)));
                 node->Nodes->Add(leaf);
             }
             tree_->Nodes->Add(node);
         }
         tree_->ExpandAll();
 
-        indentWidth_ = ed1_project_indent_width(project_);
-        indentTabs_ = ed1_project_indent_tabs(project_);
-        indentCase_ = ed1_project_case_indent(project_);
-        toolKind_ = ed1_project_toolchain(project_);
-        config_ = ed1_project_config(project_);
-        arch_ = FromUtf8(ed1_project_arch(project_));
+        indentWidth_ = rstudio_project_indent_width(project_);
+        indentTabs_ = rstudio_project_indent_tabs(project_);
+        indentCase_ = rstudio_project_case_indent(project_);
+        toolKind_ = rstudio_project_toolchain(project_);
+        config_ = rstudio_project_config(project_);
+        arch_ = FromUtf8(rstudio_project_arch(project_));
         ShowChoices();
 
         what_->Text = String::Format("ready - {0}, {1} groups",
-                                     FromUtf8(ed1_project_name(project_)), groups);
+                                     FromUtf8(rstudio_project_name(project_)), groups);
     }
 
     // What the file commands act on: whatever the project pane is standing on
@@ -2129,11 +2131,11 @@ private:
 
     // A native call whose answer is a message either way.
     bool Did(int outcome) {
-        what_->Text = FromUtf8(ed1_outcome_message(project_));
+        what_->Text = FromUtf8(rstudio_outcome_message(project_));
         return outcome != 0;
     }
 
-    String^ OutcomePath() { return FromUtf8(ed1_outcome_path(project_)); }
+    String^ OutcomePath() { return FromUtf8(rstudio_outcome_path(project_)); }
 
     void OnNewFile(Object^, EventArgs^) {
         String^ root = RootNow();
@@ -2149,7 +2151,7 @@ private:
         array<Byte>^ group = Utf8Of(GroupUnderCursor());
         pin_ptr<Byte> groupPin = &group[0];
 
-        if (!Did(ed1_create_file(project_, reinterpret_cast<const char*>(relativePin),
+        if (!Did(rstudio_create_file(project_, reinterpret_cast<const char*>(relativePin),
                                  reinterpret_cast<const char*>(groupPin))))
             return;
 
@@ -2186,7 +2188,7 @@ private:
             codeFont_->FontFamily->Name, codeFont_->SizeInPoints);
         array<Byte>^ bytes = Utf8Of(said);
         pin_ptr<Byte> pinned = &bytes[0];
-        ed1_remember_code_font(reinterpret_cast<const char*>(pinned));
+        rstudio_remember_code_font(reinterpret_cast<const char*>(pinned));
         what_->Text = said;
     }
 
@@ -2250,7 +2252,7 @@ private:
 
         array<Byte>^ was = Utf8Of(target);
         pin_ptr<Byte> wasPin = &was[0];
-        String^ shown = FromUtf8(ed1_project_relative(project_,
+        String^ shown = FromUtf8(rstudio_project_relative(project_,
                                                       reinterpret_cast<const char*>(wasPin)));
 
         String^ name = Ask("Rename " + shown + " to", shown);
@@ -2261,7 +2263,7 @@ private:
         array<Byte>^ to = Utf8Of(name);
         pin_ptr<Byte> toPin = &to[0];
 
-        if (!Did(ed1_rename_file(project_, reinterpret_cast<const char*>(fromPin),
+        if (!Did(rstudio_rename_file(project_, reinterpret_cast<const char*>(fromPin),
                                  reinterpret_cast<const char*>(toPin))))
             return;
 
@@ -2317,7 +2319,7 @@ private:
 
         array<Byte>^ path = Utf8Of(target);
         pin_ptr<Byte> pathPin = &path[0];
-        if (!Did(ed1_delete_file(project_, reinterpret_cast<const char*>(pathPin)))) return;
+        if (!Did(rstudio_delete_file(project_, reinterpret_cast<const char*>(pathPin)))) return;
 
         for (int i = sheets_->Count - 1; i >= 0; --i) {
             if (sheets_[i]->path == nullptr) continue;
@@ -2352,7 +2354,7 @@ private:
         array<Byte>^ into = Utf8Of(group);
         pin_ptr<Byte> intoPin = &into[0];
 
-        if (Did(ed1_move_to_group(project_, reinterpret_cast<const char*>(pathPin),
+        if (Did(rstudio_move_to_group(project_, reinterpret_cast<const char*>(pathPin),
                                   reinterpret_cast<const char*>(intoPin))))
             FillTree();
     }
@@ -2371,7 +2373,7 @@ private:
         array<Byte>^ into = Utf8Of(group);
         pin_ptr<Byte> intoPin = &into[0];
 
-        if (Did(ed1_add_existing(project_, reinterpret_cast<const char*>(pathPin),
+        if (Did(rstudio_add_existing(project_, reinterpret_cast<const char*>(pathPin),
                                  reinterpret_cast<const char*>(intoPin))))
             FillTree();
     }
@@ -2404,7 +2406,7 @@ private:
         array<Byte>^ first = Utf8Of(path_ == nullptr ? "" : path_);
         pin_ptr<Byte> firstPin = &first[0];
 
-        if (Did(ed1_begin_project(project_, reinterpret_cast<const char*>(wherePin),
+        if (Did(rstudio_begin_project(project_, reinterpret_cast<const char*>(wherePin),
                                   reinterpret_cast<const char*>(calledPin),
                                   reinterpret_cast<const char*>(firstPin)))) {
             projectDirectory_ = pick->SelectedPath;
@@ -2413,7 +2415,7 @@ private:
         }
     }
 
-    void OnSaveProject(Object^, EventArgs^) { Did(ed1_save_project(project_)); }
+    void OnSaveProject(Object^, EventArgs^) { Did(rstudio_save_project(project_)); }
 
     // Closing the project is closing the *view* of it: RStudio.json is not touched,
     // nothing is taken out of it, and every open tab stays open. What goes is
@@ -2428,12 +2430,12 @@ private:
     // open on, and the last place you were looking is still the best guess for
     // the next one.
     void OnCloseProject(Object^, EventArgs^) {
-        if (ed1_project_loaded(project_) == 0) {
+        if (rstudio_project_loaded(project_) == 0) {
             what_->Text = "there is no project open";
             return;
         }
-        String^ was = FromUtf8(ed1_project_name(project_));
-        ed1_project_close(project_);
+        String^ was = FromUtf8(rstudio_project_name(project_));
+        rstudio_project_close(project_);
         tree_->Nodes->Clear();
         what_->Text = was + " closed - the files it held are still open";
     }
@@ -2722,7 +2724,7 @@ private:
     }
 
     void OnAbout(Object^, EventArgs^) {
-        MessageBox::Show(this, TakeUtf8(ed1_about())->Replace("\n", "\r\n"),
+        MessageBox::Show(this, TakeUtf8(rstudio_about())->Replace("\n", "\r\n"),
                          "About " + ProductName(),
                          MessageBoxButtons::OK, MessageBoxIcon::Information);
     }
@@ -2739,9 +2741,9 @@ private:
         OnSave(nullptr, nullptr);
 
         int language = LanguageNow();
-        int kind = ed1_resolve(toolKind_, language);
-        if (ed1_can_compile(kind, language) == 0) {
-            what_->Text = FromUtf8(ed1_refusal(kind, language));
+        int kind = rstudio_resolve(toolKind_, language);
+        if (rstudio_can_compile(kind, language) == 0) {
+            what_->Text = FromUtf8(rstudio_refusal(kind, language));
             return;
         }
 
@@ -2758,7 +2760,7 @@ private:
 
         console_->Text =
             "$ " +
-            FromUtf8(ed1_shown_command(reinterpret_cast<const char*>(cc1),
+            FromUtf8(rstudio_shown_command(reinterpret_cast<const char*>(cc1),
                                        reinterpret_cast<const char*>(cl),
                                        reinterpret_cast<const char*>(shc), kind,
                                        reinterpret_cast<const char*>(source), language,
@@ -2767,20 +2769,20 @@ private:
         panel_->SelectedIndex = 0;
         Application::DoEvents();
 
-        Ed1Build* built = ed1_build(reinterpret_cast<const char*>(cc1),
+        RStudioBuild* built = rstudio_build(reinterpret_cast<const char*>(cc1),
                                     reinterpret_cast<const char*>(cl),
                                        reinterpret_cast<const char*>(shc), kind,
                                     reinterpret_cast<const char*>(source), language,
                                     reinterpret_cast<const char*>(arch), config_);
 
-        console_->Text += FromUtf8(ed1_build_output(built))->Replace("\n", "\r\n");
+        console_->Text += FromUtf8(rstudio_build_output(built))->Replace("\n", "\r\n");
         ShowConsoleEnd();
 
-        if (ed1_build_has_error(built) != 0) {
-            int line = ed1_build_error_line(built);
-            int column = ed1_build_error_column(built);
-            String^ message = FromUtf8(ed1_build_error_message(built));
-            ed1_build_free(built);
+        if (rstudio_build_has_error(built) != 0) {
+            int line = rstudio_build_error_line(built);
+            int column = rstudio_build_error_column(built);
+            String^ message = FromUtf8(rstudio_build_error_message(built));
+            rstudio_build_free(built);
 
             RememberError(line, column, message, nullptr);
             GoTo(line, column);
@@ -2789,17 +2791,17 @@ private:
             return;
         }
 
-        if (ed1_build_ok(built) == 0) {
-            what_->Text = FromUtf8(ed1_toolchain_name(kind)) + " failed - see the console";
-            ed1_build_free(built);
+        if (rstudio_build_ok(built) == 0) {
+            what_->Text = FromUtf8(rstudio_toolchain_name(kind)) + " failed - see the console";
+            rstudio_build_free(built);
             return;
         }
 
-        String^ produced = FromUtf8(ed1_build_assembly(built));
+        String^ produced = FromUtf8(rstudio_build_assembly(built));
         assembly_->Text = produced->Replace("\n", "\r\n");
         SayDebugTab(produced);
-        int lines = ed1_build_assembly_lines(built);
-        ed1_build_free(built);
+        int lines = rstudio_build_assembly_lines(built);
+        rstudio_build_free(built);
 
         panel_->SelectedIndex = 2;
         what_->Text = String::Format("{0} lines of assembly", lines);
@@ -2819,9 +2821,9 @@ private:
         OnSave(nullptr, nullptr);
 
         int language = LanguageNow();
-        int kind = ed1_resolve(toolKind_, language);
-        if (ed1_can_compile(kind, language) == 0) {
-            what_->Text = FromUtf8(ed1_refusal(kind, language));
+        int kind = rstudio_resolve(toolKind_, language);
+        if (rstudio_can_compile(kind, language) == 0) {
+            what_->Text = FromUtf8(rstudio_refusal(kind, language));
             return;
         }
 
@@ -2836,14 +2838,14 @@ private:
         array<Byte>^ archBytes = Utf8Of(arch_);
         pin_ptr<Byte> arch = &archBytes[0];
 
-        if (ed1_runs_here(kind, reinterpret_cast<const char*>(arch)) == 0) {
-            what_->Text = FromUtf8(ed1_why_not_run(kind, reinterpret_cast<const char*>(arch)));
+        if (rstudio_runs_here(kind, reinterpret_cast<const char*>(arch)) == 0) {
+            what_->Text = FromUtf8(rstudio_why_not_run(kind, reinterpret_cast<const char*>(arch)));
             return;
         }
 
         console_->Text =
             "$ " +
-            FromUtf8(ed1_shown_run_command(reinterpret_cast<const char*>(cc1),
+            FromUtf8(rstudio_shown_run_command(reinterpret_cast<const char*>(cc1),
                                            reinterpret_cast<const char*>(cl),
                                        reinterpret_cast<const char*>(shc), kind,
                                            reinterpret_cast<const char*>(source), language,
@@ -2852,20 +2854,20 @@ private:
         panel_->SelectedIndex = 0;
         Application::DoEvents();
 
-        Ed1Ran* ran = ed1_run(reinterpret_cast<const char*>(cc1),
+        RStudioRan* ran = rstudio_run(reinterpret_cast<const char*>(cc1),
                               reinterpret_cast<const char*>(cl),
                                        reinterpret_cast<const char*>(shc), kind,
                               reinterpret_cast<const char*>(source), language,
                               reinterpret_cast<const char*>(arch), config_);
 
-        console_->Text += FromUtf8(ed1_ran_output(ran))->Replace("\n", "\r\n");
+        console_->Text += FromUtf8(rstudio_ran_output(ran))->Replace("\n", "\r\n");
         ShowConsoleEnd();
 
-        if (ed1_ran_has_error(ran) != 0) {
-            int line = ed1_ran_error_line(ran);
-            int column = ed1_ran_error_column(ran);
-            String^ message = FromUtf8(ed1_ran_error_message(ran));
-            ed1_run_free(ran);
+        if (rstudio_ran_has_error(ran) != 0) {
+            int line = rstudio_ran_error_line(ran);
+            int column = rstudio_ran_error_column(ran);
+            String^ message = FromUtf8(rstudio_ran_error_message(ran));
+            rstudio_run_free(ran);
 
             RememberError(line, column, message, nullptr);
             GoTo(line, column);
@@ -2874,14 +2876,14 @@ private:
             return;
         }
 
-        if (ed1_ran_built(ran) == 0) {
-            what_->Text = FromUtf8(ed1_toolchain_name(kind)) + " built no program - see the console";
-            ed1_run_free(ran);
+        if (rstudio_ran_built(ran) == 0) {
+            what_->Text = FromUtf8(rstudio_toolchain_name(kind)) + " built no program - see the console";
+            rstudio_run_free(ran);
             return;
         }
 
-        int status = ed1_ran_status(ran);
-        ed1_run_free(ran);
+        int status = rstudio_ran_status(ran);
+        rstudio_run_free(ran);
 
         console_->Text += String::Format("\r\n[program returned {0}]\r\n", status);
         ShowConsoleEnd();
@@ -2900,9 +2902,9 @@ private:
         if (busy_) { what_->Text = "still working - give it a moment"; return; }
         ForgetError();
 
-        if (ed1_project_target_ready(project_) == 0) {
-            String^ why = FromUtf8(ed1_project_target_why(project_));
-            String^ detail = FromUtf8(ed1_project_target_detail(project_));
+        if (rstudio_project_target_ready(project_) == 0) {
+            String^ why = FromUtf8(rstudio_project_target_why(project_));
+            String^ detail = FromUtf8(rstudio_project_target_detail(project_));
             what_->Text = why;
             console_->Text = detail->Length > 0 ? why + "\r\n\r\n" + detail : why;
             panel_->SelectedIndex = 0;
@@ -2911,28 +2913,28 @@ private:
 
         SaveEveryDirty();
 
-        int language = ed1_project_target_language(project_);
-        int kind = ed1_resolve(toolKind_, language);
-        if (ed1_can_compile(kind, language) == 0) {
-            what_->Text = FromUtf8(ed1_refusal(kind, language));
+        int language = rstudio_project_target_language(project_);
+        int kind = rstudio_resolve(toolKind_, language);
+        if (rstudio_can_compile(kind, language) == 0) {
+            what_->Text = FromUtf8(rstudio_refusal(kind, language));
             return;
         }
 
         array<Byte>^ archBytes = Utf8Of(arch_);
         pin_ptr<Byte> arch = &archBytes[0];
-        if (andRun && ed1_runs_here(kind, reinterpret_cast<const char*>(arch)) == 0) {
-            what_->Text = FromUtf8(ed1_why_not_run(kind, reinterpret_cast<const char*>(arch)));
+        if (andRun && rstudio_runs_here(kind, reinterpret_cast<const char*>(arch)) == 0) {
+            what_->Text = FromUtf8(rstudio_why_not_run(kind, reinterpret_cast<const char*>(arch)));
             return;
         }
 
-        String^ program = FromUtf8(ed1_project_target_program(project_));
-        int howMany = ed1_project_target_sources(project_);
+        String^ program = FromUtf8(rstudio_project_target_program(project_));
+        int howMany = rstudio_project_target_sources(project_);
 
         System::Text::StringBuilder^ said = gcnew System::Text::StringBuilder();
-        said->Append("$ " + FromUtf8(ed1_toolchain_name(kind)) + " " + howMany +
+        said->Append("$ " + FromUtf8(rstudio_toolchain_name(kind)) + " " + howMany +
                      (howMany == 1 ? " source -o " : " sources -o ") + program + "\r\n");
         for (int i = 0; i < howMany; ++i)
-            said->Append("    " + FromUtf8(ed1_project_target_source(project_, i)) + "\r\n");
+            said->Append("    " + FromUtf8(rstudio_project_target_source(project_, i)) + "\r\n");
         console_->Text = said->ToString();
         panel_->SelectedIndex = 0;
         what_->Text = "building " + System::IO::Path::GetFileName(program) + " ...";
@@ -2945,24 +2947,24 @@ private:
         array<Byte>^ shcBytes = Utf8Of(shc_);
         pin_ptr<Byte> shc = &shcBytes[0];
 
-        Ed1Build* made = ed1_build_target(project_, reinterpret_cast<const char*>(cc1),
+        RStudioBuild* made = rstudio_build_target(project_, reinterpret_cast<const char*>(cc1),
                                           reinterpret_cast<const char*>(cl),
                                        reinterpret_cast<const char*>(shc), kind,
                                           reinterpret_cast<const char*>(arch), config_);
         if (made == nullptr) {
-            what_->Text = FromUtf8(ed1_project_target_why(project_));
+            what_->Text = FromUtf8(rstudio_project_target_why(project_));
             return;
         }
 
-        console_->Text += FromUtf8(ed1_build_output(made))->Replace("\n", "\r\n");
+        console_->Text += FromUtf8(rstudio_build_output(made))->Replace("\n", "\r\n");
         ShowConsoleEnd();
 
-        if (ed1_build_has_error(made) != 0) {
-            int line = ed1_build_error_line(made);
-            int column = ed1_build_error_column(made);
-            String^ message = FromUtf8(ed1_build_error_message(made));
-            String^ where = FromUtf8(ed1_build_error_file(made));
-            ed1_build_free(made);
+        if (rstudio_build_has_error(made) != 0) {
+            int line = rstudio_build_error_line(made);
+            int column = rstudio_build_error_column(made);
+            String^ message = FromUtf8(rstudio_build_error_message(made));
+            String^ where = FromUtf8(rstudio_build_error_file(made));
+            rstudio_build_free(made);
 
             // The error is as likely as not in a file nothing has opened, so
             // it is opened before the caret is put in it.
@@ -2970,7 +2972,7 @@ private:
                 if (!System::IO::Path::IsPathRooted(where)) {
                     array<Byte>^ relative = Utf8Of(where);
                     pin_ptr<Byte> relativePin = &relative[0];
-                    where = FromUtf8(ed1_project_absolute(
+                    where = FromUtf8(rstudio_project_absolute(
                         project_, reinterpret_cast<const char*>(relativePin)));
                 }
                 if (System::IO::File::Exists(where)) OpenPath(where);
@@ -2985,11 +2987,11 @@ private:
             return;
         }
 
-        bool ok = ed1_build_ok(made) != 0;
-        ed1_build_free(made);
+        bool ok = rstudio_build_ok(made) != 0;
+        rstudio_build_free(made);
 
         if (!ok) {
-            what_->Text = FromUtf8(ed1_toolchain_name(kind)) + " did not build it - see the console";
+            what_->Text = FromUtf8(rstudio_toolchain_name(kind)) + " did not build it - see the console";
             return;
         }
 
@@ -3003,10 +3005,10 @@ private:
 
         array<Byte>^ programBytes = Utf8Of(program);
         pin_ptr<Byte> programPin = &programBytes[0];
-        Ed1Ran* ran = ed1_run_built(reinterpret_cast<const char*>(programPin));
-        console_->Text += FromUtf8(ed1_ran_output(ran))->Replace("\n", "\r\n");
-        int status = ed1_ran_status(ran);
-        ed1_run_free(ran);
+        RStudioRan* ran = rstudio_run_built(reinterpret_cast<const char*>(programPin));
+        console_->Text += FromUtf8(rstudio_ran_output(ran))->Replace("\n", "\r\n");
+        int status = rstudio_ran_status(ran);
+        rstudio_run_free(ran);
 
         console_->Text += String::Format("\r\n[program returned {0}]\r\n", status);
         ShowConsoleEnd();
@@ -3047,7 +3049,7 @@ private:
     // because when WhileBusy returns we are back on the painting thread with
     // the answer in hand. What the caller loses is the right to start a second
     // one while the first is running, which is what busy_ refuses - and that
-    // matters more than it sounds: two threads in one Ed1Debugger would be
+    // matters more than it sounds: two threads in one RStudioDebugger would be
     // two conversations down one pipe.
 
     literal int WorkBuild = 1;
@@ -3077,13 +3079,13 @@ private:
                 array<Byte>^ shcBytes = Utf8Of(shc_);
                 pin_ptr<Byte> shc = &shcBytes[0];
 
-                built_ = ed1_build_program(reinterpret_cast<const char*>(cc1),
+                built_ = rstudio_build_program(reinterpret_cast<const char*>(cc1),
                                            reinterpret_cast<const char*>(cl),
                                            reinterpret_cast<const char*>(shc), workKind_,
                                            reinterpret_cast<const char*>(source),
                                            workLanguage_,
                                            reinterpret_cast<const char*>(arch), config_);
-                workResult_ = ed1_program_ok(built_);
+                workResult_ = rstudio_program_ok(built_);
                 break;
             }
             case WorkBuildTarget: {
@@ -3098,12 +3100,12 @@ private:
                 array<Byte>^ shcBytes = Utf8Of(shc_);
                 pin_ptr<Byte> shc = &shcBytes[0];
 
-                targetBuilt_ = ed1_build_target(project_, reinterpret_cast<const char*>(cc1),
+                targetBuilt_ = rstudio_build_target(project_, reinterpret_cast<const char*>(cc1),
                                                 reinterpret_cast<const char*>(cl),
                                                 reinterpret_cast<const char*>(shc),
                                                 toolKind_,
                                                 reinterpret_cast<const char*>(arch), config_);
-                workResult_ = (targetBuilt_ != nullptr && ed1_build_ok(targetBuilt_) != 0)
+                workResult_ = (targetBuilt_ != nullptr && rstudio_build_ok(targetBuilt_) != 0)
                                   ? 1 : 0;
                 break;
             }
@@ -3114,16 +3116,16 @@ private:
                 // the terminal half decides it too.
                 array<Byte>^ programBytes = Utf8Of(workProgram_);
                 pin_ptr<Byte> program = &programBytes[0];
-                workResult_ = ed1_debugger_start(debugger_, workKind_,
+                workResult_ = rstudio_debugger_start(debugger_, workKind_,
                                                  reinterpret_cast<const char*>(arch),
                                                  reinterpret_cast<const char*>(program));
                 break;
             }
-            case WorkGo:       ed1_debugger_run(debugger_); break;
-            case WorkResume:   ed1_debugger_resume(debugger_); break;
-            case WorkStepOver: ed1_debugger_step_over(debugger_); break;
-            case WorkStepInto: ed1_debugger_step_into(debugger_); break;
-            case WorkStepOut:  ed1_debugger_step_out(debugger_); break;
+            case WorkGo:       rstudio_debugger_run(debugger_); break;
+            case WorkResume:   rstudio_debugger_resume(debugger_); break;
+            case WorkStepOver: rstudio_debugger_step_over(debugger_); break;
+            case WorkStepInto: rstudio_debugger_step_into(debugger_); break;
+            case WorkStepOut:  rstudio_debugger_step_out(debugger_); break;
             default: break;
         }
     }
@@ -3177,14 +3179,14 @@ private:
 
         if (lines->Contains(line)) {
             lines->Remove(line);
-            if (ed1_debugger_running(debugger_) != 0) SetEveryBreakpoint();
+            if (rstudio_debugger_running(debugger_) != 0) SetEveryBreakpoint();
             what_->Text = String::Format("breakpoint off line {0}", line);
         } else {
             lines->Add(line);
-            if (ed1_debugger_running(debugger_) != 0) {
+            if (rstudio_debugger_running(debugger_) != 0) {
                 array<Byte>^ bytes = Utf8Of(path_);
                 pin_ptr<Byte> pinned = &bytes[0];
-                ed1_debugger_break(debugger_, reinterpret_cast<const char*>(pinned), line);
+                rstudio_debugger_break(debugger_, reinterpret_cast<const char*>(pinned), line);
             }
             what_->Text = String::Format("breakpoint on line {0}", line);
         }
@@ -3195,7 +3197,7 @@ private:
     // numbering of what it hands out, and there are never enough breakpoints
     // here for the difference to matter.
     void SetEveryBreakpoint() {
-        ed1_debugger_clear(debugger_);
+        rstudio_debugger_clear(debugger_);
         for each (System::Collections::Generic::KeyValuePair<String^,
                       System::Collections::Generic::List<int>^> pair in breaks_) {
             String^ named = nullptr;
@@ -3203,7 +3205,7 @@ private:
             array<Byte>^ bytes = Utf8Of(named);
             pin_ptr<Byte> pinned = &bytes[0];
             for each (int line in pair.Value)
-                ed1_debugger_break(debugger_, reinterpret_cast<const char*>(pinned), line);
+                rstudio_debugger_break(debugger_, reinterpret_cast<const char*>(pinned), line);
         }
     }
 
@@ -3216,7 +3218,7 @@ private:
     // between, asked the same way and never guessed. The terminal half takes
     // the same argument and reads the same way.
     void Debug(bool project) {
-        if (ed1_debugger_running(debugger_) != 0) {
+        if (rstudio_debugger_running(debugger_) != 0) {
             // Carrying on can take as long as the program takes to reach the
             // next breakpoint, which is why this is not done here either.
             if (!WhileBusy(WorkResume)) return;
@@ -3242,88 +3244,88 @@ private:
             // Settled before anything else is asked, because these refusals -
             // no build entry, a group of two languages - are about the project
             // rather than about debugging, and they read better said first.
-            if (ed1_project_target_ready(project_) == 0) {
-                String^ why = FromUtf8(ed1_project_target_why(project_));
-                String^ detail = FromUtf8(ed1_project_target_detail(project_));
+            if (rstudio_project_target_ready(project_) == 0) {
+                String^ why = FromUtf8(rstudio_project_target_why(project_));
+                String^ detail = FromUtf8(rstudio_project_target_detail(project_));
                 what_->Text = why;
                 console_->Text = detail->Length > 0 ? why + "\r\n\r\n" + detail : why;
                 panel_->SelectedIndex = 0;
                 return;
             }
             SaveEveryDirty();
-            language = ed1_project_target_language(project_);
+            language = rstudio_project_target_language(project_);
 
             // Which compiler's debug information is read, when the program may
             // be linked from more than one - and which groups carry none. The
             // core answers it; the window does not walk the parts itself.
-            if (ed1_project_debug_plan(project_, reinterpret_cast<const char*>(cc1),
+            if (rstudio_project_debug_plan(project_, reinterpret_cast<const char*>(cc1),
                                        reinterpret_cast<const char*>(cl),
                                        reinterpret_cast<const char*>(shc), toolKind_,
                                        reinterpret_cast<const char*>(arch)) == 0) {
-                what_->Text = FromUtf8(ed1_project_why_not_debug(project_));
+                what_->Text = FromUtf8(rstudio_project_why_not_debug(project_));
                 return;
             }
-            kind = ed1_project_debug_kind(project_);
+            kind = rstudio_project_debug_kind(project_);
         } else {
             if (path_ == nullptr) { what_->Text = "open a file first"; return; }
             OnSave(nullptr, nullptr);
 
             language = LanguageNow();
-            kind = ed1_resolve(toolKind_, language);
-            if (ed1_can_compile(kind, language) == 0) {
-                what_->Text = FromUtf8(ed1_refusal(kind, language));
+            kind = rstudio_resolve(toolKind_, language);
+            if (rstudio_can_compile(kind, language) == 0) {
+                what_->Text = FromUtf8(rstudio_refusal(kind, language));
                 return;
             }
             // Asked in this order, and the order is the point: a Shalimar
             // program stops itself, so there is no debugger here to have or to
-            // lack, and ed1_debugger_for rightly answers none for it. Reading
+            // lack, and rstudio_debugger_for rightly answers none for it. Reading
             // that as a refusal is what this window did, and it refused the one
             // language that needs nothing installed.
-            if (ed1_debugger_stops_itself(kind) == 0 &&
-                ed1_debugger_for(kind, reinterpret_cast<const char*>(arch)) == 0) {
+            if (rstudio_debugger_stops_itself(kind) == 0 &&
+                rstudio_debugger_for(kind, reinterpret_cast<const char*>(arch)) == 0) {
                 what_->Text = FromUtf8(
-                    ed1_no_debugger_because(kind, reinterpret_cast<const char*>(arch)));
+                    rstudio_no_debugger_because(kind, reinterpret_cast<const char*>(arch)));
                 return;
             }
         }
 
         // Both of them: a program that cannot be run here cannot be stopped
         // here either, whatever debug information it carries.
-        if (ed1_runs_here(kind, reinterpret_cast<const char*>(arch)) == 0) {
-            what_->Text = FromUtf8(ed1_why_not_run(kind, reinterpret_cast<const char*>(arch)));
+        if (rstudio_runs_here(kind, reinterpret_cast<const char*>(arch)) == 0) {
+            what_->Text = FromUtf8(rstudio_why_not_run(kind, reinterpret_cast<const char*>(arch)));
             return;
         }
-        if (config_ != ED1_CONFIG_DEBUG) {
+        if (config_ != RSTUDIO_CONFIG_DEBUG) {
             // Two different facts wearing one shape: a C build is missing -g,
             // and a Shalimar one links a runtime with no debugger in it, there
             // being no -g here to have left out. The key is this window's own.
             what_->Text =
-                FromUtf8(ed1_release_cannot_stop(kind)) + " - choose Debug build, then F8";
+                FromUtf8(rstudio_release_cannot_stop(kind)) + " - choose Debug build, then F8";
             return;
         }
 
         console_->Text = project ? "$ building the project for the debugger\r\n"
                                  : "$ building for the debugger\r\n";
         if (project) {
-            int howMany = ed1_project_target_sources(project_);
+            int howMany = rstudio_project_target_sources(project_);
             for (int i = 0; i < howMany; ++i)
                 console_->Text += "    " +
-                    FromUtf8(ed1_project_target_source(project_, i)) + "\r\n";
+                    FromUtf8(rstudio_project_target_source(project_, i)) + "\r\n";
 
             // Said before the build rather than after it, because it is about
             // what the session will be able to do and whoever pressed this is
             // about to find out the hard way otherwise.
-            int blind = ed1_project_blind_groups(project_);
+            int blind = rstudio_project_blind_groups(project_);
             for (int i = 0; i < blind; ++i)
-                console_->Text += "  (" + FromUtf8(ed1_project_blind_group(project_, i)) +
+                console_->Text += "  (" + FromUtf8(rstudio_project_blind_group(project_, i)) +
                     " carries no debug information - the debugger cannot stop in it)\r\n";
         }
         panel_->SelectedIndex = 0;
         what_->Text = "building for the debugger ...";
         Application::DoEvents();
 
-        if (built_ != nullptr) { ed1_program_free(built_); built_ = nullptr; }
-        if (targetBuilt_ != nullptr) { ed1_build_free(targetBuilt_); targetBuilt_ = nullptr; }
+        if (built_ != nullptr) { rstudio_program_free(built_); built_ = nullptr; }
+        if (targetBuilt_ != nullptr) { rstudio_build_free(targetBuilt_); targetBuilt_ = nullptr; }
 
         // cl runs on the other thread; this one goes on painting.
         workKind_ = kind;
@@ -3331,15 +3333,15 @@ private:
         if (!WhileBusy(project ? WorkBuildTarget : WorkBuild)) return;
 
         // A project build answers null when there was nothing to build, and
-        // the reason is where ed1_project_target_ready left it. Asked before
+        // the reason is where rstudio_project_target_ready left it. Asked before
         // anything reads the build, because there is nothing there to read.
         if (project && targetBuilt_ == nullptr) {
-            what_->Text = FromUtf8(ed1_project_target_why(project_));
+            what_->Text = FromUtf8(rstudio_project_target_why(project_));
             return;
         }
 
-        console_->Text += FromUtf8(project ? ed1_build_output(targetBuilt_)
-                                           : ed1_program_output(built_))->Replace("\n", "\r\n");
+        console_->Text += FromUtf8(project ? rstudio_build_output(targetBuilt_)
+                                           : rstudio_program_output(built_))->Replace("\n", "\r\n");
         ShowConsoleEnd();
 
         if (workResult_ == 0) { DebugBuildFailed(project, kind); return; }
@@ -3347,10 +3349,10 @@ private:
         // The project's program stays where the project built it; a single
         // file's is a temporary thing made to be stepped through, and the
         // handle that owns it takes it away again.
-        workProgram_ = project ? FromUtf8(ed1_project_target_program(project_))
-                               : FromUtf8(ed1_program_path(built_));
+        workProgram_ = project ? FromUtf8(rstudio_project_target_program(project_))
+                               : FromUtf8(rstudio_program_path(built_));
 
-        what_->Text = ed1_debugger_stops_itself(kind) != 0
+        what_->Text = rstudio_debugger_stops_itself(kind) != 0
                           ? "starting the program ..."   // nothing else is started
                           : "starting the debugger ...";
         if (!WhileBusy(WorkStart)) return;
@@ -3360,7 +3362,7 @@ private:
             // same trouble, and sending someone to install something that does
             // not exist for this language is the worse of the two.
             what_->Text =
-                FromUtf8(ed1_why_it_did_not_start(kind, reinterpret_cast<const char*>(arch)));
+                FromUtf8(rstudio_why_it_did_not_start(kind, reinterpret_cast<const char*>(arch)));
             EndDebugging();
             return;
         }
@@ -3375,16 +3377,16 @@ private:
     // and not the one in front of you - so this is the one place that knows
     // which of them was asked for.
     void DebugBuildFailed(bool project, int kind) {
-        bool told = project ? ed1_build_has_error(targetBuilt_) != 0
-                            : ed1_program_has_error(built_) != 0;
+        bool told = project ? rstudio_build_has_error(targetBuilt_) != 0
+                            : rstudio_program_has_error(built_) != 0;
         if (told) {
-            int line = project ? ed1_build_error_line(targetBuilt_)
-                               : ed1_program_error_line(built_);
-            int column = project ? ed1_build_error_column(targetBuilt_)
-                                 : ed1_program_error_column(built_);
-            String^ message = FromUtf8(project ? ed1_build_error_message(targetBuilt_)
-                                               : ed1_program_error_message(built_));
-            String^ where = project ? FromUtf8(ed1_build_error_file(targetBuilt_)) : nullptr;
+            int line = project ? rstudio_build_error_line(targetBuilt_)
+                               : rstudio_program_error_line(built_);
+            int column = project ? rstudio_build_error_column(targetBuilt_)
+                                 : rstudio_program_error_column(built_);
+            String^ message = FromUtf8(project ? rstudio_build_error_message(targetBuilt_)
+                                               : rstudio_program_error_message(built_));
+            String^ where = project ? FromUtf8(rstudio_build_error_file(targetBuilt_)) : nullptr;
 
             // A project build's error is as likely as not in a file nothing has
             // opened, so it is opened before the caret is put in it.
@@ -3392,7 +3394,7 @@ private:
                 if (!System::IO::Path::IsPathRooted(where)) {
                     array<Byte>^ relative = Utf8Of(where);
                     pin_ptr<Byte> relativePin = &relative[0];
-                    where = FromUtf8(ed1_project_absolute(
+                    where = FromUtf8(rstudio_project_absolute(
                         project_, reinterpret_cast<const char*>(relativePin)));
                 }
                 if (System::IO::File::Exists(where)) OpenPath(where);
@@ -3403,7 +3405,7 @@ private:
             panel_->SelectedIndex = 0;   // the compiler's words are on the Console
             what_->Text = String::Format("{0}:{1}: error: {2}", line, column, message);
         } else {
-            what_->Text = FromUtf8(ed1_toolchain_name(kind)) +
+            what_->Text = FromUtf8(rstudio_toolchain_name(kind)) +
                           " built no program - see the console";
         }
         EndDebugging();
@@ -3413,7 +3415,7 @@ private:
     // in the looking group need a stack to walk or a variable to read, and a
     // Shalimar program has neither.
     void OnDebugMenuOpening(Object^, EventArgs^) {
-        bool itsOwn = ed1_debugging_shalimar(debugger_) != 0;
+        bool itsOwn = rstudio_debugging_shalimar(debugger_) != 0;
         upTheStack_->Enabled = !itsOwn;
         downTheStack_->Enabled = !itsOwn;
         watchItem_->Enabled = !itsOwn;
@@ -3427,7 +3429,7 @@ private:
     void OnFrameDown(Object^, EventArgs^) { LookAlongStack(-1); }
 
     void Step(int how) {
-        if (ed1_debugger_running(debugger_) == 0) {
+        if (rstudio_debugger_running(debugger_) == 0) {
             what_->Text = "nothing is running - F8 starts it";
             return;
         }
@@ -3437,7 +3439,7 @@ private:
     }
 
     void OnDebugStop(Object^, EventArgs^) {
-        if (ed1_debugger_running(debugger_) == 0) {
+        if (rstudio_debugger_running(debugger_) == 0) {
             what_->Text = "nothing is running";
             return;
         }
@@ -3446,13 +3448,13 @@ private:
     }
 
     void EndDebugging() {
-        ed1_debugger_stop(debugger_);
-        // Freeing an Ed1Program removes the program with it, which is right:
+        rstudio_debugger_stop(debugger_);
+        // Freeing an RStudioProgram removes the program with it, which is right:
         // that one is the temporary thing a single file's build made. The
         // project's program is the project's and stays where it was built, so
         // what is let go of there is the record of the build and nothing else.
-        if (built_ != nullptr) { ed1_program_free(built_); built_ = nullptr; }
-        if (targetBuilt_ != nullptr) { ed1_build_free(targetBuilt_); targetBuilt_ = nullptr; }
+        if (built_ != nullptr) { rstudio_program_free(built_); built_ = nullptr; }
+        if (targetBuilt_ != nullptr) { rstudio_build_free(targetBuilt_); targetBuilt_ = nullptr; }
         workProgram_ = nullptr;
         stopFile_ = nullptr;
         stopLine_ = 0;
@@ -3467,7 +3469,7 @@ private:
         // which is where its output goes when it is run without a debugger.
         // The debugger's own words are taken out on the native side, so this
         // and the terminal half show the same thing.
-        String^ printed = Lines(FromUtf8(ed1_stop_output(debugger_)));
+        String^ printed = Lines(FromUtf8(rstudio_stop_output(debugger_)));
         if (!String::IsNullOrEmpty(printed)) {
             console_->AppendText(printed);
             ShowConsoleEnd();
@@ -3475,8 +3477,8 @@ private:
 
         panel_->SelectedIndex = 1;   // the Debug tab
 
-        if (ed1_stop_exited(debugger_) != 0) {
-            int status = ed1_stop_status(debugger_);
+        if (rstudio_stop_exited(debugger_) != 0) {
+            int status = rstudio_stop_status(debugger_);
             debug_->Text = String::Format(
                 "the program ran to the end and returned {0}\r\n\r\n"
                 "F8 starts it again. The breakpoints are still where you put them.", status);
@@ -3485,8 +3487,8 @@ private:
             return;
         }
 
-        if (ed1_stop_stopped(debugger_) == 0) {
-            String^ heard = Lines(FromUtf8(ed1_stop_said(debugger_)));
+        if (rstudio_stop_stopped(debugger_) == 0) {
+            String^ heard = Lines(FromUtf8(rstudio_stop_said(debugger_)));
 
             // Stepping off the end of main lands in the code that started the
             // program, which was not compiled here. That is a real place to be
@@ -3494,7 +3496,7 @@ private:
             // carries on from it, and Stop debugging still leaves. The
             // terminal has always said so and this said the debugger had died
             // and ended the session - the same step, two answers.
-            if (ed1_stop_no_source(debugger_) != 0) {
+            if (rstudio_stop_no_source(debugger_) != 0) {
                 stopFile_ = nullptr;
                 stopLine_ = 0;
                 lookingFile_ = nullptr;
@@ -3522,9 +3524,9 @@ private:
             return;
         }
 
-        stopFile_ = FromUtf8(ed1_stop_file(debugger_));
-        stopLine_ = ed1_stop_line(debugger_);
-        String^ function = FromUtf8(ed1_stop_function(debugger_));
+        stopFile_ = FromUtf8(rstudio_stop_file(debugger_));
+        stopLine_ = rstudio_stop_line(debugger_);
+        String^ function = FromUtf8(rstudio_stop_function(debugger_));
 
         // The caret follows it, but only into the file it is actually in.
         if (path_ != nullptr && stopLine_ > 0 &&
@@ -3593,39 +3595,39 @@ private:
         // Whose variables these are, when they are not the ones the program
         // stopped among. Without it the line above stands over another
         // function's locals and the two contradict each other.
-        String^ looking = FromUtf8(ed1_looking_text(debugger_));
+        String^ looking = FromUtf8(rstudio_looking_text(debugger_));
         if (looking->Length > 0) said->AppendFormat("{0}\r\n\r\n", looking);
 
-        int howMany = ed1_locals_count(debugger_);
+        int howMany = rstudio_locals_count(debugger_);
         if (howMany == 0) {
             // Empty means two different things. Under a debugger this place has
             // no variables; under a Shalimar session no place ever will, the
             // compiler emitting no table of a function's names against its
             // frame slots. Which sentence that is, is the core's answer, so
             // both halves of the editor say the same one.
-            said->AppendFormat("{0}\r\n", FromUtf8(ed1_locals_none_because(debugger_)));
+            said->AppendFormat("{0}\r\n", FromUtf8(rstudio_locals_none_because(debugger_)));
         } else {
             for (int i = 0; i < howMany; ++i)
-                said->AppendFormat("{0}\r\n", FromUtf8(ed1_local_text(debugger_, i)));
+                said->AppendFormat("{0}\r\n", FromUtf8(rstudio_local_text(debugger_, i)));
         }
         // The expressions being watched, which are the editor's own question
         // rather than the debugger's list of what is in scope - so they are
         // their own block, under the variables.
-        int watching = ed1_watch_count(debugger_);
+        int watching = rstudio_watch_count(debugger_);
         if (watching > 0) {
             said->Append("\r\nwatching\r\n");
             for (int i = 0; i < watching; ++i)
-                said->AppendFormat("{0}\r\n", FromUtf8(ed1_watch_text(debugger_, i)));
+                said->AppendFormat("{0}\r\n", FromUtf8(rstudio_watch_text(debugger_, i)));
         }
 
         // Who is waiting for it. The first frame is where it is standing and
         // the line at the top already says that, so what is worth showing is
         // what is above it - and a program in main has nothing above it.
-        int deep = ed1_stack_count(debugger_);
+        int deep = rstudio_stack_count(debugger_);
         if (deep > 1) {
             said->Append("\r\ncalled from\r\n");
             for (int i = 1; i < deep; ++i)
-                said->AppendFormat("{0}\r\n", FromUtf8(ed1_stack_text(debugger_, i)));
+                said->AppendFormat("{0}\r\n", FromUtf8(rstudio_stack_text(debugger_, i)));
         }
 
         said->Append("\r\nF8 carries on   F7 steps over   F6 steps into   F9 sets a breakpoint");
@@ -3635,7 +3637,7 @@ private:
         // variables like any other. None of that is true of Shalimar, and
         // offering the keys for it would be the panel promising what pressing
         // them refuses.
-        if (ed1_debugging_shalimar(debugger_) == 0) {
+        if (rstudio_debugging_shalimar(debugger_) == 0) {
             said->Append("\r\nDouble-click a variable, or press enter on it, to set it");
             if (watching > 0)
                 said->Append("\r\nThe same on a watch changes it, and an empty answer drops it");
@@ -3660,7 +3662,7 @@ private:
     String^ StopLine() {
         pin_ptr<Byte> file = &Utf8Of(stopFile_)[0];
         pin_ptr<Byte> function = &Utf8Of(stopFunction_)[0];
-        return FromUtf8(ed1_stop_line_text(reinterpret_cast<const char*>(file), stopLine_,
+        return FromUtf8(rstudio_stop_line_text(reinterpret_cast<const char*>(file), stopLine_,
                                            reinterpret_cast<const char*>(function)));
     }
 
@@ -3687,21 +3689,21 @@ private:
 
         String^ row_text = debug_->Lines[row];
         pin_ptr<Byte> line = &Utf8Of(row_text)[0];
-        int which = ed1_stack_on_line(debugger_, reinterpret_cast<const char*>(line));
+        int which = rstudio_stack_on_line(debugger_, reinterpret_cast<const char*>(line));
 
         // The top line names the frame the program stopped in, which is the
         // way back from a caller: enter or a double-click on it is enter on
         // frame 0.
-        if (which < 0 && ed1_stack_count(debugger_) > 0 && row_text == StopLine()) which = 0;
+        if (which < 0 && rstudio_stack_count(debugger_) > 0 && row_text == StopLine()) which = 0;
 
         if (which < 0) {
             // Not a frame, but the tab's other kind of line is a variable, and
             // this gesture on one of those is how it is set.
-            int variable = ed1_locals_on_line(debugger_,
+            int variable = rstudio_locals_on_line(debugger_,
                                               reinterpret_cast<const char*>(line));
             if (variable >= 0) { EditVariable(variable); return; }
 
-            int watch = ed1_watch_on_line(debugger_, reinterpret_cast<const char*>(line));
+            int watch = rstudio_watch_on_line(debugger_, reinterpret_cast<const char*>(line));
             if (watch >= 0) { EditWatch(watch); return; }
 
             what_->Text = "that line is neither a frame nor a variable nor a watch";
@@ -3716,17 +3718,17 @@ private:
     void OnWatch(Object^, EventArgs^) {
         // Refused before it is asked for, rather than accepted and then shown
         // blank for the rest of the session. Empty means it can be done.
-        String^ no = FromUtf8(ed1_cannot_watch(debugger_));
+        String^ no = FromUtf8(rstudio_cannot_watch(debugger_));
         if (no->Length > 0) { what_->Text = no; return; }
 
         String^ what = Ask("watch expression", "");
         if (what == nullptr || what->Length == 0) { what_->Text = "nothing to watch"; return; }
 
         pin_ptr<Byte> wanted = &Utf8Of(what)[0];
-        ed1_watch_add(debugger_, reinterpret_cast<const char*>(wanted));
+        rstudio_watch_add(debugger_, reinterpret_cast<const char*>(wanted));
         panel_->SelectedIndex = 1;   // the Debug tab, which is where it appears
         if (stopLine_ > 0) WriteDebugTab();
-        what_->Text = ed1_debugger_running(debugger_) != 0
+        what_->Text = rstudio_debugger_running(debugger_) != 0
                           ? "watching " + what
                           : "watching " + what + " - it is read when the program stops";
     }
@@ -3734,12 +3736,12 @@ private:
     // Changing one, or taking it away: the box comes up with the expression in
     // it, and an empty answer is how a watch is dropped.
     void EditWatch(int which) {
-        String^ was = FromUtf8(ed1_watch_expression(debugger_, which));
+        String^ was = FromUtf8(rstudio_watch_expression(debugger_, which));
         String^ what = Ask("watch, or empty to drop it", was);
         if (what == nullptr) { what_->Text = was + " is still watched"; return; }
 
         pin_ptr<Byte> wanted = &Utf8Of(what)[0];
-        ed1_watch_set(debugger_, which, reinterpret_cast<const char*>(wanted));
+        rstudio_watch_set(debugger_, which, reinterpret_cast<const char*>(wanted));
         WriteDebugTab();
         what_->Text = what->Length == 0 ? "stopped watching " + was : "watching " + what;
     }
@@ -3749,8 +3751,8 @@ private:
     // about a value it will not take is what the line at the bottom says: its
     // complaint names the mistake better than anything invented here.
     void EditVariable(int which) {
-        String^ name = FromUtf8(ed1_local_name(debugger_, which));
-        String^ was = FromUtf8(ed1_local_value(debugger_, which));
+        String^ name = FromUtf8(rstudio_local_name(debugger_, which));
+        String^ was = FromUtf8(rstudio_local_value(debugger_, which));
         if (name->Length == 0) return;
 
         String^ value = Ask(String::Format("set {0}", name), was);
@@ -3761,9 +3763,9 @@ private:
 
         pin_ptr<Byte> named = &Utf8Of(name)[0];
         pin_ptr<Byte> wanted = &Utf8Of(value)[0];
-        if (ed1_set_variable(debugger_, reinterpret_cast<const char*>(named),
+        if (rstudio_set_variable(debugger_, reinterpret_cast<const char*>(named),
                              reinterpret_cast<const char*>(wanted)) == 0) {
-            String^ complaint = FromUtf8(ed1_set_complaint(debugger_));
+            String^ complaint = FromUtf8(rstudio_set_complaint(debugger_));
             what_->Text = complaint->Length > 0
                               ? complaint
                               : String::Format("the debugger would not set {0}", name);
@@ -3772,7 +3774,7 @@ private:
 
         WriteDebugTab();
         what_->Text = String::Format("{0} is {1} now", name,
-                                     FromUtf8(ed1_local_value(debugger_, which)));
+                                     FromUtf8(rstudio_local_value(debugger_, which)));
     }
 
     // One frame along, without going near the panel: Ctrl-Up towards what
@@ -3781,22 +3783,22 @@ private:
     // caret already is - which is where a person is when the question occurs
     // to them.
     void LookAlongStack(int by) {
-        int deep = ed1_stack_count(debugger_);
-        if (ed1_debugger_running(debugger_) == 0 || deep == 0) {
+        int deep = rstudio_stack_count(debugger_);
+        if (rstudio_debugger_running(debugger_) == 0 || deep == 0) {
             what_->Text = "nothing is stopped, so there is no stack to walk";
             return;
         }
         // One frame, and it says how deep it is rather than what it is called.
         // There is nothing to walk to, and saying so beats the message below,
         // which would name that depth as though it were a function.
-        String^ no = FromUtf8(ed1_cannot_walk_stack(debugger_));
+        String^ no = FromUtf8(rstudio_cannot_walk_stack(debugger_));
         if (no->Length > 0) { what_->Text = no; return; }
 
-        int looking = ed1_looking_at(debugger_);
+        int looking = rstudio_looking_at(debugger_);
         if (by > 0) {
             if (looking + 1 >= deep) {
                 what_->Text = String::Format("nothing called {0}, which is the top",
-                                             FromUtf8(ed1_stack_function(debugger_, deep - 1)));
+                                             FromUtf8(rstudio_stack_function(debugger_, deep - 1)));
                 return;
             }
             LookAt(looking + 1);
@@ -3812,7 +3814,7 @@ private:
     // Looking at a frame: its variables are read, the tab is written again
     // with it marked, and the caret goes to the line waiting for the call.
     void LookAt(int which) {
-        if (ed1_debugger_look_at(debugger_, which) == 0) {
+        if (rstudio_debugger_look_at(debugger_, which) == 0) {
             what_->Text = "the debugger would not go to that frame";
             return;
         }
@@ -3820,8 +3822,8 @@ private:
         // top where they are - and where the line that goes back is.
         WriteDebugTab();
 
-        String^ file = FromUtf8(ed1_stack_file(debugger_, which));
-        int at = ed1_stack_line(debugger_, which);
+        String^ file = FromUtf8(rstudio_stack_file(debugger_, which));
+        int at = rstudio_stack_line(debugger_, which);
 
         // The gutter marks it, unless it is the frame the program stopped in -
         // that one has the arrow already.
@@ -3834,7 +3836,7 @@ private:
         Current()->gutter->Invalidate();
         what_->Text = String::Format("{0}:{1} in {2} - {3}",
                                      System::IO::Path::GetFileName(file), at,
-                                     FromUtf8(ed1_stack_function(debugger_, which)),
+                                     FromUtf8(rstudio_stack_function(debugger_, which)),
                                      which == 0 ? "back where it stopped"
                                                 : "where the call came from");
     }
@@ -3885,37 +3887,37 @@ private:
     void SayBuild() {
         if (build_ == nullptr) return;
         int language = LanguageNow();
-        int kind = ed1_resolve(toolKind_, language);
-        String^ said = FromUtf8(ed1_language_name(language)) + "  " +
-                       FromUtf8(ed1_config_name(config_)) + "  " +
-                       FromUtf8(ed1_toolchain_name(kind));
+        int kind = rstudio_resolve(toolKind_, language);
+        String^ said = FromUtf8(rstudio_language_name(language)) + "  " +
+                       FromUtf8(rstudio_config_name(config_)) + "  " +
+                       FromUtf8(rstudio_toolchain_name(kind));
         // The star means the file picked the compiler, not the menu - the same
         // mark, in the same place, as the terminal's.
-        if (toolKind_ == ED1_TOOL_AUTO) said += "*";
+        if (toolKind_ == RSTUDIO_TOOL_AUTO) said += "*";
         // The target is shown only when it means something: cl builds for the
         // host it was installed as, and offering a choice that changes nothing
         // would be the status bar telling a lie. Editor::drawStatus says the
         // same thing in the same words.
-        if (ed1_uses_arch(kind) != 0) said += "  " + arch_;
+        if (rstudio_uses_arch(kind) != 0) said += "  " + arch_;
         build_->Text = said;
     }
 
     void ShowChoices() {
         for each (ToolStripMenuItem^ one in targetItems_)
             one->Checked = String::Equals(one->Text, arch_, StringComparison::Ordinal);
-        toolAutoItem_->Checked = toolKind_ == ED1_TOOL_AUTO;
-        toolCc1Item_->Checked = toolKind_ == ED1_TOOL_CC1;
-        toolClItem_->Checked = toolKind_ == ED1_TOOL_MSVC;
-        toolShcItem_->Checked = toolKind_ == ED1_TOOL_SHC;
+        toolAutoItem_->Checked = toolKind_ == RSTUDIO_TOOL_AUTO;
+        toolCc1Item_->Checked = toolKind_ == RSTUDIO_TOOL_CC1;
+        toolClItem_->Checked = toolKind_ == RSTUDIO_TOOL_MSVC;
+        toolShcItem_->Checked = toolKind_ == RSTUDIO_TOOL_SHC;
         if (langAutoItem_ != nullptr) {
             langAutoItem_->Checked = languageChoice_ < 0;
-            langCItem_->Checked = languageChoice_ == ED1_LANG_C;
-            langCppItem_->Checked = languageChoice_ == ED1_LANG_CPP;
-            langShalimarItem_->Checked = languageChoice_ == ED1_LANG_SHALIMAR;
-            langTextItem_->Checked = languageChoice_ == ED1_LANG_PLAIN;
+            langCItem_->Checked = languageChoice_ == RSTUDIO_LANG_C;
+            langCppItem_->Checked = languageChoice_ == RSTUDIO_LANG_CPP;
+            langShalimarItem_->Checked = languageChoice_ == RSTUDIO_LANG_SHALIMAR;
+            langTextItem_->Checked = languageChoice_ == RSTUDIO_LANG_PLAIN;
         }
-        debugConfigItem_->Checked = config_ == ED1_CONFIG_DEBUG;
-        releaseConfigItem_->Checked = config_ == ED1_CONFIG_RELEASE;
+        debugConfigItem_->Checked = config_ == RSTUDIO_CONFIG_DEBUG;
+        releaseConfigItem_->Checked = config_ == RSTUDIO_CONFIG_RELEASE;
         SayBuild();
     }
 
@@ -3924,7 +3926,7 @@ private:
     // between two is why automatic is never more than two presses away, which
     // is the reason the terminal gives for its own.
     void NextConfig() {
-        if (config_ == ED1_CONFIG_DEBUG) OnReleaseConfig(nullptr, nullptr);
+        if (config_ == RSTUDIO_CONFIG_DEBUG) OnReleaseConfig(nullptr, nullptr);
         else OnDebugConfig(nullptr, nullptr);
     }
 
@@ -3932,9 +3934,9 @@ private:
     // keeps too: what the key does and what the menu shows are one thing
     // rather than two that can drift apart.
     void NextTool() {
-        if (toolKind_ == ED1_TOOL_AUTO) OnToolCc1(nullptr, nullptr);
-        else if (toolKind_ == ED1_TOOL_CC1) OnToolShc(nullptr, nullptr);
-        else if (toolKind_ == ED1_TOOL_SHC) OnToolCl(nullptr, nullptr);
+        if (toolKind_ == RSTUDIO_TOOL_AUTO) OnToolCc1(nullptr, nullptr);
+        else if (toolKind_ == RSTUDIO_TOOL_CC1) OnToolShc(nullptr, nullptr);
+        else if (toolKind_ == RSTUDIO_TOOL_SHC) OnToolCl(nullptr, nullptr);
         else OnToolAuto(nullptr, nullptr);
     }
 
@@ -3952,12 +3954,12 @@ private:
     }
 
     void OnDebugConfig(Object^, EventArgs^) {
-        config_ = ED1_CONFIG_DEBUG;
+        config_ = RSTUDIO_CONFIG_DEBUG;
         ShowChoices();
         what_->Text = "debug";
     }
     void OnReleaseConfig(Object^, EventArgs^) {
-        config_ = ED1_CONFIG_RELEASE;
+        config_ = RSTUDIO_CONFIG_RELEASE;
         ShowChoices();
         what_->Text = "release";
     }
@@ -3968,25 +3970,25 @@ private:
         what_->Text = "target: " + arch_;
     }
     void OnToolAuto(Object^, EventArgs^) {
-        toolKind_ = ED1_TOOL_AUTO;
+        toolKind_ = RSTUDIO_TOOL_AUTO;
         ShowChoices();
         RefreshDebugTab();
         what_->Text = "compiler: chosen by the file";
     }
     void OnToolCc1(Object^, EventArgs^) {
-        toolKind_ = ED1_TOOL_CC1;
+        toolKind_ = RSTUDIO_TOOL_CC1;
         ShowChoices();
         RefreshDebugTab();
         what_->Text = "compiler: cc1";
     }
     void OnToolCl(Object^, EventArgs^) {
-        toolKind_ = ED1_TOOL_MSVC;
+        toolKind_ = RSTUDIO_TOOL_MSVC;
         ShowChoices();
         RefreshDebugTab();
         what_->Text = "compiler: cl";
     }
     void OnToolShc(Object^, EventArgs^) {
-        toolKind_ = ED1_TOOL_SHC;
+        toolKind_ = RSTUDIO_TOOL_SHC;
         ShowChoices();
         RefreshDebugTab();
         what_->Text = "compiler: shc";
@@ -4002,14 +4004,14 @@ private:
     void OnLangAuto(Object^, EventArgs^) {
         ChooseLanguage(-1, "language: chosen by the name");
     }
-    void OnLangC(Object^, EventArgs^) { ChooseLanguage(ED1_LANG_C, "language: C"); }
-    void OnLangCpp(Object^, EventArgs^) { ChooseLanguage(ED1_LANG_CPP, "language: C++"); }
+    void OnLangC(Object^, EventArgs^) { ChooseLanguage(RSTUDIO_LANG_C, "language: C"); }
+    void OnLangCpp(Object^, EventArgs^) { ChooseLanguage(RSTUDIO_LANG_CPP, "language: C++"); }
     void OnLangShalimar(Object^, EventArgs^) {
-        ChooseLanguage(ED1_LANG_SHALIMAR, "language: Shalimar");
+        ChooseLanguage(RSTUDIO_LANG_SHALIMAR, "language: Shalimar");
     }
     void OnLangText(Object^, EventArgs^) {
-        ChooseLanguage(ED1_LANG_PLAIN, "language: plain text");
+        ChooseLanguage(RSTUDIO_LANG_PLAIN, "language: plain text");
     }
 };
 
-}  // namespace ed1gui
+}  // namespace rstudiogui

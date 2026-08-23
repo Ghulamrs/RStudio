@@ -407,7 +407,7 @@ const char* dbg_program(DebuggerKind kind) {
     // itself. A function-local static with a destructor registers an atexit
     // handler the first time it is reached, and in the mixed-mode binary that
     // corrupts the heap - the second of the three hazards in the README, which
-    // this walked straight into. ed1gui died the moment F8 asked which
+    // this walked straight into. The window died the moment F8 asked which
     // debugger applied, and its own fault log named this function.
     static std::string* found = 0;
     if (found) return found->c_str();

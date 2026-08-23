@@ -2196,14 +2196,14 @@ void whatTheProgramSaid() {
     const std::string cdbSaid =
         "\n0:000> MARKER-ONE\n"
         "Breakpoint 0 hit\n"
-        "ed1_run_4116!main+0x2a:\n"
+        "rstudio_run_4116!main+0x2a:\n"
         "00007ff6`08a8718a 8b442420        mov     eax,dword ptr [rsp+20h]\n"
         "0:000> \n"
         "\n0:000> Last event: 2b0c.34b8: Hit breakpoint 0\n"
         "  debugger time: Fri Aug 21 18:06:58.745 2026 (UTC + 5:00)\n"
         "0:000> \n"
         "\n0:000> C:\\Users\\G_R_AKHTAR\\AppData\\Local\\Temp\\talker.cpp(8)\n"
-        "(00007ff6`08a87160)   ed1_run_4116!main+0x2a   |  (00007ff6`08a871e0)   ed1_run!printf\n"
+        "(00007ff6`08a87160)   rstudio_run_4116!main+0x2a   |  (00007ff6`08a871e0)   rstudio_run!printf\n"
         "0:000> \n";
     checkEqual(editor::dbg_programOutput(editor::DebuggerCdb, cdbSaid), "MARKER-ONE\n",
                "cdb: the line after its prompt is the program's, and is kept");
@@ -2263,7 +2263,7 @@ void whatTheProgramSaid() {
 //
 // A debugged program writes down the debugger's own stream, so what it printed
 // is in `said` along with the debugger's words - and the window had no way to
-// read `said` at all until ed1_stop_said existed. This is the property that
+// read `said` at all until rstudio_stop_said existed. This is the property that
 // makes that accessor worth having, so it is checked rather than assumed: the
 // program's own output has to be in there.
 void whatTheDebuggerHeard() {
@@ -2299,35 +2299,35 @@ void whatTheDebuggerHeard() {
                 "    return x;\n"
                 "}\n");
 
-    Ed1Program* built = ed1_build_program(cc1, "cl", "shc", editor::ToolCc1,
+    RStudioProgram* built = rstudio_build_program(cc1, "cl", "shc", editor::ToolCc1,
                                           source.c_str(), editor::LangC, host.c_str(),
                                           editor::ConfigDebug);
-    if (ed1_program_ok(built) == 0) {
+    if (rstudio_program_ok(built) == 0) {
         std::printf("  (cc1 did not build it, so there is nothing to stop inside)\n");
-        ed1_program_free(built);
+        rstudio_program_free(built);
         editor::path::removeTree(dir);
         return;
     }
 
-    Ed1Debugger* debugger = ed1_debugger_new();
-    check(ed1_debugger_start(debugger, editor::ToolCc1, host.c_str(),
-                             ed1_program_path(built)) != 0,
+    RStudioDebugger* debugger = rstudio_debugger_new();
+    check(rstudio_debugger_start(debugger, editor::ToolCc1, host.c_str(),
+                             rstudio_program_path(built)) != 0,
           "the debugger starts on a program that talks");
 
     // Line 8 is x = x + 1, after the printf and its flush.
-    check(ed1_debugger_break(debugger, source.c_str(), 8) != 0, "a breakpoint after the printing");
+    check(rstudio_debugger_break(debugger, source.c_str(), 8) != 0, "a breakpoint after the printing");
 
-    ed1_debugger_run(debugger);
-    check(ed1_stop_stopped(debugger) != 0, "and it stops there");
+    rstudio_debugger_run(debugger);
+    check(rstudio_stop_stopped(debugger) != 0, "and it stops there");
 
-    const std::string said = ed1_stop_said(debugger);
+    const std::string said = rstudio_stop_said(debugger);
     check(!said.empty(), "what the debugger said comes across the seam");
     check(said.find("MARKER-BEFORE") != std::string::npos,
           "and the program's own output is in it, which is why the window wants it");
 
-    ed1_debugger_stop(debugger);
-    ed1_debugger_free(debugger);
-    ed1_program_free(built);
+    rstudio_debugger_stop(debugger);
+    rstudio_debugger_free(debugger);
+    rstudio_program_free(built);
     editor::path::removeTree(dir);
 }
 
@@ -2481,14 +2481,14 @@ void theWindowsProjectBuild() {
                 "  \"groups\": { \"Sources\": [\"add.c\", \"main.c\"] },\n"
                 "  \"build\": { \"target\": \"sums\", \"groups\": [\"Sources\"] }\n}\n");
 
-    Ed1Project* project = ed1_project_new();
+    RStudioProject* project = rstudio_project_new();
     char trouble[512] = {0};
-    check(ed1_project_load(project, dir.string().c_str(), trouble, sizeof trouble) != 0,
+    check(rstudio_project_load(project, dir.string().c_str(), trouble, sizeof trouble) != 0,
           "the window loads a project that says what it builds");
-    check(ed1_project_builds(project) != 0, "and is told that it builds something");
-    check(ed1_project_target_ready(project) != 0, "the sources come back through the seam");
-    check(ed1_project_target_sources(project) == 2, "both of them");
-    check(std::string(ed1_project_target_program(project)).find("sums") != std::string::npos,
+    check(rstudio_project_builds(project) != 0, "and is told that it builds something");
+    check(rstudio_project_target_ready(project) != 0, "the sources come back through the seam");
+    check(rstudio_project_target_sources(project) == 2, "both of them");
+    check(std::string(rstudio_project_target_program(project)).find("sums") != std::string::npos,
           "with the program named after the target");
 
     // A target of both languages, which the window used to be told was a
@@ -2500,20 +2500,20 @@ void theWindowsProjectBuild() {
                 "{\n  \"name\": \"sums\",\n"
                 "  \"groups\": { \"Sources\": [\"add.c\", \"main.c\", \"extra.cpp\"] },\n"
                 "  \"build\": { \"target\": \"sums\", \"groups\": [\"Sources\"] }\n}\n");
-    check(ed1_project_load(project, dir.string().c_str(), trouble, sizeof trouble) != 0,
+    check(rstudio_project_load(project, dir.string().c_str(), trouble, sizeof trouble) != 0,
           "a project of both languages loads");
-    check(ed1_project_target_ready(project) != 0, "and is ready to build rather than refused");
-    check(ed1_project_target_sources(project) == 3, "with all three of its sources");
-    check(ed1_project_target_parts(project) == 2, "in two parts, one per language");
-    check(ed1_project_part_language(project, 0) == editor::LangC, "the C first");
-    check(ed1_project_part_language(project, 1) == editor::LangCpp, "and the C++ after it");
-    check(ed1_project_part_toolchain(project, 0, "cc1", "cl", "shc", editor::ToolAuto) ==
+    check(rstudio_project_target_ready(project) != 0, "and is ready to build rather than refused");
+    check(rstudio_project_target_sources(project) == 3, "with all three of its sources");
+    check(rstudio_project_target_parts(project) == 2, "in two parts, one per language");
+    check(rstudio_project_part_language(project, 0) == editor::LangC, "the C first");
+    check(rstudio_project_part_language(project, 1) == editor::LangCpp, "and the C++ after it");
+    check(rstudio_project_part_toolchain(project, 0, "cc1", "cl", "shc", editor::ToolAuto) ==
               editor::ToolCc1,
           "which go to cc1");
-    check(ed1_project_part_toolchain(project, 1, "cc1", "cl", "shc", editor::ToolAuto) ==
+    check(rstudio_project_part_toolchain(project, 1, "cc1", "cl", "shc", editor::ToolAuto) ==
               (editor::resolve(editor::Toolchain(), editor::LangCpp)),
           "and to this machine's C++ compiler, without the window being told which");
-    checkEqual(ed1_project_part_group(project, 0), "Sources",
+    checkEqual(rstudio_project_part_group(project, 0), "Sources",
                "both out of the one group, which is where they were");
 
     // A group that names its compiler is taken at its word, and the whole group
@@ -2524,15 +2524,15 @@ void theWindowsProjectBuild() {
                 "  \"groups\": { \"Sources\": { \"files\": [\"add.c\", \"main.c\", "
                 "\"extra.cpp\"], \"toolchain\": \"cl\" } },\n"
                 "  \"build\": { \"target\": \"sums\", \"groups\": [\"Sources\"] }\n}\n");
-    check(ed1_project_load(project, dir.string().c_str(), trouble, sizeof trouble) != 0,
+    check(rstudio_project_load(project, dir.string().c_str(), trouble, sizeof trouble) != 0,
           "a group that names its compiler loads");
-    check(ed1_project_target_ready(project) != 0, "and is ready");
-    check(ed1_project_target_parts(project) == 1, "as one part, because one compiler takes it");
-    check(ed1_project_part_toolchain(project, 0, "cc1", "cl", "shc", editor::ToolAuto) ==
+    check(rstudio_project_target_ready(project) != 0, "and is ready");
+    check(rstudio_project_target_parts(project) == 1, "as one part, because one compiler takes it");
+    check(rstudio_project_part_toolchain(project, 0, "cc1", "cl", "shc", editor::ToolAuto) ==
               editor::ToolMsvc,
           "the one the group named");
 
-    ed1_project_free(project);
+    rstudio_project_free(project);
     file::remove_all(dir);
 }
 
@@ -2540,25 +2540,25 @@ void theSeamTheWindowUses() {
     std::printf("what the window asks the core to do\n");
 
     std::string host = editor::hostArch();
-    check(ed1_debugger_for(editor::ToolCc1, host.c_str()) ==
+    check(rstudio_debugger_for(editor::ToolCc1, host.c_str()) ==
               static_cast<int>(editor::dbg_for(editor::ToolCc1, host)),
           "the window is told the same debugger the editor found");
-    check(std::string(ed1_debugger_name(ed1_debugger_for(editor::ToolCc1, host.c_str()))) ==
+    check(std::string(rstudio_debugger_name(rstudio_debugger_for(editor::ToolCc1, host.c_str()))) ==
               editor::dbg_name(editor::dbg_for(editor::ToolCc1, host)),
           "and the same name for it");
 
     // The two compilers are not in the same position on the same machine, and
     // the reason given has to say which one it is talking about.
-    check(ed1_debugger_for(editor::ToolCc1, "x86_64-windows") == 0,
+    check(rstudio_debugger_for(editor::ToolCc1, "x86_64-windows") == 0,
           "what cc1 builds for Windows can never be debugged");
-    check(std::string(ed1_no_debugger_because(editor::ToolCc1, "x86_64-windows"))
+    check(std::string(rstudio_no_debugger_because(editor::ToolCc1, "x86_64-windows"))
               .find("MASM") != std::string::npos,
           "and the reason names the MASM that has no line table");
     // cl is a different matter on the same machine, and which way it goes
     // depends on whether Microsoft's own debugger is installed - so the check
     // is that the answer and the reason agree, not that either is fixed.
-    int forCl = ed1_debugger_for(editor::ToolMsvc, "x86_64-windows");
-    std::string whyNotCl = ed1_no_debugger_because(editor::ToolMsvc, "x86_64-windows");
+    int forCl = rstudio_debugger_for(editor::ToolMsvc, "x86_64-windows");
+    std::string whyNotCl = rstudio_no_debugger_because(editor::ToolMsvc, "x86_64-windows");
     if (forCl == static_cast<int>(editor::DebuggerCdb)) {
         check(whyNotCl.empty(), "where cdb is installed, cl's C++ has nothing standing in its way");
     } else {
@@ -2601,89 +2601,89 @@ void theSeamTheWindowUses() {
                 "}\n");
 
     // Built through the bridge, exactly as the window builds it.
-    Ed1Program* built = ed1_build_program(cc1, "cl", "shc", editor::ToolCc1,
+    RStudioProgram* built = rstudio_build_program(cc1, "cl", "shc", editor::ToolCc1,
                                           source.c_str(), editor::LangC,
                                           editor::hostArch(), editor::ConfigDebug);
-    check(ed1_program_ok(built) != 0, "the window's build makes a program");
-    if (ed1_program_ok(built) == 0) { ed1_program_free(built); editor::path::removeTree(dir); return; }
-    check(editor::path::exists(ed1_program_path(built)),
+    check(rstudio_program_ok(built) != 0, "the window's build makes a program");
+    if (rstudio_program_ok(built) == 0) { rstudio_program_free(built); editor::path::removeTree(dir); return; }
+    check(editor::path::exists(rstudio_program_path(built)),
           "and leaves it where it said it did, for a debugger to open");
 
-    Ed1Debugger* debugger = ed1_debugger_new();
-    check(ed1_debugger_start(debugger, editor::ToolCc1, host.c_str(),
-                             ed1_program_path(built)) != 0,
+    RStudioDebugger* debugger = rstudio_debugger_new();
+    check(rstudio_debugger_start(debugger, editor::ToolCc1, host.c_str(),
+                             rstudio_program_path(built)) != 0,
           "the debugger starts on it");
-    check(ed1_debugger_running(debugger) != 0, "and says it is running");
+    check(rstudio_debugger_running(debugger) != 0, "and says it is running");
 
-    check(ed1_debugger_break(debugger, source.c_str(), 10) != 0, "a breakpoint is set");
+    check(rstudio_debugger_break(debugger, source.c_str(), 10) != 0, "a breakpoint is set");
 
-    ed1_debugger_run(debugger);
-    check(ed1_stop_stopped(debugger) != 0, "running stops on it");
-    check(ed1_stop_line(debugger) == 10, "on the line asked for");
-    check(std::string(ed1_stop_function(debugger)) == "main", "in the right function");
+    rstudio_debugger_run(debugger);
+    check(rstudio_stop_stopped(debugger) != 0, "running stops on it");
+    check(rstudio_stop_line(debugger) == 10, "on the line asked for");
+    check(std::string(rstudio_stop_function(debugger)) == "main", "in the right function");
 
     // The locals are read once when it stops and handed over one string at a
     // time, because the managed side cannot hold a std::vector.
-    int howMany = ed1_locals_count(debugger);
+    int howMany = rstudio_locals_count(debugger);
     bool sawTotal = false;
     for (int i = 0; i < howMany; ++i)
-        if (std::string(ed1_local_name(debugger, i)) == "total" &&
-            std::string(ed1_local_value(debugger, i)) == "0") sawTotal = true;
+        if (std::string(rstudio_local_name(debugger, i)) == "total" &&
+            std::string(rstudio_local_value(debugger, i)) == "0") sawTotal = true;
     check(howMany > 0 && sawTotal, "and what is in scope comes back one name at a time");
-    check(std::string(ed1_local_name(debugger, howMany + 5)).empty(),
+    check(std::string(rstudio_local_name(debugger, howMany + 5)).empty(),
           "an index past the end answers with nothing rather than reading past it");
 
-    ed1_debugger_step_into(debugger);
-    check(std::string(ed1_stop_function(debugger)) == "twice", "stepping into arrives inside");
+    rstudio_debugger_step_into(debugger);
+    check(std::string(rstudio_stop_function(debugger)) == "twice", "stepping into arrives inside");
 
     // And the stack, handed over the same way and for the same reason. The
     // window has nowhere to put a vector either.
-    check(ed1_stack_count(debugger) == 2, "the stack inside the call has two frames");
-    check(std::string(ed1_stack_function(debugger, 1)) == "main",
+    check(rstudio_stack_count(debugger) == 2, "the stack inside the call has two frames");
+    check(std::string(rstudio_stack_function(debugger, 1)) == "main",
           "the second of them being what called it");
-    check(ed1_stack_line(debugger, 1) == 10, "on the line waiting for it to come back");
-    check(std::string(ed1_stack_function(debugger, ed1_stack_count(debugger))).empty() &&
-              ed1_stack_line(debugger, -1) == 0,
+    check(rstudio_stack_line(debugger, 1) == 10, "on the line waiting for it to come back");
+    check(std::string(rstudio_stack_function(debugger, rstudio_stack_count(debugger))).empty() &&
+              rstudio_stack_line(debugger, -1) == 0,
           "and an index off either end answers with nothing");
 
     // And the line the window writes for a frame, read back to say which frame
     // the row it was clicked on is - the window counts no rows of its own.
-    std::string written = ed1_stack_text(debugger, 1);
+    std::string written = rstudio_stack_text(debugger, 1);
     check(written == "  main   seam.c:10", "the window is given the line to write");
-    check(ed1_stack_on_line(debugger, written.c_str()) == 1,
+    check(rstudio_stack_on_line(debugger, written.c_str()) == 1,
           "and reads it back as the frame it was written for");
-    check(ed1_stack_on_line(debugger, "  (nothing in scope here)") == -1,
+    check(rstudio_stack_on_line(debugger, "  (nothing in scope here)") == -1,
           "while a row that is not a frame answers -1 rather than a frame");
 
     // Looking at a caller through the seam: the locals the window reads
     // afterwards are that frame's, and the line it writes for it is marked.
-    check(ed1_looking_at(debugger) == 0, "the window starts at the frame it stopped in");
-    check(ed1_debugger_look_at(debugger, 1) != 0, "and can be told to look at the caller");
-    check(ed1_looking_at(debugger) == 1, "which is where it says it is looking");
-    check(std::string(ed1_looking_text(debugger)).find("main's") != std::string::npos,
+    check(rstudio_looking_at(debugger) == 0, "the window starts at the frame it stopped in");
+    check(rstudio_debugger_look_at(debugger, 1) != 0, "and can be told to look at the caller");
+    check(rstudio_looking_at(debugger) == 1, "which is where it says it is looking");
+    check(std::string(rstudio_looking_text(debugger)).find("main's") != std::string::npos,
           "with a line saying whose variables these now are");
-    check(std::string(ed1_stack_text(debugger, 1)).compare(0, 1, ">") == 0,
+    check(std::string(rstudio_stack_text(debugger, 1)).compare(0, 1, ">") == 0,
           "and that frame written with its mark");
 
     bool sawCaller = false;
-    for (int i = 0; i < ed1_locals_count(debugger); ++i)
-        if (std::string(ed1_local_name(debugger, i)) == "total") sawCaller = true;
+    for (int i = 0; i < rstudio_locals_count(debugger); ++i)
+        if (std::string(rstudio_local_name(debugger, i)) == "total") sawCaller = true;
     check(sawCaller, "the variables read through the seam are the caller's");
 
-    check(ed1_debugger_look_at(debugger, 0) != 0, "and it goes back to the stop");
-    check(std::string(ed1_looking_text(debugger)).empty(),
+    check(rstudio_debugger_look_at(debugger, 0) != 0, "and it goes back to the stop");
+    check(std::string(rstudio_looking_text(debugger)).empty(),
           "where nothing is said about whose variables they are, the top line saying it");
-    check(ed1_debugger_look_at(debugger, 9) == 0,
+    check(rstudio_debugger_look_at(debugger, 9) == 0,
           "a frame that is not there is refused rather than answered with another's");
 
     // Setting one through the seam, which is the window's only way to it. The
     // line it writes for a variable is read back the same way a frame's is.
-    check(ed1_debugger_look_at(debugger, 0) != 0, "back at the frame it stopped in");
-    std::string variableLine = ed1_local_text(debugger, 0);   // n, inside twice
+    check(rstudio_debugger_look_at(debugger, 0) != 0, "back at the frame it stopped in");
+    std::string variableLine = rstudio_local_text(debugger, 0);   // n, inside twice
     check(!variableLine.empty(), "the window is given the line to write for a variable");
-    check(ed1_locals_on_line(debugger, variableLine.c_str()) == 0,
+    check(rstudio_locals_on_line(debugger, variableLine.c_str()) == 0,
           "and reads it back as the variable it was written for");
-    check(ed1_locals_on_line(debugger, "called from") == -1,
+    check(rstudio_locals_on_line(debugger, "called from") == -1,
           "while a row that is not a variable answers -1");
 
     // In the caller's frame, which is where the window's own gesture would be
@@ -2691,61 +2691,61 @@ void theSeamTheWindowUses() {
     // program returns at the end of this test is still what it worked out
     // rather than what was written into it. The reaching-the-program half is
     // checked on its own run in debuggingForReal.
-    check(ed1_debugger_look_at(debugger, 1) != 0, "looking at the caller to set one of its own");
-    check(ed1_set_variable(debugger, "total", "100") != 0, "a variable is set through it");
+    check(rstudio_debugger_look_at(debugger, 1) != 0, "looking at the caller to set one of its own");
+    check(rstudio_set_variable(debugger, "total", "100") != 0, "a variable is set through it");
     bool setThrough = false;
-    for (int i = 0; i < ed1_locals_count(debugger); ++i)
-        if (std::string(ed1_local_name(debugger, i)) == "total" &&
-            std::string(ed1_local_value(debugger, i)) == "100") setThrough = true;
+    for (int i = 0; i < rstudio_locals_count(debugger); ++i)
+        if (std::string(rstudio_local_name(debugger, i)) == "total" &&
+            std::string(rstudio_local_value(debugger, i)) == "100") setThrough = true;
     check(setThrough, "and the locals it reads afterwards say so");
 
-    check(ed1_set_variable(debugger, "nosuch", "1") == 0, "a name that is not there is refused");
-    check(std::string(ed1_set_complaint(debugger)).size() > 0,
+    check(rstudio_set_variable(debugger, "nosuch", "1") == 0, "a name that is not there is refused");
+    check(std::string(rstudio_set_complaint(debugger)).size() > 0,
           "with the debugger's own words to show for it");
 
-    check(ed1_set_variable(debugger, "total", "0") != 0, "and it is put back where it was");
-    check(ed1_debugger_look_at(debugger, 0) != 0, "with the frame put back too");
+    check(rstudio_set_variable(debugger, "total", "0") != 0, "and it is put back where it was");
+    check(rstudio_debugger_look_at(debugger, 0) != 0, "with the frame put back too");
 
     // A watch through the seam, which is the window's only way to one. The
     // list is the core's, so what is checked here is that the window can put
     // one in it, read the line to write for it, and find it again from that
     // line - the same three questions it asks about a frame.
-    ed1_watch_add(debugger, "n + 1");
-    check(ed1_watch_count(debugger) == 1, "the window can add a watch");
-    std::string watchLine = ed1_watch_text(debugger, 0);
+    rstudio_watch_add(debugger, "n + 1");
+    check(rstudio_watch_count(debugger) == 1, "the window can add a watch");
+    std::string watchLine = rstudio_watch_text(debugger, 0);
     check(watchLine.find("n + 1 = ") != std::string::npos,
           "and is given the line to write for it, answered");
-    check(ed1_watch_on_line(debugger, watchLine.c_str()) == 0,
+    check(rstudio_watch_on_line(debugger, watchLine.c_str()) == 0,
           "which reads back as the watch it was written for");
-    check(ed1_watch_on_line(debugger, "  total = 0   [int]") == -1,
+    check(rstudio_watch_on_line(debugger, "  total = 0   [int]") == -1,
           "while a variable is not read as one");
-    checkEqual(std::string(ed1_watch_expression(debugger, 0)), "n + 1",
+    checkEqual(std::string(rstudio_watch_expression(debugger, 0)), "n + 1",
                "and the expression itself comes back for the box that changes it");
 
-    ed1_watch_set(debugger, 0, "");
-    check(ed1_watch_count(debugger) == 0, "an empty answer takes the watch away");
+    rstudio_watch_set(debugger, 0, "");
+    check(rstudio_watch_count(debugger) == 0, "an empty answer takes the watch away");
 
     // And the line the window writes at the top, which it compares a clicked
     // row against to know that the row means the frame it stopped in.
-    checkEqual(std::string(ed1_stop_line_text("/tmp/seam.c", 10, "main")),
+    checkEqual(std::string(rstudio_stop_line_text("/tmp/seam.c", 10, "main")),
                "stopped at seam.c:10 in main", "the window is given that line too");
 
-    ed1_debugger_step_out(debugger);
-    check(std::string(ed1_stop_function(debugger)) == "main", "and stepping out comes back");
+    rstudio_debugger_step_out(debugger);
+    check(std::string(rstudio_stop_function(debugger)) == "main", "and stepping out comes back");
 
-    ed1_debugger_clear(debugger);
-    ed1_debugger_resume(debugger);
-    check(ed1_stop_exited(debugger) != 0, "with no breakpoints left it runs to the end");
-    check(ed1_stop_status(debugger) == 12, "returning what it worked out");
+    rstudio_debugger_clear(debugger);
+    rstudio_debugger_resume(debugger);
+    check(rstudio_stop_exited(debugger) != 0, "with no breakpoints left it runs to the end");
+    check(rstudio_stop_status(debugger) == 12, "returning what it worked out");
 
-    ed1_debugger_stop(debugger);
-    check(ed1_debugger_running(debugger) == 0, "and stops when it is told to");
-    ed1_debugger_free(debugger);
+    rstudio_debugger_stop(debugger);
+    check(rstudio_debugger_running(debugger) == 0, "and stops when it is told to");
+    rstudio_debugger_free(debugger);
 
     // Freeing the handle takes the program with it, which is what stops a
     // debugging session leaving one behind in the temporary directory.
-    std::string was = ed1_program_path(built);
-    ed1_program_free(built);
+    std::string was = rstudio_program_path(built);
+    rstudio_program_free(built);
     check(!editor::path::exists(was), "freeing the build removes the program it made");
 
     editor::path::removeTree(dir);
@@ -3681,7 +3681,7 @@ void steppingShalimar() {
 
 // The same program stopped through the seam the window uses, rather than
 // through the Session directly - which is the whole of what the window could
-// not do. Everything here is an ed1_ call and nothing names a C++ type,
+// not do. Everything here is a rstudio_ call and nothing names a C++ type,
 // because that is the only vocabulary the form has.
 void theWindowStoppingShalimar() {
     std::printf("the window stopping a Shalimar program\n");
@@ -3689,42 +3689,42 @@ void theWindowStoppingShalimar() {
     // The order the window has to ask in. dbg_for answers "none" for shc and
     // is right to; a front end that reads that as a refusal refuses the one
     // language that needs nothing installed.
-    check(ed1_debugger_stops_itself(editor::ToolShc) != 0,
+    check(rstudio_debugger_stops_itself(editor::ToolShc) != 0,
           "a Shalimar program is known to stop itself");
-    check(ed1_debugger_stops_itself(editor::ToolCc1) == 0 &&
-              ed1_debugger_stops_itself(editor::ToolMsvc) == 0 &&
-              ed1_debugger_stops_itself(editor::ToolCxx) == 0,
+    check(rstudio_debugger_stops_itself(editor::ToolCc1) == 0 &&
+              rstudio_debugger_stops_itself(editor::ToolMsvc) == 0 &&
+              rstudio_debugger_stops_itself(editor::ToolCxx) == 0,
           "and nothing else is - the other three need a debugger");
-    check(ed1_debugger_for(editor::ToolShc, editor::hostArch()) == 0,
+    check(rstudio_debugger_for(editor::ToolShc, editor::hostArch()) == 0,
           "there is no gdb, lldb or cdb in it at all");
 
     // And when something does ask in the wrong order, what it is told names
     // shc rather than the compiler that has nothing to do with it. This used
     // to answer with cc1's MASM, which is a sentence about another language.
-    check(std::string(ed1_no_debugger_because(editor::ToolShc, editor::hostArch()))
+    check(std::string(rstudio_no_debugger_because(editor::ToolShc, editor::hostArch()))
               .find("stops itself") != std::string::npos,
           "and asking why there is no debugger says so, naming no other compiler");
 
     // The two release refusals are different sentences because they are
     // different facts: one build is missing -g and the other never had one.
-    check(std::string(ed1_release_cannot_stop(editor::ToolShc)).find("no debugger in it") !=
+    check(std::string(rstudio_release_cannot_stop(editor::ToolShc)).find("no debugger in it") !=
               std::string::npos,
           "release says what a Shalimar build has not got");
-    check(std::string(ed1_release_cannot_stop(editor::ToolCc1)).find("-g") !=
+    check(std::string(rstudio_release_cannot_stop(editor::ToolCc1)).find("-g") !=
               std::string::npos,
           "where a C build says what was left out of it");
-    check(std::string(ed1_why_it_did_not_start(editor::ToolShc, editor::hostArch()))
+    check(std::string(rstudio_why_it_did_not_start(editor::ToolShc, editor::hostArch()))
               .find("did not arm") != std::string::npos,
           "and a start that failed is a program that did not arm, not a debugger to install");
 
     // Nothing is running yet, so nothing is refused yet: the window may put a
     // watch down before it starts, as the terminal may.
-    Ed1Debugger* idle = ed1_debugger_new();
-    check(std::string(ed1_cannot_watch(idle)).empty(),
+    RStudioDebugger* idle = rstudio_debugger_new();
+    check(std::string(rstudio_cannot_watch(idle)).empty(),
           "with nothing running, watching is not refused");
-    check(std::string(ed1_locals_none_because(idle)) == "  (nothing in scope here)",
+    check(std::string(rstudio_locals_none_because(idle)) == "  (nothing in scope here)",
           "and an empty scope is this place having none");
-    ed1_debugger_free(idle);
+    rstudio_debugger_free(idle);
 
     const char* shc = std::getenv("SHC");
     if (!shc || !*shc) {
@@ -3761,70 +3761,70 @@ void theWindowStoppingShalimar() {
     // Built through the bridge, exactly as the window builds it - and in the
     // debug configuration, which for shc is what --debug means: the compiler's
     // output is the same either way and the runtime archive is not.
-    Ed1Program* built = ed1_build_program("cc1", "cl", shc, editor::ToolShc, source.c_str(),
+    RStudioProgram* built = rstudio_build_program("cc1", "cl", shc, editor::ToolShc, source.c_str(),
                                           editor::LangShalimar, editor::hostArch(),
                                           editor::ConfigDebug);
-    check(ed1_program_ok(built) != 0, "the window's build makes a program");
-    if (ed1_program_ok(built) == 0) {
-        std::printf("   it said: %s\n", ed1_program_output(built));
-        ed1_program_free(built);
+    check(rstudio_program_ok(built) != 0, "the window's build makes a program");
+    if (rstudio_program_ok(built) == 0) {
+        std::printf("   it said: %s\n", rstudio_program_output(built));
+        rstudio_program_free(built);
         editor::path::removeTree(dir);
         return;
     }
 
-    Ed1Debugger* debugger = ed1_debugger_new();
-    check(ed1_debugger_start(debugger, editor::ToolShc, editor::hostArch(),
-                             ed1_program_path(built)) != 0,
+    RStudioDebugger* debugger = rstudio_debugger_new();
+    check(rstudio_debugger_start(debugger, editor::ToolShc, editor::hostArch(),
+                             rstudio_program_path(built)) != 0,
           "the program starts with its session armed");
-    check(ed1_debugger_running(debugger) != 0,
+    check(rstudio_debugger_running(debugger) != 0,
           "and the window is told something is running, as it is for the other three");
-    check(ed1_debugging_shalimar(debugger) != 0, "and which of the two halves it is");
+    check(rstudio_debugging_shalimar(debugger) != 0, "and which of the two halves it is");
 
-    check(ed1_debugger_break(debugger, source.c_str(), 8) != 0,
+    check(rstudio_debugger_break(debugger, source.c_str(), 8) != 0,
           "a breakpoint is set by file and line");
-    ed1_debugger_run(debugger);
-    check(ed1_stop_stopped(debugger) != 0 && ed1_stop_line(debugger) == 8,
+    rstudio_debugger_run(debugger);
+    check(rstudio_stop_stopped(debugger) != 0 && rstudio_stop_line(debugger) == 8,
           "running stops on the line it was set on");
-    check(std::string(editor::path::filename(ed1_stop_file(debugger))) == "steps.shl",
+    check(std::string(editor::path::filename(rstudio_stop_file(debugger))) == "steps.shl",
           "in the file it was set in");
 
     // The three things this cannot do, each said rather than left blank. An
     // empty variable list would read as "this line has none".
-    check(ed1_locals_count(debugger) == 0, "there are no variables to read");
-    check(std::string(ed1_locals_none_because(debugger)).find("not what is in it") !=
+    check(rstudio_locals_count(debugger) == 0, "there are no variables to read");
+    check(std::string(rstudio_locals_none_because(debugger)).find("not what is in it") !=
               std::string::npos,
           "and the tab is given the reason there are none, not an empty list");
-    check(std::string(ed1_cannot_watch(debugger)).find("nothing to watch with") !=
+    check(std::string(rstudio_cannot_watch(debugger)).find("nothing to watch with") !=
               std::string::npos,
           "watching is refused in the same voice");
-    check(std::string(ed1_cannot_walk_stack(debugger)).find("how deep it is") !=
+    check(std::string(rstudio_cannot_walk_stack(debugger)).find("how deep it is") !=
               std::string::npos,
           "and so is walking the stack");
 
-    check(ed1_stack_count(debugger) == 1, "one frame: where it is standing");
-    check(std::string(ed1_stack_function(debugger, 0)).find("1 call") != std::string::npos,
+    check(rstudio_stack_count(debugger) == 1, "one frame: where it is standing");
+    check(std::string(rstudio_stack_function(debugger, 0)).find("1 call") != std::string::npos,
           "which says how deep it is rather than inventing a name for it");
 
-    ed1_debugger_step_into(debugger);
-    check(ed1_stop_stopped(debugger) != 0 && ed1_stop_line(debugger) == 2,
+    rstudio_debugger_step_into(debugger);
+    check(rstudio_stop_stopped(debugger) != 0 && rstudio_stop_line(debugger) == 2,
           "stepping into the call reaches its first line");
-    ed1_debugger_step_out(debugger);
-    check(ed1_stop_stopped(debugger) != 0 && ed1_stop_line(debugger) == 9,
+    rstudio_debugger_step_out(debugger);
+    check(rstudio_stop_stopped(debugger) != 0 && rstudio_stop_line(debugger) == 9,
           "and stepping out comes back to the statement after the call");
 
-    ed1_debugger_step_over(debugger);
-    check(ed1_stop_exited(debugger) != 0, "carrying on from the last statement ends it");
+    rstudio_debugger_step_over(debugger);
+    check(rstudio_stop_exited(debugger) != 0, "carrying on from the last statement ends it");
 
     // The last thing it printed comes back with the stop that says it ended -
     // and unfiltered, which is what ownsTheStop is for. Running has gone false
     // by now, the channel having closed with the program.
-    check(std::string(ed1_stop_output(debugger)).find("2") != std::string::npos,
+    check(std::string(rstudio_stop_output(debugger)).find("2") != std::string::npos,
           "and what it printed on the way out reaches the console");
-    check(ed1_debugger_running(debugger) == 0, "with nothing running afterwards");
+    check(rstudio_debugger_running(debugger) == 0, "with nothing running afterwards");
 
-    ed1_debugger_stop(debugger);
-    ed1_debugger_free(debugger);
-    ed1_program_free(built);
+    rstudio_debugger_stop(debugger);
+    rstudio_debugger_free(debugger);
+    rstudio_program_free(built);
     editor::path::removeTree(dir);
 }
 
@@ -3846,23 +3846,23 @@ void theWindowsProjectDebug() {
                 "  \"build\": { \"target\": \"sums\", \"groups\": [\"Sources\"] }\n}\n");
 
     const std::string host = editor::hostArch();
-    Ed1Project* project = ed1_project_new();
+    RStudioProject* project = rstudio_project_new();
     char trouble[512] = {0};
-    check(ed1_project_load(project, dir.string().c_str(), trouble, sizeof trouble) != 0,
+    check(rstudio_project_load(project, dir.string().c_str(), trouble, sizeof trouble) != 0,
           "a project that says what it builds loads");
 
-    int can = ed1_project_debug_plan(project, "cc1", "cl", "shc", editor::ToolAuto,
+    int can = rstudio_project_debug_plan(project, "cc1", "cl", "shc", editor::ToolAuto,
                                      host.c_str());
-    if (ed1_debugger_for(editor::ToolCc1, host.c_str()) == 0) {
+    if (rstudio_debugger_for(editor::ToolCc1, host.c_str()) == 0) {
         // Windows, where cc1 generates MASM and MASM carries no line table.
         check(can == 0, "a C project cannot be debugged where nothing reads what cc1 writes");
-        check(std::string(ed1_project_why_not_debug(project)).find("MASM") != std::string::npos,
+        check(std::string(rstudio_project_why_not_debug(project)).find("MASM") != std::string::npos,
               "and the reason names the MASM that has no line table");
     } else {
         check(can != 0, "a C project can be debugged where cc1's DWARF can be read");
-        check(ed1_project_debug_kind(project) == editor::ToolCc1,
+        check(rstudio_project_debug_kind(project) == editor::ToolCc1,
               "through cc1, whose debug information it is");
-        check(ed1_project_blind_groups(project) == 0,
+        check(rstudio_project_blind_groups(project) == 0,
               "with no group the debugger would be blind in");
     }
 
@@ -3875,26 +3875,26 @@ void theWindowsProjectDebug() {
                 "{\n  \"name\": \"sums\",\n"
                 "  \"groups\": { \"Sources\": [\"add.c\", \"main.c\", \"extra.cpp\"] },\n"
                 "  \"build\": { \"target\": \"sums\", \"groups\": [\"Sources\"] }\n}\n");
-    check(ed1_project_load(project, dir.string().c_str(), trouble, sizeof trouble) != 0,
+    check(rstudio_project_load(project, dir.string().c_str(), trouble, sizeof trouble) != 0,
           "a project of both languages loads");
-    can = ed1_project_debug_plan(project, "cc1", "cl", "shc", editor::ToolAuto, host.c_str());
+    can = rstudio_project_debug_plan(project, "cc1", "cl", "shc", editor::ToolAuto, host.c_str());
 
-    int parts = ed1_project_target_parts(project);
+    int parts = rstudio_project_target_parts(project);
     int sightless = 0;
     for (int i = 0; i < parts; ++i) {
-        int theirs = ed1_project_part_toolchain(project, i, "cc1", "cl", "shc",
+        int theirs = rstudio_project_part_toolchain(project, i, "cc1", "cl", "shc",
                                                 editor::ToolAuto);
-        if (ed1_debugger_for(theirs, host.c_str()) == 0) ++sightless;
+        if (rstudio_debugger_for(theirs, host.c_str()) == 0) ++sightless;
     }
-    check(ed1_project_blind_groups(project) == sightless,
+    check(rstudio_project_blind_groups(project) == sightless,
           "every part with no debugger of its own is named as one the debugger is blind in");
     check(can != 0 || sightless == parts,
           "and the program is refused only when none of its parts can be seen at all");
     if (can != 0)
-        check(ed1_debugger_for(ed1_project_debug_kind(project), host.c_str()) != 0,
+        check(rstudio_debugger_for(rstudio_project_debug_kind(project), host.c_str()) != 0,
               "the compiler chosen to read is one whose debug information can be read");
 
-    ed1_project_free(project);
+    rstudio_project_free(project);
     file::remove_all(dir);
 
     // Shalimar, which is the case none of the above describes: no debugger
@@ -3921,51 +3921,51 @@ void theWindowsProjectDebug() {
                 "  \"groups\": { \"Sources\": [\"steps.shl\"] },\n"
                 "  \"build\": { \"target\": \"steps\", \"groups\": [\"Sources\"] }\n}\n");
 
-    Ed1Project* shm = ed1_project_new();
-    check(ed1_project_load(shm, shmDir.string().c_str(), trouble, sizeof trouble) != 0,
+    RStudioProject* shm = rstudio_project_new();
+    check(rstudio_project_load(shm, shmDir.string().c_str(), trouble, sizeof trouble) != 0,
           "a Shalimar project loads");
-    check(ed1_project_debug_plan(shm, "cc1", "cl", shc && *shc ? shc : "shc",
+    check(rstudio_project_debug_plan(shm, "cc1", "cl", shc && *shc ? shc : "shc",
                                  editor::ToolAuto, host.c_str()) != 0,
           "and can be debugged on every machine, needing nothing installed");
-    check(ed1_project_debug_kind(shm) == editor::ToolShc, "by shc, which reads nothing");
+    check(rstudio_project_debug_kind(shm) == editor::ToolShc, "by shc, which reads nothing");
 
     // The fix this test exists for. The walk over the parts puts every group
     // with no debugger into the blind list, and shc has none - so a Shalimar
     // project was told its own group carried no debug information and that the
     // debugger could not stop in it, immediately before stopping in it.
-    check(ed1_project_blind_groups(shm) == 0,
+    check(rstudio_project_blind_groups(shm) == 0,
           "and is not warned that the debugger cannot stop where it is about to stop");
 
     if (shc && *shc) {
         // And the whole of the window's new path: build the project's program,
         // attach to that rather than to a temporary one, and stop in it.
-        Ed1Build* made = ed1_build_target(shm, "cc1", "cl", shc, editor::ToolAuto,
+        RStudioBuild* made = rstudio_build_target(shm, "cc1", "cl", shc, editor::ToolAuto,
                                           host.c_str(), editor::ConfigDebug);
-        check(made != nullptr && ed1_build_ok(made) != 0, "the project's program builds");
-        if (made != nullptr && ed1_build_ok(made) != 0) {
-            std::string program = ed1_project_target_program(shm);
+        check(made != nullptr && rstudio_build_ok(made) != 0, "the project's program builds");
+        if (made != nullptr && rstudio_build_ok(made) != 0) {
+            std::string program = rstudio_project_target_program(shm);
             check(editor::path::exists(program),
                   "and is left where the project keeps it, for a debugger to open");
 
-            Ed1Debugger* debugger = ed1_debugger_new();
-            check(ed1_debugger_start(debugger, ed1_project_debug_kind(shm), host.c_str(),
+            RStudioDebugger* debugger = rstudio_debugger_new();
+            check(rstudio_debugger_start(debugger, rstudio_project_debug_kind(shm), host.c_str(),
                                      program.c_str()) != 0,
                   "the session starts on the project's own program");
-            check(ed1_debugger_break(debugger,
+            check(rstudio_debugger_break(debugger,
                                      (shmDir / "steps.shl").string().c_str(), 8) != 0,
                   "a breakpoint is set in one of its files");
-            ed1_debugger_run(debugger);
-            check(ed1_stop_stopped(debugger) != 0 && ed1_stop_line(debugger) == 8,
+            rstudio_debugger_run(debugger);
+            check(rstudio_stop_stopped(debugger) != 0 && rstudio_stop_line(debugger) == 8,
                   "and it stops there");
-            ed1_debugger_stop(debugger);
-            ed1_debugger_free(debugger);
+            rstudio_debugger_stop(debugger);
+            rstudio_debugger_free(debugger);
         }
-        if (made != nullptr) ed1_build_free(made);
+        if (made != nullptr) rstudio_build_free(made);
     } else {
         std::printf("  (no $SHC, so the project's program is not built and stopped)\n");
     }
 
-    ed1_project_free(shm);
+    rstudio_project_free(shm);
     file::remove_all(shmDir);
 }
 

@@ -104,7 +104,7 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
-public class Ed1Window {
+public class RStudioWindow {
     [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint flags);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc callback, IntPtr p);
@@ -152,18 +152,18 @@ Start-Sleep -Seconds 6
 
 # The one top-level window of that process wide enough to be the editor.
 $script:handle = [IntPtr]::Zero
-$look = [Ed1Window+EnumProc]{
+$look = [RStudioWindow+EnumProc]{
     param($window, $unused)
     $owner = 0
-    [void][Ed1Window]::GetWindowThreadProcessId($window, [ref]$owner)
+    [void][RStudioWindow]::GetWindowThreadProcessId($window, [ref]$owner)
     if ($owner -eq $editorProcess.Id) {
-        $box = New-Object Ed1Window+RECT
-        [void][Ed1Window]::GetWindowRect($window, [ref]$box)
+        $box = New-Object RStudioWindow+RECT
+        [void][RStudioWindow]::GetWindowRect($window, [ref]$box)
         if (($box.R - $box.L) -gt 300) { $script:handle = $window; return $false }
     }
     return $true
 }
-[void][Ed1Window]::EnumWindows($look, [IntPtr]::Zero)
+[void][RStudioWindow]::EnumWindows($look, [IntPtr]::Zero)
 
 if ($script:handle -eq [IntPtr]::Zero) {
     Write-Error "the editor started but has no window - is this an interactive session?"
@@ -171,7 +171,7 @@ if ($script:handle -eq [IntPtr]::Zero) {
     exit 1
 }
 
-[void][Ed1Window]::SetForegroundWindow($script:handle)
+[void][RStudioWindow]::SetForegroundWindow($script:handle)
 Start-Sleep -Milliseconds 700
 
 if ($Build) {
@@ -202,8 +202,8 @@ if ($Panel -ne "") {
     Start-Sleep -Milliseconds 600
 }
 
-$box = New-Object Ed1Window+RECT
-[void][Ed1Window]::GetWindowRect($script:handle, [ref]$box)
+$box = New-Object RStudioWindow+RECT
+[void][RStudioWindow]::GetWindowRect($script:handle, [ref]$box)
 
 if ($WithDialogs) {
     $wide = $box.R - $box.L
@@ -226,7 +226,7 @@ $picture = New-Object System.Drawing.Bitmap ($box.R - $box.L), ($box.B - $box.T)
 $canvas = [System.Drawing.Graphics]::FromImage($picture)
 $deviceContext = $canvas.GetHdc()
 # 2 is PW_RENDERFULLCONTENT, which is what gets the text rather than a blank.
-[void][Ed1Window]::PrintWindow($script:handle, $deviceContext, 2)
+[void][RStudioWindow]::PrintWindow($script:handle, $deviceContext, 2)
 $canvas.ReleaseHdc($deviceContext)
 $picture.Save($Out, [System.Drawing.Imaging.ImageFormat]::Png)
 $canvas.Dispose()

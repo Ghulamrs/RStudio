@@ -34,7 +34,7 @@ int main(array<String^>^ arguments) {
     // Its own debugger, since the machine has none.
     // Its own debugger. There is none installed on the machine this is built
     // for, and a crash with no stack is a crash you cannot fix.
-    ed1_watch_for_faults("ed1-fault.log");
+    rstudio_watch_for_faults("ed1-fault.log");
     AppDomain::CurrentDomain->UnhandledException +=
         gcnew UnhandledExceptionEventHandler(OnUnhandled);
 
@@ -51,7 +51,7 @@ int main(array<String^>^ arguments) {
         for (int i = 1; i < arguments->Length; ++i) files[i - 1] = arguments[i];
 
         Note("building the window");
-        ed1gui::MainForm^ window = gcnew ed1gui::MainForm(directory, files);
+        rstudiogui::MainForm^ window = gcnew rstudiogui::MainForm(directory, files);
         Note("window built, running");
         Application::Run(window);
         Note("closed cleanly");

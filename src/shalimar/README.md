@@ -50,10 +50,10 @@ actually running.
 **The window reaches it through `winforms/bridge.cpp`**, which holds a
 `Session` beside the `Debugger` and asks which of the two is live — the same
 question `Editor` asks, in the same words, so there is one answer and not two.
-`ed1_debugger_start` takes the compiler and the target rather than a debugger
+`rstudio_debugger_start` takes the compiler and the target rather than a debugger
 for that reason: the choosing is native, and the form never learns there are
 two halves. `theWindowStoppingShalimar()` in `tests/test.cpp` drives the whole
-of it through `ed1_` calls, and it stops a program on Windows, where cc1's own
+of it through `rstudio_` calls, and it stops a program on Windows, where cc1's own
 debugging cannot go at all.
 
 Three things the routing had to say rather than assume:
