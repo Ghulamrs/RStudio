@@ -229,7 +229,7 @@ file::path freshProject(const std::string& name) {
     file::path dir = file::temp_directory_path() / ("rstudio-session-" + name);
     file::remove_all(dir);
     file::create_directories(dir / "src");
-    writeFile(dir / "rstudio.json",
+    writeFile(dir / "RStudio.json",
               "{\n  \"name\": \"Trial\",\n  \"indent\": 4,\n"
               "  \"groups\": { \"Sources\": [] }\n}\n");
     return dir;
@@ -310,7 +310,7 @@ void fileCommands(const std::string& rstudio) {
     drive(rstudio, project, toProject + times(kDown, 5) + kEnter + "src/made.c" + kEnter + ctrl('q'),
           dir);
     check(file::exists(dir / "src" / "made.c"), "New file makes the file");
-    check(readFile(dir / "rstudio.json").find("src/made.c") != std::string::npos,
+    check(readFile(dir / "RStudio.json").find("src/made.c") != std::string::npos,
           "and puts it in the project");
 
     // A path two directories deep is refused, and nothing is written.
@@ -325,13 +325,13 @@ void fileCommands(const std::string& rstudio) {
           toProject + times(kDown, 6) + kEnter + "src/moved.c" + kEnter + ctrl('q'), dir);
     check(!file::exists(dir / "src" / "made.c"), "Rename takes the old name away");
     check(file::exists(dir / "src" / "moved.c"), "and puts the new one there");
-    check(readFile(dir / "rstudio.json").find("src/moved.c") != std::string::npos,
+    check(readFile(dir / "RStudio.json").find("src/moved.c") != std::string::npos,
           "and the project follows it");
 
     // Move to group... changes the project and nothing on disk.
     drive(rstudio, "\"" + (dir / "src" / "moved.c").string() + "\"" + project,
           toProject + times(kDown, 7) + kEnter + "Extras" + kEnter + ctrl('q'), dir);
-    std::string written = readFile(dir / "rstudio.json");
+    std::string written = readFile(dir / "RStudio.json");
     check(written.find("Extras") != std::string::npos, "regrouping makes the group");
     check(file::exists(dir / "src" / "moved.c"), "and leaves the file where it was");
 
@@ -343,7 +343,7 @@ void fileCommands(const std::string& rstudio) {
     drive(rstudio, "\"" + (dir / "src" / "moved.c").string() + "\"" + project,
           toProject + times(kDown, 8) + kEnter + "yes" + kEnter + ctrl('q'), dir);
     check(!file::exists(dir / "src" / "moved.c"), "and answered with yes deletes it");
-    check(readFile(dir / "rstudio.json").find("src/moved.c") == std::string::npos,
+    check(readFile(dir / "RStudio.json").find("src/moved.c") == std::string::npos,
           "and takes it out of the project too");
 
     file::remove_all(dir);
@@ -449,7 +449,7 @@ void leavingWithChanges(const std::string& rstudio) {
     file::path two = dir / "src" / "two.c";
     writeFile(one, "int one(void) { return 1; }\n");
     writeFile(two, "int two(void) { return 2; }\n");
-    writeFile(dir / "rstudio.json",
+    writeFile(dir / "RStudio.json",
               "{\n  \"name\": \"leaving\",\n"
               "  \"groups\": { \"Sources\": [\"src/one.c\", \"src/two.c\"] }\n}\n");
 
@@ -652,7 +652,7 @@ void closingTheProject(const std::string& rstudio) {
     file::path dir = freshProject("closing");
     writeFile(dir / "src" / "one.c", "int one(void) { return 1; }\n");
     writeFile(dir / "src" / "two.c", "int two(void) { return 2; }\n");
-    writeFile(dir / "rstudio.json",
+    writeFile(dir / "RStudio.json",
               "{\n  \"name\": \"Closes\",\n"
               "  \"groups\": { \"First\": [\"src/one.c\", \"src/two.c\"] }\n}\n");
 
@@ -665,7 +665,7 @@ void closingTheProject(const std::string& rstudio) {
     Screen before = drive(rstudio, opened, ctrl('q'), dir);
     check(onScreen(before, "- First"), "the group is shown while the project is open");
     // By its own name, not by the path the project file writes: the pane
-    // shows "two.c" where rstudio.json says "src/two.c".
+    // shows "two.c" where RStudio.json says "src/two.c".
     check(onScreen(before, "two.c"), "and so is a file that is not the one being edited");
     check(!onScreen(before, "src/two.c"), "named without the directory it sits in");
 
@@ -677,8 +677,8 @@ void closingTheProject(const std::string& rstudio) {
 
     // The file on disk is not touched. Closing a project is a change to what
     // is being looked at, and this is the check that keeps it that way.
-    check(readFile(dir / "rstudio.json").find("src/two.c") != std::string::npos,
-          "and rstudio.json still says everything it said before");
+    check(readFile(dir / "RStudio.json").find("src/two.c") != std::string::npos,
+          "and RStudio.json still says everything it said before");
 
     // File menu, fifth item - Close. No kRight: the menu reopens on the column
     // it was left on, so walking right again would land somewhere else.
@@ -715,7 +715,7 @@ void thePicker(const std::string& rstudio) {
     check(onScreen(listed, "Open"), "the question is asked in its own box");
     check(onScreen(listed, "src/"), "and a directory is offered, with a slash");
 
-    // Into src/ - past rstudio.json, which sorts first - and what is inside is
+    // Into src/ - past RStudio.json, which sorts first - and what is inside is
     // what the list becomes.
     const std::string intoSrc = toOpen + kDown + kEnter;
     Screen inside = drive(rstudio, project, intoSrc + ctrl('q'), dir);
@@ -748,10 +748,10 @@ void pickingAProject(const std::string& rstudio) {
     file::create_directories(parent / "beta");
     file::create_directories(parent / "plain");
     writeFile(parent / "alpha" / "a.c", "int a(void) { return 1; }\n");
-    writeFile(parent / "alpha" / "rstudio.json",
+    writeFile(parent / "alpha" / "RStudio.json",
               "{\n  \"name\": \"Alpha\",\n  \"groups\": { \"Sources\": [\"a.c\"] }\n}\n");
     writeFile(parent / "beta" / "b.c", "int b(void) { return 2; }\n");
-    writeFile(parent / "beta" / "rstudio.json",
+    writeFile(parent / "beta" / "RStudio.json",
               "{\n  \"name\": \"Beta\",\n  \"groups\": { \"Sources\": [\"b.c\"] }\n}\n");
 
     std::string here = " --project \"" + parent.string() + "\"";
@@ -764,7 +764,7 @@ void pickingAProject(const std::string& rstudio) {
     check(onScreen(listed, "alpha/"), "and the directories are offered");
     check(onScreen(listed, "beta/"), "all of them");
 
-    // Down twice from "./" is beta/, and it holds an rstudio.json, so picking it
+    // Down twice from "./" is beta/, and it holds an RStudio.json, so picking it
     // opens it rather than looking inside it.
     Screen went = drive(rstudio, here, toOpenProject + times(kDown, 2) + kEnter + ctrl('q'), parent);
     check(onScreen(went, "Beta"), "picking a directory that is a project opens it");
@@ -778,7 +778,7 @@ void projectPane(const std::string& rstudio) {
     file::path dir = freshProject("pane");
     writeFile(dir / "src" / "one.c", "int one(void) { return 1; }\n");
     writeFile(dir / "src" / "two.c", "int two(void) { return 2; }\n");
-    writeFile(dir / "rstudio.json",
+    writeFile(dir / "RStudio.json",
               "{\n  \"name\": \"Panes\",\n  \"indent\": 2,\n"
               "  \"groups\": { \"First\": [\"src/one.c\"], \"Second\": [\"src/two.c\"] }\n}\n");
 
@@ -900,7 +900,7 @@ void buildingTheProject(const std::string& rstudio, const std::string& cc1) {
     writeFile(dir / "src" / "main.c",
               "#include <stdio.h>\n\n#include \"sum.h\"\n\n"
               "int main(void)\n{\n    printf(\"answer %d\\n\", addUp(2, 40));\n    return 0;\n}\n");
-    writeFile(dir / "rstudio.json",
+    writeFile(dir / "RStudio.json",
               "{\n  \"name\": \"sums\",\n  \"indent\": 4,\n"
               "  \"groups\": {\n"
               "    \"Sources\": [\"src/sum.c\", \"src/main.c\"],\n"
@@ -984,7 +984,7 @@ void buildingTheProject(const std::string& rstudio, const std::string& cc1) {
               "    return 0;\n}\n");
     writeFile(dir / "src" / "extra.cpp",
               "extern \"C\" int twice(int n) { return n * 2; }\n");
-    writeFile(dir / "rstudio.json",
+    writeFile(dir / "RStudio.json",
               "{\n  \"name\": \"sums\",\n  \"indent\": 4,\n"
               "  \"groups\": {\n"
               "    \"Sources\": [\"src/sum.c\", \"src/main.c\", \"src/extra.cpp\"]\n  },\n"
@@ -1071,7 +1071,7 @@ void configurations(const std::string& rstudio, const std::string& cc1) {
     check(onScreen(shownDebug, "debug"), "and debug is what it starts in");
 
     // The project file remembers it.
-    writeFile(dir / "rstudio.json",
+    writeFile(dir / "RStudio.json",
               "{\n  \"name\": \"Conf\",\n  \"config\": \"release\",\n"
               "  \"groups\": { \"Sources\": [] }\n}\n");
     Screen fromFile = drive(rstudio, common, ctrl('q'), dir);
@@ -1595,9 +1595,9 @@ void aDirectoryWithNoProject(const std::string& rstudio) {
     check(onScreen(about, "Islamabad"), "and where they are, which the last line must not lose");
 
     // A project file that will not parse is somebody's work and is left alone.
-    writeFile(dir / "rstudio.json", "{ this is not json\n");
+    writeFile(dir / "RStudio.json", "{ this is not json\n");
     Screen broken = drive(rstudio, "--project \"" + dir.string() + "\"", ctrl('q'), dir);
-    check(readFile(dir / "rstudio.json").find("not json") != std::string::npos,
+    check(readFile(dir / "RStudio.json").find("not json") != std::string::npos,
           "a project file that will not parse is not written over");
     check(!wasShown(broken, "so one was made"), "and nothing is made in its place");
 
@@ -1695,7 +1695,7 @@ void aShalimarProject(const std::string& rstudio, const std::string& shc) {
     file::path dir = freshProject("shmproject");
     writeFile(dir / "src" / "hello.shl",
               "fun <> = main() {\n  ? 6 * 7\n}\n");
-    writeFile(dir / "rstudio.json",
+    writeFile(dir / "RStudio.json",
               "{\n"
               "  \"name\": \"hello\",\n"
               "  \"build\": { \"target\": \"hello\", \"groups\": [\"Sources\"] },\n"
@@ -1715,7 +1715,7 @@ void aShalimarProject(const std::string& rstudio, const std::string& shc) {
 
     // A second program in the group, and the target names the first.
     writeFile(dir / "src" / "other.shl", "fun <> = main() {\n  ? 1\n}\n");
-    writeFile(dir / "rstudio.json",
+    writeFile(dir / "RStudio.json",
               "{\n"
               "  \"name\": \"hello\",\n"
               "  \"build\": { \"target\": \"hello\", \"groups\": [\"Sources\"] },\n"
@@ -1726,7 +1726,7 @@ void aShalimarProject(const std::string& rstudio, const std::string& shc) {
           "a target named after one of them builds that one");
 
     // And a target named after none of them is refused rather than guessed.
-    writeFile(dir / "rstudio.json",
+    writeFile(dir / "RStudio.json",
               "{\n"
               "  \"name\": \"hello\",\n"
               "  \"build\": { \"target\": \"neither\", \"groups\": [\"Sources\"] },\n"
@@ -1757,7 +1757,7 @@ void aShalimarProject(const std::string& rstudio, const std::string& shc) {
               "  ? area(6.0, 7.0)\n"
               "  ? nearly(0.1 + 0.2, 0.3)\n"
               "}\n");
-    writeFile(dir / "rstudio.json",
+    writeFile(dir / "RStudio.json",
               "{\n"
               "  \"name\": \"hello\",\n"
               "  \"build\": { \"target\": \"hello\", \"groups\": [\"Sources\"] },\n"
@@ -1776,7 +1776,7 @@ void aShalimarProject(const std::string& rstudio, const std::string& shc) {
     //
     // In one group: no compiler takes both, so naming one cannot help.
     writeFile(dir / "src" / "bit.c", "int bit(void) { return 1; }\n");
-    writeFile(dir / "rstudio.json",
+    writeFile(dir / "RStudio.json",
               "{\n"
               "  \"name\": \"hello\",\n"
               "  \"build\": { \"target\": \"hello\", \"groups\": [\"Sources\"] },\n"
@@ -1791,7 +1791,7 @@ void aShalimarProject(const std::string& rstudio, const std::string& shc) {
     // the same three startup symbols, so two of them collide - and the
     // language has no declarations, so a call across a link could not be
     // checked. Compiler-S/docs/LINKING.md has it in full.
-    writeFile(dir / "rstudio.json",
+    writeFile(dir / "RStudio.json",
               "{\n"
               "  \"name\": \"hello\",\n"
               "  \"build\": { \"target\": \"hello\", \"groups\": [\"Sources\", \"C\"] },\n"
@@ -1920,7 +1920,7 @@ void aCompilerPerGroup(const std::string& rstudio, const std::string& cc1) {
     // here, which is the point: it is two *parts* rather than two languages,
     // so the object-and-link path is what runs, on a machine where the whole
     // of it can be checked.
-    writeFile(dir / "rstudio.json",
+    writeFile(dir / "RStudio.json",
               "{\n  \"name\": \"two\",\n  \"indent\": 4,\n"
               "  \"groups\": {\n"
               "    \"Sources\": [\"src/main.c\"],\n"
@@ -1975,7 +1975,7 @@ void aCompilerPerGroup(const std::string& rstudio, const std::string& cc1) {
                   "    int total = 0;\n"
                   "    for (std::size_t i = 0; i < v.size(); ++i) total += v[i];\n"
                   "    return total;\n}\n");
-        writeFile(three / "rstudio.json",
+        writeFile(three / "RStudio.json",
                   "{\n  \"name\": \"three\",\n  \"indent\": 4,\n"
                   "  \"groups\": {\n"
                   "    \"Sources\": [\"src/main.c\"],\n"

@@ -998,7 +998,7 @@ void projects() {
     // object is a valid project.
     file::path tiny = dir / "tiny";
     file::create_directories(tiny);
-    { std::ofstream f((tiny / "rstudio.json").string().c_str()); f << "{}\n"; }
+    { std::ofstream f((tiny / "RStudio.json").string().c_str()); f << "{}\n"; }
     editor::Project small;
     check(small.load(tiny.string(), error), "an empty object is a project");
     check(error.empty() && small.indent().width == 4 && !small.indent().tabs,
@@ -1078,7 +1078,7 @@ void operations() {
     editor::Outcome loose = editor::createFile(none, "loose.c", "Sources");
     check(loose.ok, "a file can be made without a project");
     check(file::exists(bare / "loose.c"), "and it is really there");
-    check(!file::exists(bare / "RStudio.json") && !file::exists(bare / "rstudio.json"),
+    check(!file::exists(bare / "RStudio.json") && !file::exists(bare / "RStudio.json"),
           "and no project file was invented, under either name");
 
     file::remove_all(dir);
@@ -2483,7 +2483,7 @@ void theWindowsProjectBuild() {
     file::create_directories(dir);
     writeSource((dir / "add.c").string(), "int add(int a, int b) { return a + b; }\n");
     writeSource((dir / "main.c").string(), "int add(int, int);\nint main(void) { return add(1, 2); }\n");
-    writeSource((dir / "rstudio.json").string(),
+    writeSource((dir / "RStudio.json").string(),
                 "{\n  \"name\": \"sums\",\n"
                 "  \"groups\": { \"Sources\": [\"add.c\", \"main.c\"] },\n"
                 "  \"build\": { \"target\": \"sums\", \"groups\": [\"Sources\"] }\n}\n");
@@ -2503,7 +2503,7 @@ void theWindowsProjectBuild() {
     // what the terminal can: an editor with two front ends that disagree about
     // what a project is, is two editors.
     writeSource((dir / "extra.cpp").string(), "int twice(int n) { return n * 2; }\n");
-    writeSource((dir / "rstudio.json").string(),
+    writeSource((dir / "RStudio.json").string(),
                 "{\n  \"name\": \"sums\",\n"
                 "  \"groups\": { \"Sources\": [\"add.c\", \"main.c\", \"extra.cpp\"] },\n"
                 "  \"build\": { \"target\": \"sums\", \"groups\": [\"Sources\"] }\n}\n");
@@ -2526,7 +2526,7 @@ void theWindowsProjectBuild() {
     // A group that names its compiler is taken at its word, and the whole group
     // goes there - which is the override, and the only way to make one compiler
     // take another's language on purpose.
-    writeSource((dir / "rstudio.json").string(),
+    writeSource((dir / "RStudio.json").string(),
                 "{\n  \"name\": \"sums\",\n"
                 "  \"groups\": { \"Sources\": { \"files\": [\"add.c\", \"main.c\", "
                 "\"extra.cpp\"], \"toolchain\": \"cl\" } },\n"
@@ -2826,6 +2826,53 @@ void sayWhereHomeIs(const std::string& where) {
 #endif
 }
 
+// The project file's old name, which is a different promise from the settings
+// file's: a project written as ed1.json opens, and stays ed1.json. Nothing here
+// migrates, because the file is somebody else's - in their directory, quite
+// possibly in their version control.
+//
+// This had no test until 2026-08-23, and the gap cost an afternoon. Every case
+// in this file wrote its project as "ed1.json", so a rename that turned those
+// strings into the wrong case went unnoticed on a Mac - where the filesystem
+// does not care - and surfaced on Linux as four failures and a segfault, in a
+// test that had gone on using a project that never loaded.
+void theProjectFilesOldName() {
+    std::printf("a project written under the old name\n");
+
+    file::path dir = file::temp_directory_path() / "rstudio-former-name";
+    file::remove_all(dir);
+    file::create_directories(dir / "src");
+    writeSource((dir / "src" / "one.c").string(), "int one(void) { return 1; }\n");
+    writeSource((dir / "ed1.json").string(),
+                "{\n  \"name\": \"Older\",\n"
+                "  \"groups\": { \"Sources\": [\"src/one.c\"] }\n}\n");
+
+    std::string error;
+    editor::Project project;
+    check(project.load(dir.string(), error), "a project called ed1.json still opens");
+    check(project.name() == "Older", "with everything it said");
+    check(editor::path::filename(project.file()) == "ed1.json",
+          "and it knows which of the two names it was found under");
+
+    // Saving keeps it there, rather than leaving the directory holding both.
+    project.addFile("src/two.c", "Sources");
+    std::string why;
+    check(project.save(why), "it saves");
+    check(file::exists(dir / "ed1.json"), "back to the name it came from");
+    check(!file::exists(dir / "RStudio.json"), "and no second project file appears beside it");
+    check(readWholeFile((dir / "ed1.json").string()).find("src/two.c") != std::string::npos,
+          "with the change in it");
+
+    // The current name wins when a directory somehow holds both.
+    writeSource((dir / "RStudio.json").string(),
+                "{\n  \"name\": \"Newer\",\n  \"groups\": { \"Sources\": [] }\n}\n");
+    editor::Project both;
+    check(both.load(dir.string(), error), "a directory holding both loads");
+    check(both.name() == "Newer", "and the current name is the one that is read");
+
+    file::remove_all(dir);
+}
+
 void whatItRemembers() {
     std::printf("what it remembers, and where a first run opens\n");
 
@@ -2992,7 +3039,7 @@ void whatALinkFailureSays() {
     editor::path::removeTree(dir);
 }
 
-// A compiler per group: what rstudio.json says, what survives being written back,
+// A compiler per group: what RStudio.json says, what survives being written back,
 // and the two commands that used to be one.
 // The manual's contents, against the manual.
 //
@@ -3068,7 +3115,7 @@ void aCompilerPerGroup() {
     // Two spellings of a group, and the plain one is not deprecated: a project
     // written before any of this has to keep working, and has to keep looking
     // the way its author left it after the editor saves it.
-    writeSource((dir / "rstudio.json").string(),
+    writeSource((dir / "RStudio.json").string(),
                 "{\n  \"name\": \"mix\",\n"
                 "  \"groups\": {\n"
                 "    \"Sources\": [\"main.c\"],\n"
@@ -3105,7 +3152,7 @@ void aCompilerPerGroup() {
 
     // Written back: the plain group stays plain, the named one keeps its name.
     check(project.save(error), "it saves");
-    std::string written = readWholeFile((dir / "rstudio.json").string());
+    std::string written = readWholeFile((dir / "RStudio.json").string());
     check(written.find("\"Sources\"") != std::string::npos, "Sources is still there");
     // "msvc", not "cl": both are read and msvc is what the project file has
     // always written for that compiler, at the top level as well as here. One
@@ -3196,7 +3243,7 @@ void whatTheProjectBuilds() {
     file::remove_all(dir);
     file::create_directories(dir);
 
-    writeSource((dir / "rstudio.json").string(),
+    writeSource((dir / "RStudio.json").string(),
               "{\n"
               "  \"name\": \"sums\",\n"
               "  \"groups\": {\n"
@@ -3281,7 +3328,7 @@ void whatTheProjectBuilds() {
     file::path bare = file::temp_directory_path() / "rstudio-target-bare";
     file::remove_all(bare);
     file::create_directories(bare);
-    writeSource((bare / "rstudio.json").string(),
+    writeSource((bare / "RStudio.json").string(),
                 "{ \"name\": \"quiet\", \"groups\": { \"Sources\": [] } }\n");
     check(quiet.load(bare.string(), error), "a project with no build entry still loads");
     check(!quiet.builds(), "and says it builds nothing");
@@ -3478,7 +3525,7 @@ void theThirdLanguage() {
         writeSource(editor::path::join(dir, "src/other.shl"),
                     "fun <> = main() {\n  ? 2\n}\n");
 
-        writeSource(editor::path::join(dir, "rstudio.json"),
+        writeSource(editor::path::join(dir, "RStudio.json"),
                     "{\n  \"name\": \"hello\",\n"
                     "  \"build\": { \"target\": \"hello\", \"groups\": [\"Sources\"] },\n"
                     "  \"groups\": { \"Sources\": [\"src/hello.shl\"] }\n}\n");
@@ -3493,7 +3540,7 @@ void theThirdLanguage() {
         check(sources.size() == 1, "and is one source");
 
         // Two programs, and the target names one of them.
-        writeSource(editor::path::join(dir, "rstudio.json"),
+        writeSource(editor::path::join(dir, "RStudio.json"),
                     "{\n  \"name\": \"hello\",\n"
                     "  \"build\": { \"target\": \"hello\", \"groups\": [\"Sources\"] },\n"
                     "  \"groups\": { \"Sources\": [\"src/other.shl\", \"src/hello.shl\"] }\n}\n");
@@ -3506,7 +3553,7 @@ void theThirdLanguage() {
               "with the target's own first, not the one listed first");
 
         // Two programs and a target named after neither: refused, not guessed.
-        writeSource(editor::path::join(dir, "rstudio.json"),
+        writeSource(editor::path::join(dir, "RStudio.json"),
                     "{\n  \"name\": \"hello\",\n"
                     "  \"build\": { \"target\": \"neither\", \"groups\": [\"Sources\"] },\n"
                     "  \"groups\": { \"Sources\": [\"src/other.shl\", \"src/hello.shl\"] }\n}\n");
@@ -3523,7 +3570,7 @@ void theThirdLanguage() {
 
         // Shalimar beside C is the refusal C beside C++ already had.
         writeSource(editor::path::join(dir, "src/bit.c"), "int bit(void) { return 1; }\n");
-        writeSource(editor::path::join(dir, "rstudio.json"),
+        writeSource(editor::path::join(dir, "RStudio.json"),
                     "{\n  \"name\": \"hello\",\n"
                     "  \"build\": { \"target\": \"hello\", \"groups\": [\"Sources\"] },\n"
                     "  \"groups\": { \"Sources\": [\"src/hello.shl\", \"src/bit.c\"] }\n}\n");
@@ -3540,7 +3587,7 @@ void theThirdLanguage() {
         // three startup symbols whatever file it came from, so two of them
         // collide, and the language has no declarations, so a call across a
         // link could not be checked. Compiler-S/docs/LINKING.md, in full.
-        writeSource(editor::path::join(dir, "rstudio.json"),
+        writeSource(editor::path::join(dir, "RStudio.json"),
                     "{\n  \"name\": \"hello\",\n"
                     "  \"build\": { \"target\": \"hello\", \"groups\": [\"S\", \"C\"] },\n"
                     "  \"groups\": { \"S\": [\"src/hello.shl\"], \"C\": [\"src/bit.c\"] }\n}\n");
@@ -3849,7 +3896,7 @@ void theWindowsProjectDebug() {
     writeSource((dir / "add.c").string(), "int add(int a, int b) { return a + b; }\n");
     writeSource((dir / "main.c").string(),
                 "int add(int, int);\nint main(void) { return add(1, 2); }\n");
-    writeSource((dir / "rstudio.json").string(),
+    writeSource((dir / "RStudio.json").string(),
                 "{\n  \"name\": \"sums\",\n"
                 "  \"groups\": { \"Sources\": [\"add.c\", \"main.c\"] },\n"
                 "  \"build\": { \"target\": \"sums\", \"groups\": [\"Sources\"] }\n}\n");
@@ -3880,7 +3927,7 @@ void theWindowsProjectDebug() {
     // the rule rather than a number: every part with no debugger of its own is
     // named, and the one being read is a part that has one.
     writeSource((dir / "extra.cpp").string(), "int twice(int n) { return n * 2; }\n");
-    writeSource((dir / "rstudio.json").string(),
+    writeSource((dir / "RStudio.json").string(),
                 "{\n  \"name\": \"sums\",\n"
                 "  \"groups\": { \"Sources\": [\"add.c\", \"main.c\", \"extra.cpp\"] },\n"
                 "  \"build\": { \"target\": \"sums\", \"groups\": [\"Sources\"] }\n}\n");
@@ -3925,7 +3972,7 @@ void theWindowsProjectDebug() {
                 "  int b : twice(a)\n"
                 "  ? b\n"
                 "}\n");
-    writeSource((shmDir / "rstudio.json").string(),
+    writeSource((shmDir / "RStudio.json").string(),
                 "{\n  \"name\": \"steps\",\n"
                 "  \"groups\": { \"Sources\": [\"steps.shl\"] },\n"
                 "  \"build\": { \"target\": \"steps\", \"groups\": [\"Sources\"] }\n}\n");
@@ -3987,6 +4034,7 @@ int main(int argc, char** argv) {
     steppingOffTheEnd();
     aProjectMadeFromWhatIsThere();
     whatItRemembers();
+    theProjectFilesOldName();
     talkingToAChild();
     whatADebuggerSays();
     aStepThatWentNowhere();
