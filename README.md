@@ -1116,7 +1116,7 @@ to be respected, and each one was found the hard way:
 The second of those was found by giving the program its own debugger: there was
 no debugger on that machine at the time, so `bridge.cpp` installs a vectored
 exception handler
-that walks and symbolises its own stack into `ed1-fault.log`. It printed
+that walks and symbolises its own stack into `RStudioGui-fault.log`. It printed
 `Json::get -> atexit -> register_onexit_function -> RtlSizeHeap` and named the
 line.
 

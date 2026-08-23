@@ -363,7 +363,7 @@ std::string mine(const char* what) {
 }
 
 std::string programPath() {
-    std::string path = mine("ed1-run");
+    std::string path = mine("rstudio-run");
 #ifdef _WIN32
     path += ".exe";
 #endif
@@ -386,10 +386,10 @@ Recipe targetRecipe(const Toolchain& tool, ToolchainKind kind,
         // /Fo has to name a directory when there is more than one input, since
         // one object comes out per source. The objects are named after the
         // sources, so what to remove afterwards is known without looking.
-        std::string objects = mine("ed1-objs");
+        std::string objects = mine("rstudio-objs");
         path::makeDirectories(objects);
         std::string forLanguage = (lang == LangCpp) ? " /TP /EHsc /std:c++14" : " /TC";
-        std::string pdb = path::join(objects, "ed1-target.pdb");
+        std::string pdb = path::join(objects, "rstudio-target.pdb");
 
         recipe.command = quote(programOf(tool, kind)) + " /nologo /diagnostics:column" +
                          forLanguage + configFlags(kind, config, arch) +
@@ -509,7 +509,7 @@ Recipe objectRecipe(const Toolchain& tool, ToolchainKind kind,
         // the only thing here in a position to make them agree.
         std::string forLanguage = (lang == LangCpp) ? " /TP /EHsc /std:c++14" : " /TC";
         std::string crt = (config == ConfigDebug) ? " /MTd" : " /MT";
-        std::string pdb = path::join(objectDir, "ed1-target.pdb");
+        std::string pdb = path::join(objectDir, "rstudio-target.pdb");
 
         recipe.command = quote(programOf(tool, kind)) + " /nologo /diagnostics:column /c" +
                          forLanguage + crt + configFlags(kind, config, arch) +
@@ -593,12 +593,12 @@ Recipe programRecipe(const Toolchain& tool, ToolchainKind kind,
     if (kind == ToolMsvc) {
         // Without /c, cl compiles and links. /Fe names the program and /Fo the
         // object it goes through; the object is the editor's mess to clear up.
-        std::string obj = mine("ed1-run") + ".obj";
+        std::string obj = mine("rstudio-run") + ".obj";
         std::string forLanguage = (lang == LangCpp) ? " /TP /EHsc /std:c++14" : " /TC";
         // The .pdb goes where the program goes rather than beside the source,
         // and the linker is told as well as the compiler - /Zi alone describes
         // the object, and /DEBUG is what puts it in the program.
-        std::string pdb = mine("ed1-run") + ".pdb";
+        std::string pdb = mine("rstudio-run") + ".pdb";
         recipe.command = quote(program) + " /nologo /diagnostics:column" + forLanguage +
                          configFlags(kind, config, arch) +
                          (config == ConfigDebug ? " /Fd" + quote(pdb) : std::string()) +
@@ -608,7 +608,7 @@ Recipe programRecipe(const Toolchain& tool, ToolchainKind kind,
         recipe.leftovers.push_back(obj);
         if (config == ConfigDebug) {
             recipe.leftovers.push_back(pdb);
-            recipe.leftovers.push_back(mine("ed1-run") + ".ilk");
+            recipe.leftovers.push_back(mine("rstudio-run") + ".ilk");
         }
         return recipe;
     }
@@ -630,15 +630,15 @@ std::string shownProgramCommand(const Toolchain& tool, ToolchainKind kind,
     if (kind == ToolMsvc)
         return program + " /diagnostics:column" +
                ((lang == LangCpp) ? " /TP /EHsc /std:c++14" : " /TC") +
-               configFlags(kind, config, arch) + " /Feed1-run " + source;
-    return program + " " + source + " -o ed1-run" + configFlags(kind, config, arch);
+               configFlags(kind, config, arch) + " /Ferstudio-run " + source;
+    return program + " " + source + " -o rstudio-run" + configFlags(kind, config, arch);
 }
 
 Recipe assemblyRecipe(const Toolchain& tool, ToolchainKind kind,
                       const std::string& source, Language lang,
                       const std::string& arch, Configuration config) {
     Recipe recipe;
-    std::string stem = mine("ed1-build");
+    std::string stem = mine("rstudio-build");
     std::string program = programOf(tool, kind);
 
     if (kind == ToolMsvc) {

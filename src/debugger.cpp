@@ -278,9 +278,10 @@ bool cdbOwn(const std::string& line) {
     if (startsWith(bare, "Last event:")) return true;
     if (startsWith(bare, "debugger time:")) return true;
     if (startsWith(bare, "ModLoad:")) return true;
-    // "ed1_run_4116!main+0x2a:" - where it is, named by symbol.
+    // "rstudio_run_4116!main+0x2a:" - where it is, named by symbol. cdb
+    // writes the module name with underscores where the file has hyphens.
     if (bare.find('!') != std::string::npos && endsWith(bare, ':')) return true;
-    // "(00007ff6`...)   ed1_run!main+0x2a   |  (...)" - the frame either side.
+    // "(00007ff6`...)   rstudio_run!main+0x2a   |  (...)" - the frame either side.
     if (startsWith(bare, "(") && bare.find('!') != std::string::npos) return true;
     // "00007ff6`08a8718a 8b442420  mov  eax,..." - an instruction, which is
     // known by the backtick in the address cdb writes and nothing else does.

@@ -456,7 +456,7 @@ Built buildParts(const Toolchain& tool, const std::vector<Part>& parts,
         if (parts[i].lang == LangCpp) withCpp = true;
     }
 
-    std::string objects = temporaryDirectory("ed1-parts");
+    std::string objects = temporaryDirectory("rstudio-parts");
     path::makeDirectories(objects);
 
     std::vector<std::string> made;

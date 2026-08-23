@@ -561,10 +561,17 @@ void routing() {
 
     // Named for the editor that built it. It used to be one fixed name, so two
     // editors - or an editor and this suite - wrote to the same file.
-    size_t named = program.assemblyPath.find("ed1-run-");
+    const std::string stem = "rstudio-run-";
+    size_t named = program.assemblyPath.find(stem);
     check(named != std::string::npos, "and gives it a name of this editor's own");
-    check(named + 8 < program.assemblyPath.size() &&
-              program.assemblyPath[named + 8] >= '0' && program.assemblyPath[named + 8] <= '9',
+
+    // The digit sits straight after the stem, and the offset is taken from the
+    // stem's own length rather than written as a number. It was written as 8,
+    // which was the length of the name before this one, and it went on looking
+    // like a fact about process ids right up until the name changed.
+    size_t digit = named + stem.size();
+    check(digit < program.assemblyPath.size() &&
+              program.assemblyPath[digit] >= '0' && program.assemblyPath[digit] <= '9',
           "with the number that tells one editor's from another's");
     check(editor::emitsDebugInfo(editor::ToolCc1, host) ==
               (program.command.find("-g") != std::string::npos),
@@ -751,7 +758,7 @@ void undoing() {
 void savedState() {
     std::printf("knowing when the file matches the disk\n");
 
-    file::path dir = file::temp_directory_path() / "ed1-saved-test";
+    file::path dir = file::temp_directory_path() / "rstudio-saved-test";
     file::remove_all(dir);
     file::create_directories(dir);
 
@@ -898,7 +905,7 @@ void projects() {
     std::printf("the project\n");
 
     file::path dir =
-        file::temp_directory_path() / "ed1-project-test";
+        file::temp_directory_path() / "rstudio-project-test";
     file::remove_all(dir);
     file::create_directories(dir);
 
@@ -991,7 +998,7 @@ void projects() {
     // object is a valid project.
     file::path tiny = dir / "tiny";
     file::create_directories(tiny);
-    { std::ofstream f((tiny / "ed1.json").string().c_str()); f << "{}\n"; }
+    { std::ofstream f((tiny / "rstudio.json").string().c_str()); f << "{}\n"; }
     editor::Project small;
     check(small.load(tiny.string(), error), "an empty object is a project");
     check(error.empty() && small.indent().width == 4 && !small.indent().tabs,
@@ -1005,7 +1012,7 @@ void projects() {
 void operations() {
     std::printf("changing what the project holds\n");
 
-    file::path dir = file::temp_directory_path() / "ed1-workspace-test";
+    file::path dir = file::temp_directory_path() / "rstudio-workspace-test";
     file::remove_all(dir);
     file::create_directories(dir);
 
@@ -1071,7 +1078,7 @@ void operations() {
     editor::Outcome loose = editor::createFile(none, "loose.c", "Sources");
     check(loose.ok, "a file can be made without a project");
     check(file::exists(bare / "loose.c"), "and it is really there");
-    check(!file::exists(bare / "RStudio.json") && !file::exists(bare / "ed1.json"),
+    check(!file::exists(bare / "RStudio.json") && !file::exists(bare / "rstudio.json"),
           "and no project file was invented, under either name");
 
     file::remove_all(dir);
@@ -1191,7 +1198,7 @@ void paths() {
 
     // On disk. A directory made several deep at once, a file moved, a file
     // taken away, and the whole lot removed at the end.
-    std::string dir = p::join(p::tempDir(), "ed1-path-test");
+    std::string dir = p::join(p::tempDir(), "rstudio-path-test");
     p::removeTree(dir);
     check(!p::exists(dir), "the temporary directory starts absent");
 
@@ -1339,7 +1346,7 @@ void talkingToAChild() {
     editor::Process missing;
     // The shell is what fails here, not this - it is started either way and
     // says its piece on the same stream.
-    missing.start("no-such-program-ed1-test");
+    missing.start("no-such-program-rstudio-test");
     missing.readUntil("<<never>>", &found);
     check(!found, "a command that is not there answers nothing");
     missing.stop();
@@ -1924,7 +1931,7 @@ void debuggingForReal() {
         return;
     }
 
-    std::string dir = editor::path::join(editor::path::tempDir(), "ed1-debug-test");
+    std::string dir = editor::path::join(editor::path::tempDir(), "rstudio-debug-test");
     editor::path::removeTree(dir);
     editor::path::makeDirectories(dir);
 
@@ -2136,8 +2143,8 @@ void whatAConsoleAdds() {
     // The echo: a console gives back what was typed at it, so an answer starts
     // with its own question. Only the first line matching goes - a program
     // that prints the same word keeps it.
-    const std::string echoed = "p\r\nx = 3\r\n.printf \"<<ed1%cdone>>\\n\", 0x2d\r\n";
-    checkEqual(editor::dbg_withoutEcho(echoed, "p", ".printf \"<<ed1%cdone>>\\n\", 0x2d"),
+    const std::string echoed = "p\r\nx = 3\r\n.printf \"<<rstudio%cdone>>\\n\", 0x2d\r\n";
+    checkEqual(editor::dbg_withoutEcho(echoed, "p", ".printf \"<<rstudio%cdone>>\\n\", 0x2d"),
                "x = 3\n", "the question and the marker command come off the answer");
 
     const std::string twice = "g\r\ng\r\ng\r\n";
@@ -2162,29 +2169,29 @@ void whatTheProgramSaid() {
     const std::string lldbSaid =
         "\n(lldb) run\n"
         "MARKER-ONE\n"
-        "Process 10488 launched: '/var/folders/sb/T/ed1-run-10477' (arm64)\n"
+        "Process 10488 launched: '/var/folders/sb/T/rstudio-run-10477' (arm64)\n"
         "Process 10488 stopped\n"
         "* thread #1, queue = 'com.apple.main-thread', stop reason = breakpoint 1.1\n"
-        "    frame #0: 0x0000000100000470 ed1-run-10477`main at talker.c:8:5\n"
+        "    frame #0: 0x0000000100000470 rstudio-run-10477`main at talker.c:8:5\n"
         "   5   \tprintf(\"MARKER-ONE\\n\");\n"
         "   6   \tfflush(stdout);\n"
         "   7   \tint x = 1;\n"
         "-> 8   \tx = x + 1;\n"
         "    \t    ^\n"
         "   9   \tprintf(\"MARKER-TWO %d\\n\", x);\n"
-        "Target 0: (ed1-run-10477) stopped.\n"
-        "(lldb) script print(\"<<ed1\" + \"-done>>\")\n";
+        "Target 0: (rstudio-run-10477) stopped.\n"
+        "(lldb) script print(\"<<rstudio\" + \"-done>>\")\n";
     checkEqual(editor::dbg_programOutput(editor::DebuggerLldb, lldbSaid), "MARKER-ONE\n",
                "lldb: the program's line, and none of the source it echoed");
 
     // gdb. Its prompt carries its own words after it, so the whole line goes.
     const std::string gdbSaid =
-        "\n(gdb) Starting program: /tmp/ed1-run-2546618 < /dev/null\n"
+        "\n(gdb) Starting program: /tmp/rstudio-run-2546618 < /dev/null\n"
         "[Thread debugging using libthread_db enabled]\n"
         "Using host libthread_db library \"/lib64/libthread_db.so.1\".\n"
         "MARKER-ONE\n"
         "\n"
-        "Breakpoint 1, main () at /tmp/ed1-said-probe/talker.c:8\n"
+        "Breakpoint 1, main () at /tmp/rstudio-said-probe/talker.c:8\n"
         "8\t    x = x + 1;\n"
         "Missing rpms, try: dnf --enablerepo='*debug*' install glibc-debuginfo\n"
         "(gdb) \n";
@@ -2280,7 +2287,7 @@ void whatTheDebuggerHeard() {
         return;
     }
 
-    std::string dir = editor::path::join(editor::path::tempDir(), "ed1-said-test");
+    std::string dir = editor::path::join(editor::path::tempDir(), "rstudio-said-test");
     editor::path::removeTree(dir);
     editor::path::makeDirectories(dir);
     std::string source = editor::path::join(dir, "talker.c");
@@ -2344,7 +2351,7 @@ void debuggingCppForReal() {
         return;
     }
 
-    std::string dir = editor::path::join(editor::path::tempDir(), "ed1-cpp-debug-test");
+    std::string dir = editor::path::join(editor::path::tempDir(), "rstudio-cpp-debug-test");
     editor::path::removeTree(dir);
     editor::path::makeDirectories(dir);
     std::string source = editor::path::join(dir, "counted.cpp");
@@ -2471,12 +2478,12 @@ void debuggingCppForReal() {
 void theWindowsProjectBuild() {
     std::printf("what the window asks about building a project\n");
 
-    file::path dir = file::temp_directory_path() / "ed1-bridge-target";
+    file::path dir = file::temp_directory_path() / "rstudio-bridge-target";
     file::remove_all(dir);
     file::create_directories(dir);
     writeSource((dir / "add.c").string(), "int add(int a, int b) { return a + b; }\n");
     writeSource((dir / "main.c").string(), "int add(int, int);\nint main(void) { return add(1, 2); }\n");
-    writeSource((dir / "ed1.json").string(),
+    writeSource((dir / "rstudio.json").string(),
                 "{\n  \"name\": \"sums\",\n"
                 "  \"groups\": { \"Sources\": [\"add.c\", \"main.c\"] },\n"
                 "  \"build\": { \"target\": \"sums\", \"groups\": [\"Sources\"] }\n}\n");
@@ -2496,7 +2503,7 @@ void theWindowsProjectBuild() {
     // what the terminal can: an editor with two front ends that disagree about
     // what a project is, is two editors.
     writeSource((dir / "extra.cpp").string(), "int twice(int n) { return n * 2; }\n");
-    writeSource((dir / "ed1.json").string(),
+    writeSource((dir / "rstudio.json").string(),
                 "{\n  \"name\": \"sums\",\n"
                 "  \"groups\": { \"Sources\": [\"add.c\", \"main.c\", \"extra.cpp\"] },\n"
                 "  \"build\": { \"target\": \"sums\", \"groups\": [\"Sources\"] }\n}\n");
@@ -2519,7 +2526,7 @@ void theWindowsProjectBuild() {
     // A group that names its compiler is taken at its word, and the whole group
     // goes there - which is the override, and the only way to make one compiler
     // take another's language on purpose.
-    writeSource((dir / "ed1.json").string(),
+    writeSource((dir / "rstudio.json").string(),
                 "{\n  \"name\": \"sums\",\n"
                 "  \"groups\": { \"Sources\": { \"files\": [\"add.c\", \"main.c\", "
                 "\"extra.cpp\"], \"toolchain\": \"cl\" } },\n"
@@ -2581,7 +2588,7 @@ void theSeamTheWindowUses() {
         return;
     }
 
-    std::string dir = editor::path::join(editor::path::tempDir(), "ed1-bridge-test");
+    std::string dir = editor::path::join(editor::path::tempDir(), "rstudio-bridge-test");
     editor::path::removeTree(dir);
     editor::path::makeDirectories(dir);
     std::string source = editor::path::join(dir, "seam.c");
@@ -2757,7 +2764,7 @@ void aProjectMadeFromWhatIsThere() {
     std::printf("a project made where there was none\n");
 
     namespace pth = editor::path;
-    std::string dir = pth::join(pth::tempDir(), "ed1-made-project");
+    std::string dir = pth::join(pth::tempDir(), "rstudio-made-project");
     pth::removeTree(dir);
     pth::makeDirectories(pth::join(dir, "src"));
     pth::makeDirectories(pth::join(dir, "obj"));
@@ -2773,7 +2780,7 @@ void aProjectMadeFromWhatIsThere() {
     check(made.ok, "a project is made where there was none");
     check(project.loaded(), "and the project says it is loaded");
     check(pth::exists(pth::join(dir, "RStudio.json")), "and the file is written");
-    check(project.name() == "ed1-made-project", "named after the directory it is in");
+    check(project.name() == "rstudio-made-project", "named after the directory it is in");
 
     // What it picked up, and what it left alone.
     std::string written = readWholeFile(pth::join(dir, "RStudio.json"));
@@ -2825,7 +2832,7 @@ void whatItRemembers() {
     namespace pth = editor::path;
     std::string realHome = pth::homeDir();
 
-    std::string home = pth::join(pth::tempDir(), "ed1-home-test");
+    std::string home = pth::join(pth::tempDir(), "rstudio-home-test");
     pth::removeTree(home);
     pth::makeDirectories(home);
     sayWhereHomeIs(home);
@@ -2959,7 +2966,7 @@ void whatALinkFailureSays() {
         return;
     }
 
-    std::string dir = editor::path::join(editor::path::tempDir(), "ed1-link-test");
+    std::string dir = editor::path::join(editor::path::tempDir(), "rstudio-link-test");
     editor::path::removeTree(dir);
     editor::path::makeDirectories(dir);
     std::string source = editor::path::join(dir, "calls.c");
@@ -2983,7 +2990,7 @@ void whatALinkFailureSays() {
     editor::path::removeTree(dir);
 }
 
-// A compiler per group: what ed1.json says, what survives being written back,
+// A compiler per group: what rstudio.json says, what survives being written back,
 // and the two commands that used to be one.
 // The manual's contents, against the manual.
 //
@@ -3049,7 +3056,7 @@ void theManualsContents() {
 void aCompilerPerGroup() {
     std::printf("a compiler per group, and the link at the end\n");
 
-    file::path dir = file::temp_directory_path() / "ed1-per-group-test";
+    file::path dir = file::temp_directory_path() / "rstudio-per-group-test";
     file::remove_all(dir);
     file::create_directories(dir);
 
@@ -3059,7 +3066,7 @@ void aCompilerPerGroup() {
     // Two spellings of a group, and the plain one is not deprecated: a project
     // written before any of this has to keep working, and has to keep looking
     // the way its author left it after the editor saves it.
-    writeSource((dir / "ed1.json").string(),
+    writeSource((dir / "rstudio.json").string(),
                 "{\n  \"name\": \"mix\",\n"
                 "  \"groups\": {\n"
                 "    \"Sources\": [\"main.c\"],\n"
@@ -3096,7 +3103,7 @@ void aCompilerPerGroup() {
 
     // Written back: the plain group stays plain, the named one keeps its name.
     check(project.save(error), "it saves");
-    std::string written = readWholeFile((dir / "ed1.json").string());
+    std::string written = readWholeFile((dir / "rstudio.json").string());
     check(written.find("\"Sources\"") != std::string::npos, "Sources is still there");
     // "msvc", not "cl": both are read and msvc is what the project file has
     // always written for that compiler, at the top level as well as here. One
@@ -3183,11 +3190,11 @@ void aDirectoryInAQuotedArgument() {
 void whatTheProjectBuilds() {
     std::printf("what a project says it builds\n");
 
-    file::path dir = file::temp_directory_path() / "ed1-target-test";
+    file::path dir = file::temp_directory_path() / "rstudio-target-test";
     file::remove_all(dir);
     file::create_directories(dir);
 
-    writeSource((dir / "ed1.json").string(),
+    writeSource((dir / "rstudio.json").string(),
               "{\n"
               "  \"name\": \"sums\",\n"
               "  \"groups\": {\n"
@@ -3269,10 +3276,10 @@ void whatTheProjectBuilds() {
 
     // Nothing said at all is not an error to report, only nothing to build.
     editor::Project quiet;
-    file::path bare = file::temp_directory_path() / "ed1-target-bare";
+    file::path bare = file::temp_directory_path() / "rstudio-target-bare";
     file::remove_all(bare);
     file::create_directories(bare);
-    writeSource((bare / "ed1.json").string(),
+    writeSource((bare / "rstudio.json").string(),
                 "{ \"name\": \"quiet\", \"groups\": { \"Sources\": [] } }\n");
     check(quiet.load(bare.string(), error), "a project with no build entry still loads");
     check(!quiet.builds(), "and says it builds nothing");
@@ -3461,7 +3468,7 @@ void theThirdLanguage() {
     {
         editor::Project project;
         std::string error;
-        std::string dir = editor::path::join(editor::path::tempDir(), "ed1-shmproj");
+        std::string dir = editor::path::join(editor::path::tempDir(), "rstudio-shmproj");
         editor::path::removeTree(dir);
         editor::path::makeDirectories(editor::path::join(dir, "src"));
         writeSource(editor::path::join(dir, "src/hello.shl"),
@@ -3469,7 +3476,7 @@ void theThirdLanguage() {
         writeSource(editor::path::join(dir, "src/other.shl"),
                     "fun <> = main() {\n  ? 2\n}\n");
 
-        writeSource(editor::path::join(dir, "ed1.json"),
+        writeSource(editor::path::join(dir, "rstudio.json"),
                     "{\n  \"name\": \"hello\",\n"
                     "  \"build\": { \"target\": \"hello\", \"groups\": [\"Sources\"] },\n"
                     "  \"groups\": { \"Sources\": [\"src/hello.shl\"] }\n}\n");
@@ -3484,7 +3491,7 @@ void theThirdLanguage() {
         check(sources.size() == 1, "and is one source");
 
         // Two programs, and the target names one of them.
-        writeSource(editor::path::join(dir, "ed1.json"),
+        writeSource(editor::path::join(dir, "rstudio.json"),
                     "{\n  \"name\": \"hello\",\n"
                     "  \"build\": { \"target\": \"hello\", \"groups\": [\"Sources\"] },\n"
                     "  \"groups\": { \"Sources\": [\"src/other.shl\", \"src/hello.shl\"] }\n}\n");
@@ -3497,7 +3504,7 @@ void theThirdLanguage() {
               "with the target's own first, not the one listed first");
 
         // Two programs and a target named after neither: refused, not guessed.
-        writeSource(editor::path::join(dir, "ed1.json"),
+        writeSource(editor::path::join(dir, "rstudio.json"),
                     "{\n  \"name\": \"hello\",\n"
                     "  \"build\": { \"target\": \"neither\", \"groups\": [\"Sources\"] },\n"
                     "  \"groups\": { \"Sources\": [\"src/other.shl\", \"src/hello.shl\"] }\n}\n");
@@ -3514,7 +3521,7 @@ void theThirdLanguage() {
 
         // Shalimar beside C is the refusal C beside C++ already had.
         writeSource(editor::path::join(dir, "src/bit.c"), "int bit(void) { return 1; }\n");
-        writeSource(editor::path::join(dir, "ed1.json"),
+        writeSource(editor::path::join(dir, "rstudio.json"),
                     "{\n  \"name\": \"hello\",\n"
                     "  \"build\": { \"target\": \"hello\", \"groups\": [\"Sources\"] },\n"
                     "  \"groups\": { \"Sources\": [\"src/hello.shl\", \"src/bit.c\"] }\n}\n");
@@ -3531,7 +3538,7 @@ void theThirdLanguage() {
         // three startup symbols whatever file it came from, so two of them
         // collide, and the language has no declarations, so a call across a
         // link could not be checked. Compiler-S/docs/LINKING.md, in full.
-        writeSource(editor::path::join(dir, "ed1.json"),
+        writeSource(editor::path::join(dir, "rstudio.json"),
                     "{\n  \"name\": \"hello\",\n"
                     "  \"build\": { \"target\": \"hello\", \"groups\": [\"S\", \"C\"] },\n"
                     "  \"groups\": { \"S\": [\"src/hello.shl\"], \"C\": [\"src/bit.c\"] }\n}\n");
@@ -3576,7 +3583,7 @@ void steppingShalimar() {
         return;
     }
 
-    std::string dir = editor::path::join(editor::path::tempDir(), "ed1-shm-step");
+    std::string dir = editor::path::join(editor::path::tempDir(), "rstudio-shm-step");
     editor::path::removeTree(dir);
     if (!editor::path::makeDirectories(dir)) {
         std::printf("  (could not make %s - this case is about shc, not about that)\n",
@@ -3732,7 +3739,7 @@ void theWindowStoppingShalimar() {
         return;
     }
 
-    std::string dir = editor::path::join(editor::path::tempDir(), "ed1-window-shm");
+    std::string dir = editor::path::join(editor::path::tempDir(), "rstudio-window-shm");
     editor::path::removeTree(dir);
     if (!editor::path::makeDirectories(dir)) {
         std::printf("  (could not make %s - this case is about the seam, not about that)\n",
@@ -3834,13 +3841,13 @@ void theWindowStoppingShalimar() {
 void theWindowsProjectDebug() {
     std::printf("what the window asks about debugging a project\n");
 
-    file::path dir = file::temp_directory_path() / "ed1-bridge-debug";
+    file::path dir = file::temp_directory_path() / "rstudio-bridge-debug";
     file::remove_all(dir);
     file::create_directories(dir);
     writeSource((dir / "add.c").string(), "int add(int a, int b) { return a + b; }\n");
     writeSource((dir / "main.c").string(),
                 "int add(int, int);\nint main(void) { return add(1, 2); }\n");
-    writeSource((dir / "ed1.json").string(),
+    writeSource((dir / "rstudio.json").string(),
                 "{\n  \"name\": \"sums\",\n"
                 "  \"groups\": { \"Sources\": [\"add.c\", \"main.c\"] },\n"
                 "  \"build\": { \"target\": \"sums\", \"groups\": [\"Sources\"] }\n}\n");
@@ -3871,7 +3878,7 @@ void theWindowsProjectDebug() {
     // the rule rather than a number: every part with no debugger of its own is
     // named, and the one being read is a part that has one.
     writeSource((dir / "extra.cpp").string(), "int twice(int n) { return n * 2; }\n");
-    writeSource((dir / "ed1.json").string(),
+    writeSource((dir / "rstudio.json").string(),
                 "{\n  \"name\": \"sums\",\n"
                 "  \"groups\": { \"Sources\": [\"add.c\", \"main.c\", \"extra.cpp\"] },\n"
                 "  \"build\": { \"target\": \"sums\", \"groups\": [\"Sources\"] }\n}\n");
@@ -3902,7 +3909,7 @@ void theWindowsProjectDebug() {
     // out possible on every machine this runs on - that is the whole point of
     // asking dbg_stopsItself before dbg_for.
     const char* shc = std::getenv("SHC");
-    file::path shmDir = file::temp_directory_path() / "ed1-bridge-debug-shm";
+    file::path shmDir = file::temp_directory_path() / "rstudio-bridge-debug-shm";
     file::remove_all(shmDir);
     file::create_directories(shmDir);
     writeSource((shmDir / "steps.shl").string(),
@@ -3916,7 +3923,7 @@ void theWindowsProjectDebug() {
                 "  int b : twice(a)\n"
                 "  ? b\n"
                 "}\n");
-    writeSource((shmDir / "ed1.json").string(),
+    writeSource((shmDir / "rstudio.json").string(),
                 "{\n  \"name\": \"steps\",\n"
                 "  \"groups\": { \"Sources\": [\"steps.shl\"] },\n"
                 "  \"build\": { \"target\": \"steps\", \"groups\": [\"Sources\"] }\n}\n");

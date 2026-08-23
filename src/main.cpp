@@ -10,11 +10,12 @@
 #include "workspace.h"
 
 // What this copy of the editor is called where it is installed. There is one
-// terminal editor and three names for what is built from it - ed1 on Linux and
-// macOS, winconsole on Windows, and whatever anyone renames it to - so the name
-// is taken from the command rather than written down in the messages.
+// terminal editor and two names for what is built from it - RStudio.exe on
+// Linux and macOS, RStudioConsole.exe on Windows - and whatever anyone renames
+// it to after that, so the name is taken from the command rather than written
+// down in the messages.
 static std::string calledIt(const char* argv0) {
-    std::string name = (argv0 == 0 || *argv0 == 0) ? "ed1" : argv0;
+    std::string name = (argv0 == 0 || *argv0 == 0) ? "RStudio" : argv0;
     size_t slash = name.find_last_of("/\\");
     if (slash != std::string::npos) name = name.substr(slash + 1);
     if (name.size() > 4 && name.compare(name.size() - 4, 4, ".exe") == 0)
@@ -68,9 +69,9 @@ int main(int argc, char** argv) {
                 "           [--config debug|release] [--cc1 path] [--cl path]\n"
                 "           [--shc path] [--cxx path]\n"
                 "           [--width n] [--tabs] [--case-indent] [--plain]\n"
-                "  RStudio - the console half, which is ed1 on Linux\n"
-                "  and macOS and RStudioConsole on Windows. RStudioGui is the same editor\n"
-                "  in a window, over the same core.\n"
+                "  RStudio - the console half, which is RStudio.exe on Linux and\n"
+                "  macOS and RStudioConsole.exe on Windows. RStudioGui is the same\n"
+                "  editor in a window, over the same core.\n"
                 "\n"
                 "  --toolchain    auto (the default) lets the file choose: C goes\n"
                 "                 to cc1, C++ to this machine's C++ compiler - cl\n"

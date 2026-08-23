@@ -34,7 +34,7 @@ int main(array<String^>^ arguments) {
     // Its own debugger, since the machine has none.
     // Its own debugger. There is none installed on the machine this is built
     // for, and a crash with no stack is a crash you cannot fix.
-    rstudio_watch_for_faults("ed1-fault.log");
+    rstudio_watch_for_faults("RStudioGui-fault.log");
     AppDomain::CurrentDomain->UnhandledException +=
         gcnew UnhandledExceptionEventHandler(OnUnhandled);
 

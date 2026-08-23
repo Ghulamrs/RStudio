@@ -115,7 +115,7 @@ std::string& scratch() {
 
 #ifdef _WIN32
 
-char faultLog[MAX_PATH] = "ed1-fault.log";
+char faultLog[MAX_PATH] = "RStudioGui-fault.log";
 
 void write(FILE* f, const char* text) { std::fputs(text, f); }
 

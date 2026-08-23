@@ -42,7 +42,8 @@ enum { RSTUDIO_TOOL_AUTO = 0, RSTUDIO_TOOL_CC1, RSTUDIO_TOOL_MSVC, RSTUDIO_TOOL_
 enum { RSTUDIO_CONFIG_DEBUG = 0, RSTUDIO_CONFIG_RELEASE };
 
 /* Catches a crash and writes the faulting address and a symbolised stack to
-   ed1-fault.log. There is no WinDbg on the machine this is built for, and
+   RStudioGui-fault.log. There is no WinDbg on the machine this is built
+   for, and
    dbghelp is, so the program carries its own. Does nothing off Windows. */
 void rstudio_watch_for_faults(const char* logPath);
 

@@ -169,20 +169,20 @@ std::vector<std::string> lastScreen(const std::string& raw) {
     return rows;
 }
 
-Screen drive(const std::string& ed1, const std::string& arguments,
+Screen drive(const std::string& rstudio, const std::string& arguments,
              const std::string& keys, const file::path& where) {
     file::path keyFile = where / "keys.in";
     file::path outFile = where / "screen.out";
     writeFile(keyFile, keys);
 
-    std::string command = "\"" + ed1 + "\" " + arguments + " < \"" + keyFile.string() +
+    std::string command = "\"" + rstudio + "\" " + arguments + " < \"" + keyFile.string() +
                           "\" > \"" + outFile.string() + "\" 2>&1";
 #ifdef _WIN32
     // cmd eats the outer pair when a command has both a quoted program and
     // quoted arguments, exactly as it does for the compiler commands.
     command = "\"" + command + "\"";
 #endif
-    if (std::system(command.c_str()) < 0) std::printf("  (could not run %s)\n", ed1.c_str());
+    if (std::system(command.c_str()) < 0) std::printf("  (could not run %s)\n", rstudio.c_str());
 
     Screen screen;
     screen.raw = readFile(outFile);
@@ -226,10 +226,10 @@ bool wasShown(const Screen& screen, const std::string& text) {
 }
 
 file::path freshProject(const std::string& name) {
-    file::path dir = file::temp_directory_path() / ("ed1-session-" + name);
+    file::path dir = file::temp_directory_path() / ("rstudio-session-" + name);
     file::remove_all(dir);
     file::create_directories(dir / "src");
-    writeFile(dir / "ed1.json",
+    writeFile(dir / "rstudio.json",
               "{\n  \"name\": \"Trial\",\n  \"indent\": 4,\n"
               "  \"groups\": { \"Sources\": [] }\n}\n");
     return dir;
@@ -237,7 +237,7 @@ file::path freshProject(const std::string& name) {
 
 // ---------------------------------------------------------------------------
 
-void editingAndLayout(const std::string& ed1) {
+void editingAndLayout(const std::string& rstudio) {
     std::printf("typing, and what the editor does to it\n");
 
     file::path dir = freshProject("typing");
@@ -246,7 +246,7 @@ void editingAndLayout(const std::string& ed1) {
     // Typed with no leading space anywhere. What comes back should be laid out.
     std::string keys = "void f(void) {\ng();\nif (x)\ny();\nswitch (n) {\ncase 1:\n"
                        "break;\n}\n}" + ctrl('s') + ctrl('q');
-    drive(ed1, "\"" + file.string() + "\" --project \"" + dir.string() + "\"", keys, dir);
+    drive(rstudio, "\"" + file.string() + "\" --project \"" + dir.string() + "\"", keys, dir);
 
     checkEqual(readFile(file),
                "void f(void) {\n    g();\n    if (x)\n        y();\n    switch (n) {\n"
@@ -256,7 +256,7 @@ void editingAndLayout(const std::string& ed1) {
     // Ctrl-F lays out a file that arrived with no layout of its own.
     file::path flat = dir / "src" / "flat.c";
     writeFile(flat, "int main(void)\n{\nif (x)\nreturn 1;\nreturn 0;\n}\n");
-    drive(ed1, "\"" + flat.string() + "\" --project \"" + dir.string() + "\"",
+    drive(rstudio, "\"" + flat.string() + "\" --project \"" + dir.string() + "\"",
           ctrl('a') + ctrl('s') + ctrl('q'), dir);
     checkEqual(readFile(flat),
                "int main(void)\n{\n    if (x)\n        return 1;\n    return 0;\n}\n",
@@ -265,7 +265,7 @@ void editingAndLayout(const std::string& ed1) {
     // Tabs instead of spaces, asked for on the command line.
     file::path tabbed = dir / "src" / "tabbed.c";
     writeFile(tabbed, "int f(void)\n{\nreturn 1;\n}\n");
-    drive(ed1, "\"" + tabbed.string() + "\" --project \"" + dir.string() + "\" --tabs",
+    drive(rstudio, "\"" + tabbed.string() + "\" --project \"" + dir.string() + "\" --tabs",
           ctrl('a') + ctrl('s') + ctrl('q'), dir);
     check(readFile(tabbed).find("\treturn 1;") != std::string::npos,
           "--tabs indents with a tab");
@@ -273,14 +273,14 @@ void editingAndLayout(const std::string& ed1) {
     file::remove_all(dir);
 }
 
-void colouring(const std::string& ed1) {
+void colouring(const std::string& rstudio) {
     std::printf("what the screen is coloured with\n");
 
     file::path dir = freshProject("colour");
     file::path file = dir / "src" / "colour.c";
     writeFile(file, "int main(void)\n{\n    return 0;   /* done */\n}\n");
 
-    Screen screen = drive(ed1, "\"" + file.string() + "\" --project \"" + dir.string() + "\"",
+    Screen screen = drive(rstudio, "\"" + file.string() + "\" --project \"" + dir.string() + "\"",
                           ctrl('q'), dir);
 
     // The colours are in the bytes even though they are not in the grid.
@@ -293,7 +293,7 @@ void colouring(const std::string& ed1) {
     file::remove_all(dir);
 }
 
-void fileCommands(const std::string& ed1) {
+void fileCommands(const std::string& rstudio) {
     std::printf("making, renaming, regrouping and deleting\n");
 
     file::path dir = freshProject("files");
@@ -307,49 +307,49 @@ void fileCommands(const std::string& ed1) {
     const std::string toProject = kF10 + times(kRight, 2);
 
     // New file...
-    drive(ed1, project, toProject + times(kDown, 5) + kEnter + "src/made.c" + kEnter + ctrl('q'),
+    drive(rstudio, project, toProject + times(kDown, 5) + kEnter + "src/made.c" + kEnter + ctrl('q'),
           dir);
     check(file::exists(dir / "src" / "made.c"), "New file makes the file");
-    check(readFile(dir / "ed1.json").find("src/made.c") != std::string::npos,
+    check(readFile(dir / "rstudio.json").find("src/made.c") != std::string::npos,
           "and puts it in the project");
 
     // A path two directories deep is refused, and nothing is written.
-    Screen deep = drive(ed1, project,
+    Screen deep = drive(rstudio, project,
                         toProject + times(kDown, 5) + kEnter + "a/b/deep.c" + kEnter + ctrl('q'),
                         dir);
     check(!file::exists(dir / "a"), "a file two directories deep is not made");
     check(onScreen(deep, "two levels at most"), "and the rule says so on screen");
 
     // Rename... acts on the file being edited.
-    drive(ed1, "\"" + (dir / "src" / "made.c").string() + "\"" + project,
+    drive(rstudio, "\"" + (dir / "src" / "made.c").string() + "\"" + project,
           toProject + times(kDown, 6) + kEnter + "src/moved.c" + kEnter + ctrl('q'), dir);
     check(!file::exists(dir / "src" / "made.c"), "Rename takes the old name away");
     check(file::exists(dir / "src" / "moved.c"), "and puts the new one there");
-    check(readFile(dir / "ed1.json").find("src/moved.c") != std::string::npos,
+    check(readFile(dir / "rstudio.json").find("src/moved.c") != std::string::npos,
           "and the project follows it");
 
     // Move to group... changes the project and nothing on disk.
-    drive(ed1, "\"" + (dir / "src" / "moved.c").string() + "\"" + project,
+    drive(rstudio, "\"" + (dir / "src" / "moved.c").string() + "\"" + project,
           toProject + times(kDown, 7) + kEnter + "Extras" + kEnter + ctrl('q'), dir);
-    std::string written = readFile(dir / "ed1.json");
+    std::string written = readFile(dir / "rstudio.json");
     check(written.find("Extras") != std::string::npos, "regrouping makes the group");
     check(file::exists(dir / "src" / "moved.c"), "and leaves the file where it was");
 
     // Delete... only when the answer is yes.
-    drive(ed1, "\"" + (dir / "src" / "moved.c").string() + "\"" + project,
+    drive(rstudio, "\"" + (dir / "src" / "moved.c").string() + "\"" + project,
           toProject + times(kDown, 8) + kEnter + "no" + kEnter + ctrl('q'), dir);
     check(file::exists(dir / "src" / "moved.c"), "Delete answered with no keeps the file");
 
-    drive(ed1, "\"" + (dir / "src" / "moved.c").string() + "\"" + project,
+    drive(rstudio, "\"" + (dir / "src" / "moved.c").string() + "\"" + project,
           toProject + times(kDown, 8) + kEnter + "yes" + kEnter + ctrl('q'), dir);
     check(!file::exists(dir / "src" / "moved.c"), "and answered with yes deletes it");
-    check(readFile(dir / "ed1.json").find("src/moved.c") == std::string::npos,
+    check(readFile(dir / "rstudio.json").find("src/moved.c") == std::string::npos,
           "and takes it out of the project too");
 
     file::remove_all(dir);
 }
 
-void selectingAndPasting(const std::string& ed1) {
+void selectingAndPasting(const std::string& rstudio) {
     std::printf("selecting, copying and pasting\n");
 
     file::path dir = freshProject("clip");
@@ -358,56 +358,56 @@ void selectingAndPasting(const std::string& ed1) {
 
     // Select three characters, copy, go to the end of the line, paste.
     writeFile(file, "abcdef\n");
-    drive(ed1, args,
+    drive(rstudio, args,
           times(kShiftRight, 3) + ctrl('c') + "\x1b[F" + ctrl('v') + ctrl('s') + ctrl('q'),
           dir);
     checkEqual(readFile(file), "abcdefabc\n", "copy and paste move a selection about");
 
     // Cut takes it away.
     writeFile(file, "abcdef\n");
-    drive(ed1, args, times(kShiftRight, 3) + ctrl('x') + ctrl('s') + ctrl('q'), dir);
+    drive(rstudio, args, times(kShiftRight, 3) + ctrl('x') + ctrl('s') + ctrl('q'), dir);
     checkEqual(readFile(file), "def\n", "cut takes the selection out");
 
     // And puts it back where the caret goes next.
     writeFile(file, "abcdef\n");
-    drive(ed1, args,
+    drive(rstudio, args,
           times(kShiftRight, 3) + ctrl('x') + "\x1b[F" + ctrl('v') + ctrl('s') + ctrl('q'),
           dir);
     checkEqual(readFile(file), "defabc\n", "and paste puts it back");
 
     // With nothing selected, copy and cut take the whole line.
     writeFile(file, "first\nsecond\n");
-    drive(ed1, args, ctrl('x') + ctrl('s') + ctrl('q'), dir);
+    drive(rstudio, args, ctrl('x') + ctrl('s') + ctrl('q'), dir);
     checkEqual(readFile(file), "second\n", "cut with no selection takes the line");
 
     // A selection crossing lines.
     writeFile(file, "one\ntwo\nthree\n");
-    drive(ed1, args, kShiftDown + ctrl('x') + ctrl('s') + ctrl('q'), dir);
+    drive(rstudio, args, kShiftDown + ctrl('x') + ctrl('s') + ctrl('q'), dir);
     checkEqual(readFile(file), "two\nthree\n", "a selection can cross a line ending");
 
     // Typing over a selection replaces it.
     writeFile(file, "abcdef\n");
-    drive(ed1, args, times(kShiftRight, 3) + "X" + ctrl('s') + ctrl('q'), dir);
+    drive(rstudio, args, times(kShiftRight, 3) + "X" + ctrl('s') + ctrl('q'), dir);
     checkEqual(readFile(file), "Xdef\n", "typing over a selection replaces it");
 
     // Backspace over a selection removes all of it.
     writeFile(file, "abcdef\n");
-    drive(ed1, args, times(kShiftRight, 3) + "\x7f" + ctrl('s') + ctrl('q'), dir);
+    drive(rstudio, args, times(kShiftRight, 3) + "\x7f" + ctrl('s') + ctrl('q'), dir);
     checkEqual(readFile(file), "def\n", "and backspace removes all of it");
 
     // Undo puts a cut back in one step.
     writeFile(file, "abcdef\n");
-    drive(ed1, args, times(kShiftRight, 3) + ctrl('x') + ctrl('z') + ctrl('s') + ctrl('q'),
+    drive(rstudio, args, times(kShiftRight, 3) + ctrl('x') + ctrl('z') + ctrl('s') + ctrl('q'),
           dir);
     checkEqual(readFile(file), "abcdef\n", "and undo puts a cut back");
 
-    Screen shown = drive(ed1, args, times(kShiftRight, 3) + ctrl('q'), dir);
+    Screen shown = drive(rstudio, args, times(kShiftRight, 3) + ctrl('q'), dir);
     check(shown.raw.find("\x1b[7m") != std::string::npos, "a selection is shown in reverse");
 
     file::remove_all(dir);
 }
 
-void multiByteText(const std::string& ed1) {
+void multiByteText(const std::string& rstudio) {
     std::printf("text that is not ASCII\n");
 
     file::path dir = freshProject("utf8");
@@ -420,17 +420,17 @@ void multiByteText(const std::string& ed1) {
     std::string args = "\"" + file.string() + "\" --project \"" + dir.string() + "\"";
 
     // Opened and saved with nothing done to it, the bytes must be the same.
-    drive(ed1, args, ctrl('s') + ctrl('q'), dir);
+    drive(rstudio, args, ctrl('s') + ctrl('q'), dir);
     checkEqual(readFile(file), text, "a file that is not ASCII survives being saved");
 
     // Four steps right cross three ASCII characters and one Urdu letter, which
     // is five bytes but four columns.
-    Screen moved = drive(ed1, args, times(kRight, 4) + ctrl('q'), dir);
+    Screen moved = drive(rstudio, args, times(kRight, 4) + ctrl('q'), dir);
     check(onScreen(moved, "col 5"), "the caret moves by characters, not by bytes");
 
     // Backspace takes the whole letter, not its last byte.
     writeFile(file, text);
-    drive(ed1, args, times(kRight, 4) + "\x7f" + ctrl('s') + ctrl('q'), dir);
+    drive(rstudio, args, times(kRight, 4) + "\x7f" + ctrl('s') + ctrl('q'), dir);
     std::string after = readFile(file);
     check(after.find("/* \xd9\x84") != std::string::npos,
           "backspace removes a whole letter");
@@ -441,7 +441,7 @@ void multiByteText(const std::string& ed1) {
 
 // Re-indenting what is selected, and everything when nothing is.
 // Leaving with work unsaved, in a file that is not the one in front.
-void leavingWithChanges(const std::string& ed1) {
+void leavingWithChanges(const std::string& rstudio) {
     std::printf("what leaving does about unsaved work\n");
 
     file::path dir = freshProject("leaving");
@@ -449,7 +449,7 @@ void leavingWithChanges(const std::string& ed1) {
     file::path two = dir / "src" / "two.c";
     writeFile(one, "int one(void) { return 1; }\n");
     writeFile(two, "int two(void) { return 2; }\n");
-    writeFile(dir / "ed1.json",
+    writeFile(dir / "rstudio.json",
               "{\n  \"name\": \"leaving\",\n"
               "  \"groups\": { \"Sources\": [\"src/one.c\", \"src/two.c\"] }\n}\n");
 
@@ -459,7 +459,7 @@ void leavingWithChanges(const std::string& ed1) {
     // is the one behind. Ctrl-W moves the focus; Ctrl-P would toggle the pane.
     const std::string behind = "X" + ctrl('w') + times(kDown, 2) + kEnter;
 
-    Screen left = drive(ed1, common, behind + ctrl('q'), dir);
+    Screen left = drive(rstudio, common, behind + ctrl('q'), dir);
     check(wasShown(left, "unsaved changes in one.c"),
           "leaving names the changed file even when another is in front");
     checkEqual(readFile(one), "int one(void) { return 1; }\n",
@@ -469,28 +469,28 @@ void leavingWithChanges(const std::string& ed1) {
     // given on the command line and then from the pane, which counts paths
     // from the project's root - the tab strip must hold one of it, and the
     // changes must still be in it.
-    Screen once = drive(ed1, "\"src/one.c\" --project \"" + dir.string() + "\"",
+    Screen once = drive(rstudio, "\"src/one.c\" --project \"" + dir.string() + "\"",
                         "X" + ctrl('w') + kEnter + ctrl('q'), dir);
     check(rowsSaying(once, "one.c") >= 1, "the file is open");
     check(!onScreen(once, "one.c* - one.c"), "and opening it again from the pane opens no second tab");
     check(onScreen(once, "one.c*"), "with the changes still in it");
 
     // The one in front, which is the case that always worked.
-    Screen front = drive(ed1, common, "X" + ctrl('q'), dir);
+    Screen front = drive(rstudio, common, "X" + ctrl('q'), dir);
     check(wasShown(front, "unsaved changes in one.c"), "and it says so for the one in front");
 
     // Twice leaves anyway, which is what the message promises. Proved by what
     // comes after it: keys typed once it has gone are typed at nothing, so a
     // ZZZZ that never appears is an editor that had already left. Exiting on
     // its own would prove nothing here - a driven run ends when the keys do.
-    Screen gone = drive(ed1, common, "X" + ctrl('q') + ctrl('q') + "ZZZZ", dir);
+    Screen gone = drive(rstudio, common, "X" + ctrl('q') + ctrl('q') + "ZZZZ", dir);
     check(!wasShown(gone, "ZZZZ"), "and pressing it twice leaves, before the next key");
     checkEqual(readFile(one), "int one(void) { return 1; }\n", "still without saving");
 
     file::remove_all(dir);
 }
 
-void reindenting(const std::string& ed1) {
+void reindenting(const std::string& rstudio) {
     std::printf("re-indenting, all of it or the part that is selected\n");
 
     file::path dir = freshProject("reindent");
@@ -503,7 +503,7 @@ void reindenting(const std::string& ed1) {
     std::string common = "\"" + file.string() + "\" --project \"" + dir.string() + "\"";
 
     // Nothing selected: the whole file, as Ctrl-A has always done.
-    Screen all = drive(ed1, common, ctrl('a') + ctrl('s') + ctrl('q'), dir);
+    Screen all = drive(rstudio, common, ctrl('a') + ctrl('s') + ctrl('q'), dir);
     // wasShown, not onScreen: saving comes after, and the message line is
     // one line - what it says at the end is that the file was written.
     check(wasShown(all, "laid out - 11 lines"), "with nothing selected it lays the file out");
@@ -517,7 +517,7 @@ void reindenting(const std::string& ed1) {
     // they were - which is the whole difference, and is checked by a line
     // outside the selection staying crooked.
     writeFile(file, crooked);
-    Screen part = drive(ed1, common,
+    Screen part = drive(rstudio, common,
                         times(kDown, 2) + times(kShiftDown, 4) + ctrl('a') +
                             ctrl('s') + ctrl('q'),
                         dir);
@@ -531,7 +531,7 @@ void reindenting(const std::string& ed1) {
     file::remove_all(dir);
 }
 
-void undoing(const std::string& ed1) {
+void undoing(const std::string& rstudio) {
     std::printf("undo and redo, in the editor\n");
 
     file::path dir = freshProject("undo");
@@ -541,13 +541,13 @@ void undoing(const std::string& ed1) {
 
     // Typed, then taken back, then saved: the file should be as it started.
     writeFile(file, text);
-    drive(ed1, args, "xyz" + ctrl('z') + ctrl('s') + ctrl('q'), dir);
+    drive(rstudio, args, "xyz" + ctrl('z') + ctrl('s') + ctrl('q'), dir);
     checkEqual(readFile(file), text, "undo takes back what was typed");
 
     // A run of typing is one step, so one undo removes all three letters and
     // one redo brings all three back.
     writeFile(file, text);
-    drive(ed1, args, "xyz" + ctrl('z') + ctrl('y') + ctrl('s') + ctrl('q'), dir);
+    drive(rstudio, args, "xyz" + ctrl('z') + ctrl('y') + ctrl('s') + ctrl('q'), dir);
     check(readFile(file).compare(0, 3, "xyz") == 0, "redo puts it back");
 
     // Laying the file out is one step of its own.
@@ -555,12 +555,12 @@ void undoing(const std::string& ed1) {
     const char* crooked = "int main(void)\n{\nreturn 0;\n}\n";
     writeFile(flat, crooked);
     std::string flatArgs = "\"" + flat.string() + "\" --project \"" + dir.string() + "\"";
-    drive(ed1, flatArgs, ctrl('a') + ctrl('z') + ctrl('s') + ctrl('q'), dir);
+    drive(rstudio, flatArgs, ctrl('a') + ctrl('z') + ctrl('s') + ctrl('q'), dir);
     checkEqual(readFile(flat), crooked, "and undo takes a whole re-layout back");
 
     // So is a replace.
     writeFile(file, text);
-    drive(ed1, args,
+    drive(rstudio, args,
           ctrl('r') + "one" + kEnter + "two" + kEnter + ctrl('z') + ctrl('s') + ctrl('q'),
           dir);
     checkEqual(readFile(file), text, "and a replace, in one step");
@@ -568,28 +568,28 @@ void undoing(const std::string& ed1) {
     // And a newline is its own step, so undo gives back a line rather than
     // everything typed since the file was opened.
     writeFile(file, text);
-    drive(ed1, args, "abc\ndef" + ctrl('z') + ctrl('z') + ctrl('s') + ctrl('q'), dir);
+    drive(rstudio, args, "abc\ndef" + ctrl('z') + ctrl('z') + ctrl('s') + ctrl('q'), dir);
     check(readFile(file).find("abc") != std::string::npos,
           "two undos after typing over a newline leave the first part");
     check(readFile(file).find("def") == std::string::npos, "and remove the second");
 
     // The star that says 'modified' has to follow undo as well as typing.
     writeFile(file, text);
-    Screen back = drive(ed1, args, "q" + ctrl('s') + ctrl('z') + ctrl('q') + ctrl('q'), dir);
+    Screen back = drive(rstudio, args, "q" + ctrl('s') + ctrl('z') + ctrl('q') + ctrl('q'), dir);
     check(onScreen(back, "undo.c *"), "undoing past a save shows as modified again");
 
     writeFile(file, text);
-    Screen forward = drive(ed1, args,
+    Screen forward = drive(rstudio, args,
                            "q" + ctrl('s') + ctrl('z') + ctrl('y') + ctrl('q'), dir);
     check(!onScreen(forward, "undo.c *"), "and redoing back to it shows as saved");
 
-    Screen nothing = drive(ed1, args, ctrl('z') + ctrl('q'), dir);
+    Screen nothing = drive(rstudio, args, ctrl('z') + ctrl('q'), dir);
     check(onScreen(nothing, "nothing to undo"), "and with nothing done, it says so");
 
     file::remove_all(dir);
 }
 
-void findingAndReplacing(const std::string& ed1) {
+void findingAndReplacing(const std::string& rstudio) {
     std::printf("finding and replacing, in the editor\n");
 
     file::path dir = freshProject("find");
@@ -603,28 +603,28 @@ void findingAndReplacing(const std::string& ed1) {
     std::string args = "\"" + file.string() + "\" --project \"" + dir.string() + "\"";
 
     // Ctrl-F, the word, enter: the caret should land on line three.
-    Screen found = drive(ed1, args, ctrl('f') + "three" + kEnter + ctrl('q'), dir);
+    Screen found = drive(rstudio, args, ctrl('f') + "three" + kEnter + ctrl('q'), dir);
     check(onScreen(found, "3/3"), "find moves the caret to the line it is on");
     check(onScreen(found, "three - line 3"), "and says where it went");
 
-    Screen missing = drive(ed1, args, ctrl('f') + "absent" + kEnter + ctrl('q'), dir);
+    Screen missing = drive(rstudio, args, ctrl('f') + "absent" + kEnter + ctrl('q'), dir);
     check(onScreen(missing, "is not in this file"), "and says when it is not there");
 
     // An empty answer looks for nothing at all - it used to be read as the last
     // search again here, while the window read it as a cancel and said nothing.
     // Looking on is what Ctrl-G is for, in both.
-    Screen nothing = drive(ed1, args,
+    Screen nothing = drive(rstudio, args,
                            ctrl('f') + "three" + kEnter + ctrl('f') + kEnter + ctrl('q'), dir);
     check(onScreen(nothing, "nothing looked for"), "an empty answer to find says so");
     check(onScreen(nothing, "3/3"), "and leaves the caret where the last find put it");
 
     // Ctrl-F for the first, Ctrl-G for the next: 'return' is on every line.
-    Screen again = drive(ed1, args,
+    Screen again = drive(rstudio, args,
                          ctrl('f') + "return" + kEnter + ctrl('g') + ctrl('q'), dir);
     check(onScreen(again, "2/3"), "Ctrl-G moves on to the next one");
 
     // Replace, then save, and look at the file.
-    drive(ed1, args, ctrl('r') + "return" + kEnter + "give" + kEnter + ctrl('s') + ctrl('q'),
+    drive(rstudio, args, ctrl('r') + "return" + kEnter + "give" + kEnter + ctrl('s') + ctrl('q'),
           dir);
     std::string written = readFile(file);
     check(written.find("give 1") != std::string::npos, "replace changes the text");
@@ -632,7 +632,7 @@ void findingAndReplacing(const std::string& ed1) {
 
     // And nothing is written unless it is saved.
     writeFile(file, text);
-    drive(ed1, args, ctrl('r') + "return" + kEnter + "gone" + kEnter + ctrl('q') + ctrl('q'),
+    drive(rstudio, args, ctrl('r') + "return" + kEnter + "gone" + kEnter + ctrl('q') + ctrl('q'),
           dir);
     checkEqual(readFile(file), text, "and quitting without saving leaves the file alone");
 
@@ -646,13 +646,13 @@ void findingAndReplacing(const std::string& ed1) {
 // when none are open it shows nothing. It used to fall back to listing
 // whichever directory the editor was standing in, which looked exactly like a
 // project that had not been closed at all.
-void closingTheProject(const std::string& ed1) {
+void closingTheProject(const std::string& rstudio) {
     std::printf("closing the project, and the pane with no project\n");
 
     file::path dir = freshProject("closing");
     writeFile(dir / "src" / "one.c", "int one(void) { return 1; }\n");
     writeFile(dir / "src" / "two.c", "int two(void) { return 2; }\n");
-    writeFile(dir / "ed1.json",
+    writeFile(dir / "rstudio.json",
               "{\n  \"name\": \"Closes\",\n"
               "  \"groups\": { \"First\": [\"src/one.c\", \"src/two.c\"] }\n}\n");
 
@@ -662,14 +662,14 @@ void closingTheProject(const std::string& ed1) {
     // Project menu, third item.
     const std::string closeProject = kF10 + times(kRight, 2) + times(kDown, 3) + kEnter;
 
-    Screen before = drive(ed1, opened, ctrl('q'), dir);
+    Screen before = drive(rstudio, opened, ctrl('q'), dir);
     check(onScreen(before, "- First"), "the group is shown while the project is open");
     // By its own name, not by the path the project file writes: the pane
-    // shows "two.c" where ed1.json says "src/two.c".
+    // shows "two.c" where rstudio.json says "src/two.c".
     check(onScreen(before, "two.c"), "and so is a file that is not the one being edited");
     check(!onScreen(before, "src/two.c"), "named without the directory it sits in");
 
-    Screen after = drive(ed1, opened, closeProject + ctrl('q'), dir);
+    Screen after = drive(rstudio, opened, closeProject + ctrl('q'), dir);
     check(!onScreen(after, "- First"), "closing the project takes the group off the pane");
     check(!onScreen(after, "src/two.c"), "and the files it held that were not open");
     check(onScreen(after, "one.c"), "the file that is open is still shown");
@@ -677,14 +677,14 @@ void closingTheProject(const std::string& ed1) {
 
     // The file on disk is not touched. Closing a project is a change to what
     // is being looked at, and this is the check that keeps it that way.
-    check(readFile(dir / "ed1.json").find("src/two.c") != std::string::npos,
-          "and ed1.json still says everything it said before");
+    check(readFile(dir / "rstudio.json").find("src/two.c") != std::string::npos,
+          "and rstudio.json still says everything it said before");
 
     // File menu, fifth item - Close. No kRight: the menu reopens on the column
     // it was left on, so walking right again would land somewhere else.
     const std::string closeFile = kF10 + times(kLeft, 2) + times(kDown, 4) + kEnter;
 
-    Screen empty = drive(ed1, opened, closeProject + closeFile + ctrl('q'), dir);
+    Screen empty = drive(rstudio, opened, closeProject + closeFile + ctrl('q'), dir);
     check(!onScreen(empty, "one.c"), "closing the last open file empties the pane");
     check(!onScreen(empty, "- First"), "and nothing of the project has come back");
     check(!onScreen(empty, "src"), "and no directory listing has taken its place");
@@ -697,7 +697,7 @@ void closingTheProject(const std::string& ed1) {
 // The question used to be a bare line: you typed a filename and found out
 // afterwards whether it was there. What is under it now is what is actually in
 // the directory, narrowed by whatever has been typed.
-void thePicker(const std::string& ed1) {
+void thePicker(const std::string& rstudio) {
     std::printf("picking a file, and picking a project\n");
 
     file::path dir = freshProject("picking");
@@ -711,14 +711,14 @@ void thePicker(const std::string& ed1) {
     // File ▸ Open is the second item.
     const std::string toOpen = kF10 + kDown + kEnter;
 
-    Screen listed = drive(ed1, project, toOpen + ctrl('q'), dir);
+    Screen listed = drive(rstudio, project, toOpen + ctrl('q'), dir);
     check(onScreen(listed, "Open"), "the question is asked in its own box");
     check(onScreen(listed, "src/"), "and a directory is offered, with a slash");
 
-    // Into src/ - past ed1.json, which sorts first - and what is inside is
+    // Into src/ - past rstudio.json, which sorts first - and what is inside is
     // what the list becomes.
     const std::string intoSrc = toOpen + kDown + kEnter;
-    Screen inside = drive(ed1, project, intoSrc + ctrl('q'), dir);
+    Screen inside = drive(rstudio, project, intoSrc + ctrl('q'), dir);
     check(onScreen(inside, "alpha.c"), "picking a directory lists what is in it");
     check(onScreen(inside, "beta.cpp"), "C++ as well as C");
     check(onScreen(inside, "gcd.shl"), "and Shalimar");
@@ -726,13 +726,13 @@ void thePicker(const std::string& ed1) {
     check(onScreen(inside, "Open src/"), "the question says where it is looking");
 
     // Typing narrows it, and enter takes the one row left.
-    Screen opened = drive(ed1, project, intoSrc + "gcd" + kEnter + ctrl('q'), dir);
+    Screen opened = drive(rstudio, project, intoSrc + "gcd" + kEnter + ctrl('q'), dir);
     check(onScreen(opened, "gcd.shl"), "typing narrows the list and enter opens what is left");
     check(onScreen(opened, "Shalimar"), "and the file's language is picked up");
 
     // A name that matches nothing is still the answer, so a file that is not
     // there yet can be named - which is what Save as and New file need.
-    Screen made = drive(ed1, project, intoSrc + "brand-new.c" + kEnter + ctrl('q'), dir);
+    Screen made = drive(rstudio, project, intoSrc + "brand-new.c" + kEnter + ctrl('q'), dir);
     check(onScreen(made, "brand-new.c"), "a name that matches nothing is taken as typed");
 
     file::remove_all(dir);
@@ -740,7 +740,7 @@ void thePicker(const std::string& ed1) {
 
 // Opening a project by picking one, which the terminal front end could not do
 // at all before: it took one on the command line or remembered the last.
-void pickingAProject(const std::string& ed1) {
+void pickingAProject(const std::string& rstudio) {
     std::printf("opening a project from the list\n");
 
     file::path parent = freshProject("many");
@@ -748,10 +748,10 @@ void pickingAProject(const std::string& ed1) {
     file::create_directories(parent / "beta");
     file::create_directories(parent / "plain");
     writeFile(parent / "alpha" / "a.c", "int a(void) { return 1; }\n");
-    writeFile(parent / "alpha" / "ed1.json",
+    writeFile(parent / "alpha" / "rstudio.json",
               "{\n  \"name\": \"Alpha\",\n  \"groups\": { \"Sources\": [\"a.c\"] }\n}\n");
     writeFile(parent / "beta" / "b.c", "int b(void) { return 2; }\n");
-    writeFile(parent / "beta" / "ed1.json",
+    writeFile(parent / "beta" / "rstudio.json",
               "{\n  \"name\": \"Beta\",\n  \"groups\": { \"Sources\": [\"b.c\"] }\n}\n");
 
     std::string here = " --project \"" + parent.string() + "\"";
@@ -759,37 +759,37 @@ void pickingAProject(const std::string& ed1) {
     // Project ▸ Open project... is the second item.
     const std::string toOpenProject = kF10 + times(kRight, 2) + kDown + kEnter;
 
-    Screen listed = drive(ed1, here, toOpenProject + ctrl('q'), parent);
+    Screen listed = drive(rstudio, here, toOpenProject + ctrl('q'), parent);
     check(onScreen(listed, "Open project in"), "the project question has its own box");
     check(onScreen(listed, "alpha/"), "and the directories are offered");
     check(onScreen(listed, "beta/"), "all of them");
 
-    // Down twice from "./" is beta/, and it holds an ed1.json, so picking it
+    // Down twice from "./" is beta/, and it holds an rstudio.json, so picking it
     // opens it rather than looking inside it.
-    Screen went = drive(ed1, here, toOpenProject + times(kDown, 2) + kEnter + ctrl('q'), parent);
+    Screen went = drive(rstudio, here, toOpenProject + times(kDown, 2) + kEnter + ctrl('q'), parent);
     check(onScreen(went, "Beta"), "picking a directory that is a project opens it");
 
     file::remove_all(parent);
 }
 
-void projectPane(const std::string& ed1) {
+void projectPane(const std::string& rstudio) {
     std::printf("the project pane\n");
 
     file::path dir = freshProject("pane");
     writeFile(dir / "src" / "one.c", "int one(void) { return 1; }\n");
     writeFile(dir / "src" / "two.c", "int two(void) { return 2; }\n");
-    writeFile(dir / "ed1.json",
+    writeFile(dir / "rstudio.json",
               "{\n  \"name\": \"Panes\",\n  \"indent\": 2,\n"
               "  \"groups\": { \"First\": [\"src/one.c\"], \"Second\": [\"src/two.c\"] }\n}\n");
 
-    Screen screen = drive(ed1, "--project \"" + dir.string() + "\"", ctrl('q'), dir);
+    Screen screen = drive(rstudio, "--project \"" + dir.string() + "\"", ctrl('q'), dir);
     check(onScreen(screen, "- First"), "a group is shown");
     check(onScreen(screen, "one.c"), "with what is in it");
     check(onScreen(screen, "- Second"), "and so is the next one");
     check(onScreen(screen, "Panes"), "the project's name is reported");
 
     // Opening from the pane: focus it, walk to the file, press enter.
-    Screen opened = drive(ed1, "--project \"" + dir.string() + "\"",
+    Screen opened = drive(rstudio, "--project \"" + dir.string() + "\"",
                           ctrl('w') + kDown + kEnter + ctrl('q'), dir);
     check(onScreen(opened, "int one(void)"), "enter in the pane opens the file");
     check(onScreen(opened, " one.c"), "and it gets a tab");
@@ -797,7 +797,7 @@ void projectPane(const std::string& ed1) {
     // The project's indent setting is what the editor uses.
     file::path flat = dir / "src" / "three.c";
     writeFile(flat, "int f(void)\n{\nreturn 3;\n}\n");
-    drive(ed1, "\"" + flat.string() + "\" --project \"" + dir.string() + "\"",
+    drive(rstudio, "\"" + flat.string() + "\" --project \"" + dir.string() + "\"",
           ctrl('a') + ctrl('s') + ctrl('q'), dir);
     check(readFile(flat).find("\n  return 3;") != std::string::npos,
           "the project's indent of 2 is what gets used");
@@ -807,9 +807,9 @@ void projectPane(const std::string& ed1) {
 
 // The MSVC half. No path is needed: the editor finds Visual Studio itself, so
 // on Windows this runs whether or not anyone named a compiler.
-void buildingWithCl(const std::string& ed1) {
+void buildingWithCl(const std::string& rstudio) {
 #ifndef _WIN32
-    (void)ed1;   // there is no cl to find anywhere else
+    (void)rstudio;   // there is no cl to find anywhere else
 #else
     std::printf("building with cl\n");
 
@@ -817,7 +817,7 @@ void buildingWithCl(const std::string& ed1) {
 
     file::path good = dir / "src" / "good.c";
     writeFile(good, "int twice(int n)\n{\n    return n + n;\n}\n");
-    Screen ok = drive(ed1, "\"" + good.string() + "\" --project \"" + dir.string() +
+    Screen ok = drive(rstudio, "\"" + good.string() + "\" --project \"" + dir.string() +
                            "\" --toolchain msvc",
                       ctrl('b') + ctrl('q'), dir);
     check(onScreen(ok, "lines of"), "cl builds C, found without a Developer prompt");
@@ -826,7 +826,7 @@ void buildingWithCl(const std::string& ed1) {
     file::path cpp = dir / "src" / "thing.cpp";
     writeFile(cpp, "class Thing {\npublic:\n    int twice(int n) { return n + n; }\n};\n"
                    "int main(void) { Thing t; return t.twice(2) - 4; }\n");
-    Screen built = drive(ed1, "\"" + cpp.string() + "\" --project \"" + dir.string() + "\"",
+    Screen built = drive(rstudio, "\"" + cpp.string() + "\" --project \"" + dir.string() + "\"",
                          ctrl('b') + ctrl('q'), dir);
     check(onScreen(built, "lines of"), "and C++ goes to cl on its own");
     check(onScreen(built, "C++"), "with the status bar saying what it is");
@@ -834,7 +834,7 @@ void buildingWithCl(const std::string& ed1) {
 
     file::path bad = dir / "src" / "bad.c";
     writeFile(bad, "int main(void)\n{\n    int x = ;\n    return 0;\n}\n");
-    Screen broken = drive(ed1, "\"" + bad.string() + "\" --project \"" + dir.string() +
+    Screen broken = drive(rstudio, "\"" + bad.string() + "\" --project \"" + dir.string() +
                                "\" --toolchain msvc",
                           ctrl('b') + ctrl('q'), dir);
     check(onScreen(broken, "error"), "a build that fails says so");
@@ -845,7 +845,7 @@ void buildingWithCl(const std::string& ed1) {
 #endif
 }
 
-void compiling(const std::string& ed1, const std::string& cc1) {
+void compiling(const std::string& rstudio, const std::string& cc1) {
     std::printf("building with cc1\n");
 
     if (cc1.empty()) {
@@ -859,7 +859,7 @@ void compiling(const std::string& ed1, const std::string& cc1) {
 
     std::string arguments = "\"" + good.string() + "\" --project \"" + dir.string() +
                             "\" --cc1 \"" + cc1 + "\"";
-    Screen ok = drive(ed1, arguments, ctrl('b') + ctrl('q'), dir);
+    Screen ok = drive(rstudio, arguments, ctrl('b') + ctrl('q'), dir);
     check(onScreen(ok, "lines of"), "a build that works reports what it produced");
     check(onScreen(ok, "Assembly"), "and the assembly tab is there");
 
@@ -867,7 +867,7 @@ void compiling(const std::string& ed1, const std::string& cc1) {
     writeFile(bad, "int main(void)\n{\n    int x = ;\n    return 0;\n}\n");
     arguments = "\"" + bad.string() + "\" --project \"" + dir.string() +
                 "\" --cc1 \"" + cc1 + "\"";
-    Screen broken = drive(ed1, arguments, ctrl('b') + ctrl('q'), dir);
+    Screen broken = drive(rstudio, arguments, ctrl('b') + ctrl('q'), dir);
     check(onScreen(broken, "error"), "a build that fails says so");
     check(onScreen(broken, "3/5"), "and the caret lands on the line cc1 named");
     check(onScreen(broken, "col 13"), "in the column it named too");
@@ -875,7 +875,7 @@ void compiling(const std::string& ed1, const std::string& cc1) {
     // C++ handed to cc1 is turned away before anything is run.
     file::path cpp = dir / "src" / "thing.cpp";
     writeFile(cpp, "class Thing { public: int n; };\n");
-    Screen refused = drive(ed1, "\"" + cpp.string() + "\" --project \"" + dir.string() +
+    Screen refused = drive(rstudio, "\"" + cpp.string() + "\" --project \"" + dir.string() +
                                 "\" --toolchain cc1 --cc1 \"" + cc1 + "\"",
                            ctrl('b') + ctrl('q'), dir);
     check(onScreen(refused, "cc1 compiles C, not C++"), "cc1 is not handed C++");
@@ -886,7 +886,7 @@ void compiling(const std::string& ed1, const std::string& cc1) {
 // The project's own build, as against the file in front of you. Two sources
 // that only work together, so that a program coming out at all is proof they
 // were linked and not merely compiled one at a time.
-void buildingTheProject(const std::string& ed1, const std::string& cc1) {
+void buildingTheProject(const std::string& rstudio, const std::string& cc1) {
     std::printf("building the project, not just the file\n");
 
     if (cc1.empty()) {
@@ -900,7 +900,7 @@ void buildingTheProject(const std::string& ed1, const std::string& cc1) {
     writeFile(dir / "src" / "main.c",
               "#include <stdio.h>\n\n#include \"sum.h\"\n\n"
               "int main(void)\n{\n    printf(\"answer %d\\n\", addUp(2, 40));\n    return 0;\n}\n");
-    writeFile(dir / "ed1.json",
+    writeFile(dir / "rstudio.json",
               "{\n  \"name\": \"sums\",\n  \"indent\": 4,\n"
               "  \"groups\": {\n"
               "    \"Sources\": [\"src/sum.c\", \"src/main.c\"],\n"
@@ -909,7 +909,7 @@ void buildingTheProject(const std::string& ed1, const std::string& cc1) {
 
     std::string arguments = "--project \"" + dir.string() + "\" --cc1 \"" + cc1 + "\"";
 
-    Screen built = drive(ed1, arguments, kF4 + ctrl('q'), dir);
+    Screen built = drive(rstudio, arguments, kF4 + ctrl('q'), dir);
     check(onScreen(built, "2 sources"), "F4 builds the project's sources, not the open file");
     check(onScreen(built, "built sums"), "and says what it built");
     check(file::exists(dir / "sums") || file::exists(dir / "sums.exe"),
@@ -917,7 +917,7 @@ void buildingTheProject(const std::string& ed1, const std::string& cc1) {
 
     // Run project is on the Build menu under the two that build a file: F10,
     // three columns right to Build, three items down, enter.
-    Screen ran = drive(ed1, arguments,
+    Screen ran = drive(rstudio, arguments,
                        kF10 + times(kRight, 3) + times(kDown, 3) + kEnter + ctrl('q'), dir);
     check(onScreen(ran, "answer 42"), "running the project runs the linked program");
     check(onScreen(ran, "returned 0"), "and reports what it returned");
@@ -932,7 +932,7 @@ void buildingTheProject(const std::string& ed1, const std::string& cc1) {
     // the Debug menu for the project rather than F8 for the file. The
     // breakpoint is in the file that has no main in it, which is the point:
     // one program, two sources, and the line has to be found in the right one.
-    Screen stopped = drive(ed1, "\"" + (dir / "src" / "sum.c").string() + "\" " + arguments,
+    Screen stopped = drive(rstudio, "\"" + (dir / "src" / "sum.c").string() + "\" " + arguments,
                            times(kDown, 2) + kF9 +
                                kF10 + times(kRight, 4) + kDown + kEnter + ctrl('q'),
                            dir);
@@ -948,7 +948,7 @@ void buildingTheProject(const std::string& ed1, const std::string& cc1) {
     // Nothing had main.c open here, so the tab and the status bar naming it
     // are the whole check - it used to say "stopped at main.c:9" while showing
     // sum.c, which is a stranger thing to say than saying nothing.
-    Screen stepped = drive(ed1, "\"" + (dir / "src" / "sum.c").string() + "\" " + arguments,
+    Screen stepped = drive(rstudio, "\"" + (dir / "src" / "sum.c").string() + "\" " + arguments,
                            times(kDown, 2) + kF9 +
                                kF10 + times(kRight, 4) + kDown + kEnter + kF7 + ctrl('q'),
                            dir);
@@ -962,7 +962,7 @@ void buildingTheProject(const std::string& ed1, const std::string& cc1) {
               "#include <stdio.h>\n\n#include \"sum.h\"\n\n"
               "int main(void)\n{\n    int total = addUp(2, 40)\n"
               "    printf(\"answer %d\\n\", total);\n    return 0;\n}\n");
-    Screen broken = drive(ed1, arguments, kF4 + ctrl('q'), dir);
+    Screen broken = drive(rstudio, arguments, kF4 + ctrl('q'), dir);
     check(onScreen(broken, "error"), "an error in the project build is reported");
     check(onScreen(broken, "main.c"), "naming the file it is in");
     // Line 8, not 7: a missing semicolon is reported where the next thing was
@@ -984,12 +984,12 @@ void buildingTheProject(const std::string& ed1, const std::string& cc1) {
               "    return 0;\n}\n");
     writeFile(dir / "src" / "extra.cpp",
               "extern \"C\" int twice(int n) { return n * 2; }\n");
-    writeFile(dir / "ed1.json",
+    writeFile(dir / "rstudio.json",
               "{\n  \"name\": \"sums\",\n  \"indent\": 4,\n"
               "  \"groups\": {\n"
               "    \"Sources\": [\"src/sum.c\", \"src/main.c\", \"src/extra.cpp\"]\n  },\n"
               "  \"build\": { \"target\": \"sums\", \"groups\": [\"Sources\"] }\n}\n");
-    Screen mixed = drive(ed1, arguments, kF4 + ctrl('q'), dir);
+    Screen mixed = drive(rstudio, arguments, kF4 + ctrl('q'), dir);
     // wasShown, not onScreen: the console panel holds nine rows and a build
     // that runs two compilers and a linker writes more than that, so the first
     // compiler's line has scrolled off by the time it is over. What is being
@@ -1016,7 +1016,7 @@ void buildingTheProject(const std::string& ed1, const std::string& cc1) {
 
     // And it runs, which is the whole of what a mixed target is for: a C main
     // calling a function cl or c++ compiled, in one program.
-    Screen ranMixed = drive(ed1, arguments,
+    Screen ranMixed = drive(rstudio, arguments,
                             kF10 + times(kRight, 3) + times(kDown, 3) + kEnter + ctrl('q'),
                             dir);
     check(wasShown(ranMixed, "answer 42"), "and runs, C calling into what the C++ compiler made");
@@ -1033,7 +1033,7 @@ void buildingTheProject(const std::string& ed1, const std::string& cc1) {
     // nothing to build - the file in front of you is still Ctrl-B's business.
     file::path plain = freshProject("noTarget");
     writeFile(plain / "src" / "one.c", "int main(void) { return 0; }\n");
-    Screen quiet = drive(ed1, "--project \"" + plain.string() + "\" --cc1 \"" + cc1 + "\"",
+    Screen quiet = drive(rstudio, "--project \"" + plain.string() + "\" --cc1 \"" + cc1 + "\"",
                          kF4 + ctrl('q'), plain);
     check(onScreen(quiet, "does not say what it builds"),
           "a project with no build entry says so plainly");
@@ -1055,7 +1055,7 @@ const char* kTwoWays =
     "int fourth(void) { return 4; }\n"
     "#endif\n";
 
-void configurations(const std::string& ed1, const std::string& cc1) {
+void configurations(const std::string& rstudio, const std::string& cc1) {
     std::printf("debug and release\n");
 
     file::path dir = freshProject("config");
@@ -1065,28 +1065,28 @@ void configurations(const std::string& ed1, const std::string& cc1) {
     std::string common = "\"" + file.string() + "\" --project \"" + dir.string() + "\"";
 
     // The word is in the status bar whether or not anything can be built.
-    Screen shown = drive(ed1, common + " --config release", ctrl('q'), dir);
+    Screen shown = drive(rstudio, common + " --config release", ctrl('q'), dir);
     check(onScreen(shown, "release"), "the status bar says which configuration");
-    Screen shownDebug = drive(ed1, common, ctrl('q'), dir);
+    Screen shownDebug = drive(rstudio, common, ctrl('q'), dir);
     check(onScreen(shownDebug, "debug"), "and debug is what it starts in");
 
     // The project file remembers it.
-    writeFile(dir / "ed1.json",
+    writeFile(dir / "rstudio.json",
               "{\n  \"name\": \"Conf\",\n  \"config\": \"release\",\n"
               "  \"groups\": { \"Sources\": [] }\n}\n");
-    Screen fromFile = drive(ed1, common, ctrl('q'), dir);
+    Screen fromFile = drive(rstudio, common, ctrl('q'), dir);
     check(onScreen(fromFile, "release"), "the project's configuration is used");
 
-    Screen overridden = drive(ed1, common + " --config debug", ctrl('q'), dir);
+    Screen overridden = drive(rstudio, common + " --config debug", ctrl('q'), dir);
     check(onScreen(overridden, "debug"), "and the flag still overrides it");
 
 #ifdef _WIN32
     // cl can show the difference whether or not cc1 is about: NDEBUG takes
     // three functions out, and /O2 rewrites what is left.
     {
-        Screen clDebug = drive(ed1, common + " --toolchain msvc --config debug",
+        Screen clDebug = drive(rstudio, common + " --toolchain msvc --config debug",
                                ctrl('b') + ctrl('q'), dir);
-        Screen clRelease = drive(ed1, common + " --toolchain msvc --config release",
+        Screen clRelease = drive(rstudio, common + " --toolchain msvc --config release",
                                  ctrl('b') + ctrl('q'), dir);
         check(wasShown(clDebug, "/Od"), "cl is given /Od for debug");
         check(wasShown(clRelease, "/O2"), "and /O2 for release");
@@ -1102,8 +1102,8 @@ void configurations(const std::string& ed1, const std::string& cc1) {
     }
 
     std::string withCc1 = common + " --cc1 \"" + cc1 + "\"";
-    Screen debug = drive(ed1, withCc1 + " --config debug", ctrl('b') + ctrl('q'), dir);
-    Screen release = drive(ed1, withCc1 + " --config release", ctrl('b') + ctrl('q'), dir);
+    Screen debug = drive(rstudio, withCc1 + " --config debug", ctrl('b') + ctrl('q'), dir);
+    Screen release = drive(rstudio, withCc1 + " --config release", ctrl('b') + ctrl('q'), dir);
 
     check(wasShown(debug, "-D_DEBUG=1"), "the debug define is on the command line");
     check(wasShown(release, "-DNDEBUG=1"), "and the release one is");
@@ -1127,7 +1127,7 @@ void configurations(const std::string& ed1, const std::string& cc1) {
 // The menu reopens on the column it was left on, and on that column's first
 // item. So the second F10 in each of these is one step right of Build, not four
 // steps right of File - which cost an hour of believing the panel was broken.
-void debugPanelPerTarget(const std::string& ed1) {
+void debugPanelPerTarget(const std::string& rstudio) {
     std::printf("what the Debug panel says about each target\n");
 
     file::path dir = freshProject("debugpanel");
@@ -1149,16 +1149,16 @@ void debugPanelPerTarget(const std::string& ed1) {
         kF10 + times(kRight, kBuildColumn) + times(kDown, kDebugPanelItem) + kEnter;
     const std::string toTarget = kF10 + times(kRight, kTargetColumn - kBuildColumn);
 
-    Screen linux = drive(ed1, common,
+    Screen linux = drive(rstudio, common,
                          showDebugTab + toTarget + kDown + kEnter + ctrl('q'), dir);
     check(onScreen(linux, "DWARF"), "x86_64-linux is said to carry DWARF");
     check(onScreen(linux, "x86_64-linux"), "and named while it is said");
 
-    Screen darwin = drive(ed1, common,
+    Screen darwin = drive(rstudio, common,
                           showDebugTab + toTarget + times(kDown, 2) + kEnter + ctrl('q'), dir);
     check(onScreen(darwin, "DWARF"), "and arm64-darwin carries it as well");
 
-    Screen windows = drive(ed1, common,
+    Screen windows = drive(rstudio, common,
                            showDebugTab + toTarget + kEnter + ctrl('q'), dir);
     check(onScreen(windows, "no debug information"),
           "x86_64-windows is said to carry none");
@@ -1169,7 +1169,7 @@ void debugPanelPerTarget(const std::string& ed1) {
     // The third F10 needs no Right at all: the menu is already on Target,
     // which is the last column before Help now that the three settings menus
     // are in the order Language, Tools, Target.
-    Screen switched = drive(ed1, common,
+    Screen switched = drive(rstudio, common,
                             showDebugTab + toTarget + kDown + kEnter +
                                 kF10 + kEnter + ctrl('q'),
                             dir);
@@ -1180,13 +1180,13 @@ void debugPanelPerTarget(const std::string& ed1) {
     // toggle, so twice from debug is release and back to debug again.
     const std::string sayConfig = ctrl('d') + ctrl('d');
 
-    Screen debugOnLinux = drive(ed1, common,
+    Screen debugOnLinux = drive(rstudio, common,
                                 kF10 + times(kRight, kTargetColumn) + kDown + kEnter +
                                     sayConfig + ctrl('q'),
                                 dir);
     check(wasShown(debugOnLinux, "-g -D_DEBUG=1"), "a debug build of it asks for -g");
 
-    Screen debugOnWindows = drive(ed1, common,
+    Screen debugOnWindows = drive(rstudio, common,
                                   kF10 + times(kRight, kTargetColumn) + kEnter + sayConfig +
                                       ctrl('q'),
                                   dir);
@@ -1210,7 +1210,7 @@ const char* const kPrintsAndReturns =
 // way. What the console has to keep apart is a compiler that refused and a
 // program that ran and returned something other than zero: only the program
 // knows what its number meant, and a build that failed never got one.
-void runningTheProgram(const std::string& ed1, const std::string& cc1) {
+void runningTheProgram(const std::string& rstudio, const std::string& cc1) {
     std::printf("building it, and running what came out\n");
 
     // A target this machine cannot run is turned away before anything is built,
@@ -1229,7 +1229,7 @@ void runningTheProgram(const std::string& ed1, const std::string& cc1) {
     file::path away = freshProject("run-elsewhere");
     file::path awayFile = away / "src" / "three.c";
     writeFile(awayFile, kPrintsAndReturns);
-    Screen refused = drive(ed1,
+    Screen refused = drive(rstudio,
                            "\"" + awayFile.string() + "\" --project \"" + away.string() + "\"",
                            toElsewhere + kF5 + ctrl('q'), away);
     check(wasShown(refused, "only reaches -S here"),
@@ -1253,7 +1253,7 @@ void runningTheProgram(const std::string& ed1, const std::string& cc1) {
     // Twice: once in the source being edited, once in the console under it. Once
     // would be the source alone, which is on the screen whether anything ran or
     // not.
-    Screen ran = drive(ed1, withCc1, kF5 + ctrl('q'), dir);
+    Screen ran = drive(rstudio, withCc1, kF5 + ctrl('q'), dir);
     check(rowsSaying(ran, "counted to three") == 2,
           "what the program printed reaches the console");
     check(wasShown(ran, "[program returned 3]"), "and what it returned is said as a number");
@@ -1263,7 +1263,7 @@ void runningTheProgram(const std::string& ed1, const std::string& cc1) {
     // The same file with the semicolon taken out: the compiler stops, and the
     // console must not go on to claim a program ran.
     writeFile(file, "int main(void) { return 0 }\n");
-    Screen broken = drive(ed1, withCc1, kF5 + ctrl('q'), dir);
+    Screen broken = drive(rstudio, withCc1, kF5 + ctrl('q'), dir);
     check(!wasShown(broken, "program returned"), "a file that will not compile runs nothing");
     check(message(broken).find("error") != std::string::npos, "and the error is what is said");
 
@@ -1288,7 +1288,7 @@ const char* const kWorthStoppingIn =
 
 // Stopping the program on a line and walking through it, driven the way a
 // person drives it: F9 on the line, F8 to start, F7 and F6 to move.
-void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
+void stoppingAndStepping(const std::string& rstudio, const std::string& cc1) {
     std::printf("breakpoints, and stepping through what stopped\n");
 
     file::path dir = freshProject("debugging");
@@ -1301,7 +1301,7 @@ void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
 
     // A breakpoint is the editor's own note and needs no compiler: it can be
     // set, seen and taken away with nothing installed at all.
-    Screen marked = drive(ed1, common, toLoopBody + kF9 + ctrl('q'), dir);
+    Screen marked = drive(rstudio, common, toLoopBody + kF9 + ctrl('q'), dir);
     check(wasShown(marked, "breakpoint on line 11"), "F9 puts a breakpoint on the line");
     // The number is right-aligned with a gap after it, so the marker sits in
     // the column before the first digit and nothing moves when it appears.
@@ -1312,11 +1312,11 @@ void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
     // with nothing stopped, because that answer needs no debugger and so is
     // asked on all three machines - including the one where cc1's own target
     // cannot be debugged at all and every check below this is skipped.
-    Screen noStack = drive(ed1, common, kCtrlUp + ctrl('q'), dir);
+    Screen noStack = drive(rstudio, common, kCtrlUp + ctrl('q'), dir);
     check(wasShown(noStack, "no stack to walk"),
           "Ctrl-Up arrives as Ctrl-Up, and says there is nothing stopped");
 
-    Screen unmarked = drive(ed1, common, toLoopBody + kF9 + kF9 + ctrl('q'), dir);
+    Screen unmarked = drive(rstudio, common, toLoopBody + kF9 + kF9 + ctrl('q'), dir);
     check(wasShown(unmarked, "breakpoint off line 11"), "and F9 again takes it away");
     check(!onScreen(unmarked, "*11"), "leaving the gutter as it was");
 
@@ -1332,7 +1332,7 @@ void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
 
         // Project menu, then down to Rename..., as fileCommands drives it.
         const std::string toRename = kF10 + times(kRight, 2) + times(kDown, 6) + kEnter;
-        Screen followed = drive(ed1, there,
+        Screen followed = drive(rstudio, there,
                                 toLoopBody + kF9 + toRename + "src/moved.c" + kEnter + ctrl('q'),
                                 renaming);
         check(file::exists(renaming / "src" / "moved.c"),
@@ -1362,7 +1362,7 @@ void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
             kF10 + times(kDown, 5) + kEnter + "src/stepped.c" + kEnter;
 
         // Twelve lines in the new file, so that line 11 is there to be marked.
-        Screen reborn = drive(ed1, there,
+        Screen reborn = drive(rstudio, there,
                               toLoopBody + kF9 + deleteIt + makeItAgain +
                                   times(kEnter, 12) + ctrl('s') + ctrl('q'),
                               deleting);
@@ -1382,7 +1382,7 @@ void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
     // The reason is about this compiler and this target rather than about the
     // machine: the C file here goes to cc1, and what cc1 writes for Windows is
     // MASM. A C++ file on the same machine goes to cl and is a different story.
-    Screen refused = drive(ed1, common, toLoopBody + kF9 + kF8 + ctrl('q'), dir);
+    Screen refused = drive(rstudio, common, toLoopBody + kF9 + kF8 + ctrl('q'), dir);
     check(wasShown(refused, "carries no line table"),
           "and debugging says why it cannot start");
     check(wasShown(refused, "cc1"), "naming the compiler it is talking about");
@@ -1397,7 +1397,7 @@ void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
 
     std::string withCc1 = common + " --cc1 \"" + cc1 + "\"";
 
-    Screen stopped = drive(ed1, withCc1, toLoopBody + kF9 + kF8 + ctrl('q'), dir);
+    Screen stopped = drive(rstudio, withCc1, toLoopBody + kF9 + kF8 + ctrl('q'), dir);
     check(onScreen(stopped, "stopped at stepped.c:11"), "F8 runs it and it stops on the line");
     check(onScreen(stopped, "in main"), "saying which function that line is in");
     check(onScreen(stopped, ">11"), "the gutter marks where it is standing");
@@ -1409,7 +1409,7 @@ void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
     check(!onScreen(stopped, "called from"),
           "and nothing is said about a stack, since main was called by nobody");
 
-    Screen inside = drive(ed1, withCc1, toLoopBody + kF9 + kF8 + kF6 + ctrl('q'), dir);
+    Screen inside = drive(rstudio, withCc1, toLoopBody + kF9 + kF8 + kF6 + ctrl('q'), dir);
     check(onScreen(inside, "in twice"), "F6 steps into the call");
     check(onScreen(inside, "n = 1"), "where the argument is in scope");
     check(onScreen(inside, "called from"), "and now there is a stack to show");
@@ -1429,7 +1429,7 @@ void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
     //   called from
     //     main   stepped.c:11
     const std::string toTheFrame = ctrl('w') + ctrl('w') + times(kDown, 6) + kEnter;
-    Screen went = drive(ed1, withCc1, toLoopBody + kF9 + kF8 + kF6 + toTheFrame + ctrl('q'), dir);
+    Screen went = drive(rstudio, withCc1, toLoopBody + kF9 + kF8 + kF6 + toTheFrame + ctrl('q'), dir);
     check(wasShown(went, "where the call came from"), "enter on a frame goes to it");
     check(onScreen(went, "11/14"), "putting the caret on the line that is waiting");
     check(onScreen(went, "[text]"), "and the keyboard back in the text");
@@ -1445,7 +1445,7 @@ void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
     // already standing on it, the tab having come back to the top.
     const std::string andBack = ctrl('w') + ctrl('w') + kEnter;
     Screen backAgain = drive(
-        ed1, withCc1, toLoopBody + kF9 + kF8 + kF6 + toTheFrame + andBack + ctrl('q'), dir);
+        rstudio, withCc1, toLoopBody + kF9 + kF8 + kF6 + toTheFrame + andBack + ctrl('q'), dir);
     check(wasShown(backAgain, "back where it stopped"), "enter on the top line goes back");
     check(onScreen(backAgain, "n = 1"), "and the variables are the stopped frame's again");
     check(!onScreen(backAgain, "the variables are main's"),
@@ -1460,7 +1460,7 @@ void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
 
     // The same walk with a key, from the text, without going near the panel -
     // which is where a person is when the question occurs to them.
-    Screen up = drive(ed1, withCc1, toLoopBody + kF9 + kF8 + kF6 + kCtrlUp + ctrl('q'), dir);
+    Screen up = drive(rstudio, withCc1, toLoopBody + kF9 + kF8 + kF6 + kCtrlUp + ctrl('q'), dir);
     check(onScreen(up, "the variables are main's"), "Ctrl-Up looks at what called this");
     check(onScreen(up, "total = 0"), "with that frame's variables");
     check(onScreen(up, "11/14"), "and the caret on the line waiting for the call");
@@ -1480,11 +1480,11 @@ void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
     check(!onScreen(up, breakLine), "and the breakpoint's own mark gives way to it");
 
     // And the ends of it, which are the two answers with nowhere to go.
-    Screen top = drive(ed1, withCc1,
+    Screen top = drive(rstudio, withCc1,
                        toLoopBody + kF9 + kF8 + kF6 + kCtrlUp + kCtrlUp + ctrl('q'), dir);
     check(wasShown(top, "nothing called main"), "and says so at the top of the stack");
 
-    Screen down = drive(ed1, withCc1,
+    Screen down = drive(rstudio, withCc1,
                         toLoopBody + kF9 + kF8 + kF6 + kCtrlUp + kCtrlDown + ctrl('q'), dir);
     check(wasShown(down, "back where it stopped"), "Ctrl-Down comes back down");
     check(onScreen(down, "n = 1"), "to the variables of the frame it stopped in");
@@ -1492,7 +1492,7 @@ void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
     check(!onScreen(down, markedLine), "with the mark gone from the frame it was looking at");
     check(onScreen(down, breakLine), "and the breakpoint's own mark back where it was");
 
-    Screen bottom = drive(ed1, withCc1, toLoopBody + kF9 + kF8 + kF6 + kCtrlDown + ctrl('q'), dir);
+    Screen bottom = drive(rstudio, withCc1, toLoopBody + kF9 + kF8 + kF6 + kCtrlDown + ctrl('q'), dir);
     check(wasShown(bottom, "nothing below it"), "and says so at the bottom of it");
 
     // Setting a variable: the cursor on its line in the panel, enter, and the
@@ -1506,14 +1506,14 @@ void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
     // the same keystrokes naming a different variable is not this feature
     // going wrong.
     const std::string toTheVariable = ctrl('w') + ctrl('w') + times(kDown, 2) + kEnter;
-    Screen written = drive(ed1, withCc1,
+    Screen written = drive(rstudio, withCc1,
                            toLoopBody + kF9 + kF8 + toTheVariable + "7" + kEnter + ctrl('q'), dir);
     check(wasShown(written, "is 7 now"), "enter on a variable sets it");
     check(onScreen(written, "= 7"), "and the tab shows what is in there now");
 
     // And a value it will not take is refused in the debugger's own words,
     // which name the mistake better than anything the editor could invent.
-    Screen refused = drive(ed1, withCc1,
+    Screen refused = drive(rstudio, withCc1,
                            toLoopBody + kF9 + kF8 + toTheVariable + "nosuch" + kEnter + ctrl('q'),
                            dir);
     check(!onScreen(refused, "= nosuch"), "a value it will not take is not written into the tab");
@@ -1524,13 +1524,13 @@ void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
     // Nine items down that menu - Start, Debug project, breakpoint, over,
     // into, out, up, down, and then Watch expression.
     const std::string toWatch = kF10 + times(kRight, 4) + times(kDown, 8) + kEnter;
-    Screen watching = drive(ed1, withCc1,
+    Screen watching = drive(rstudio, withCc1,
                             toLoopBody + kF9 + kF8 + toWatch + "total + i" + kEnter + ctrl('q'),
                             dir);
     check(onScreen(watching, "watching"), "the tab has a block for what is being watched");
     check(onScreen(watching, "total + i = 1"), "with the expression answered where it stopped");
 
-    Screen followed = drive(ed1, withCc1,
+    Screen followed = drive(rstudio, withCc1,
                             toLoopBody + kF9 + kF8 + toWatch + "total + i" + kEnter + kF8 +
                                 ctrl('q'),
                             dir);
@@ -1542,12 +1542,12 @@ void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
     // frame without being one - the likeliest line to press enter on by
     // mistake.
     const std::string toTheHeading = ctrl('w') + ctrl('w') + times(kDown, 5) + kEnter;
-    Screen neither = drive(ed1, withCc1,
+    Screen neither = drive(rstudio, withCc1,
                            toLoopBody + kF9 + kF8 + kF6 + toTheHeading + ctrl('q'), dir);
     check(wasShown(neither, "neither a frame nor a variable"),
           "enter on a line that is neither says so");
 
-    Screen carried = drive(ed1, withCc1, toLoopBody + kF9 + kF8 + kF7 + kF8 + ctrl('q'), dir);
+    Screen carried = drive(rstudio, withCc1, toLoopBody + kF9 + kF8 + kF7 + kF8 + ctrl('q'), dir);
     check(onScreen(carried, "total = 2"), "F7 steps over it and F8 carries on round the loop");
     check(onScreen(carried, "i = 2"), "with the counter moved on");
 
@@ -1558,10 +1558,10 @@ void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
 // Opening a directory that has no project file. It gets one rather than the
 // editor opening without a project, which is the difference between a tool
 // that starts and a tool that asks you to go and make something first.
-void aDirectoryWithNoProject(const std::string& ed1) {
+void aDirectoryWithNoProject(const std::string& rstudio) {
     std::printf("opening somewhere that has no project file\n");
 
-    file::path dir = file::temp_directory_path() / "ed1-session-noproject";
+    file::path dir = file::temp_directory_path() / "rstudio-session-noproject";
     file::remove_all(dir);
     editor::path::makeDirectories((dir / "src").string());
     writeFile(dir / "src" / "one.c", "int one;\n");
@@ -1569,7 +1569,7 @@ void aDirectoryWithNoProject(const std::string& ed1) {
 
     check(!file::exists(dir / "RStudio.json"), "there is no project file to begin with");
 
-    Screen made = drive(ed1, "--project \"" + dir.string() + "\"", ctrl('q'), dir);
+    Screen made = drive(rstudio, "--project \"" + dir.string() + "\"", ctrl('q'), dir);
     check(file::exists(dir / "RStudio.json"), "opening there writes one");
     check(wasShown(made, "so one was made"), "and says that is what it did");
     check(onScreen(made, "one.c"), "the source it found is in the pane");
@@ -1577,7 +1577,7 @@ void aDirectoryWithNoProject(const std::string& ed1) {
 
     // Opened again, the file that was written is the file that is read - no
     // second one, and nothing said about making anything.
-    Screen again = drive(ed1, "--project \"" + dir.string() + "\"", ctrl('q'), dir);
+    Screen again = drive(rstudio, "--project \"" + dir.string() + "\"", ctrl('q'), dir);
     check(!wasShown(again, "so one was made"), "opening it again makes nothing");
     check(onScreen(again, "one.c"), "and reads back what was written");
     check(wasShown(again, "ready"), "and says it is ready, having nothing to do first");
@@ -1588,16 +1588,16 @@ void aDirectoryWithNoProject(const std::string& ed1) {
     // downs rather than one since Contents joined this menu above About - a
     // count of the columns and of the items, written down in the one place
     // that walks them.
-    Screen about = drive(ed1, "--project \"" + dir.string() + "\"",
+    Screen about = drive(rstudio, "--project \"" + dir.string() + "\"",
                          kF10 + times(kRight, 8) + times(kDown, 2) + kEnter + ctrl('q'), dir);
     check(onScreen(about, "RStudio 1.1"), "About names the product and version");
     check(onScreen(about, "G. R. Akhtar"), "and who it belongs to");
     check(onScreen(about, "Islamabad"), "and where they are, which the last line must not lose");
 
     // A project file that will not parse is somebody's work and is left alone.
-    writeFile(dir / "ed1.json", "{ this is not json\n");
-    Screen broken = drive(ed1, "--project \"" + dir.string() + "\"", ctrl('q'), dir);
-    check(readFile(dir / "ed1.json").find("not json") != std::string::npos,
+    writeFile(dir / "rstudio.json", "{ this is not json\n");
+    Screen broken = drive(rstudio, "--project \"" + dir.string() + "\"", ctrl('q'), dir);
+    check(readFile(dir / "rstudio.json").find("not json") != std::string::npos,
           "a project file that will not parse is not written over");
     check(!wasShown(broken, "so one was made"), "and nothing is made in its place");
 
@@ -1609,7 +1609,7 @@ void aDirectoryWithNoProject(const std::string& ed1) {
 // The third language, driven rather than described. Everything below asks the
 // editor to do something with a .shl and looks at what came back on the
 // screen; nothing here reaches into the core.
-void compilingShalimar(const std::string& ed1, const std::string& shc) {
+void compilingShalimar(const std::string& rstudio, const std::string& shc) {
     std::printf("building Shalimar with shc\n");
 
     if (shc.empty()) {
@@ -1631,16 +1631,16 @@ void compilingShalimar(const std::string& ed1, const std::string& shc) {
     std::string arguments = "\"" + good.string() + "\" --project \"" + dir.string() +
                             "\" --shc \"" + shc + "\"";
 
-    Screen opened = drive(ed1, arguments, ctrl('q'), dir);
+    Screen opened = drive(rstudio, arguments, ctrl('q'), dir);
     check(onScreen(opened, "Shalimar"), "the status bar names the language");
 
-    Screen ok = drive(ed1, arguments, ctrl('b') + ctrl('q'), dir);
+    Screen ok = drive(rstudio, arguments, ctrl('b') + ctrl('q'), dir);
     check(onScreen(ok, "lines of"), "a build that works reports what it produced");
     check(onScreen(ok, "Assembly"), "and the assembly tab is there");
 
     // F5 builds a program and runs it, which is the whole of what a Shalimar
     // program is for.
-    Screen ran = drive(ed1, arguments, kF5 + ctrl('q'), dir);
+    Screen ran = drive(rstudio, arguments, kF5 + ctrl('q'), dir);
     check(wasShown(ran, "42"), "running it prints what the program prints");
 
     // shc names the line and no column, so the caret lands at the start of it.
@@ -1651,7 +1651,7 @@ void compilingShalimar(const std::string& ed1, const std::string& shc) {
               "}\n");
     std::string broken = "\"" + bad.string() + "\" --project \"" + dir.string() +
                          "\" --shc \"" + shc + "\"";
-    Screen refusedIt = drive(ed1, broken, ctrl('b') + ctrl('q'), dir);
+    Screen refusedIt = drive(rstudio, broken, ctrl('b') + ctrl('q'), dir);
     check(onScreen(refusedIt, "Undefined variable"), "a build that fails says why");
     check(onScreen(refusedIt, "2/3"), "and the caret lands on the line shc named");
 
@@ -1660,12 +1660,12 @@ void compilingShalimar(const std::string& ed1, const std::string& shc) {
     // fourth item in it.
     file::path anonymous = dir / "src" / "notes.txt";
     writeFile(anonymous, "fun <> = main() {\n  ? 1\n}\n");
-    Screen asText = drive(ed1, "\"" + anonymous.string() + "\" --project \"" +
+    Screen asText = drive(rstudio, "\"" + anonymous.string() + "\" --project \"" +
                                    dir.string() + "\" --shc \"" + shc + "\"",
                           ctrl('q'), dir);
     check(onScreen(asText, "text"), "a .txt opens as plain text");
 
-    Screen asShalimar = drive(ed1, "\"" + anonymous.string() + "\" --project \"" +
+    Screen asShalimar = drive(rstudio, "\"" + anonymous.string() + "\" --project \"" +
                                        dir.string() + "\" --shc \"" + shc + "\"",
                               // Language is the seventh column, and its first
                               // item is already selected when the menu opens -
@@ -1684,7 +1684,7 @@ void compilingShalimar(const std::string& ed1, const std::string& shc) {
 // The language has no include and no separate compilation, so several .shl in
 // a group are several programs rather than the parts of one - and the project
 // has to say which it builds instead of taking whichever came first.
-void aShalimarProject(const std::string& ed1, const std::string& shc) {
+void aShalimarProject(const std::string& rstudio, const std::string& shc) {
     std::printf("a project made of Shalimar\n");
 
     if (shc.empty()) {
@@ -1695,7 +1695,7 @@ void aShalimarProject(const std::string& ed1, const std::string& shc) {
     file::path dir = freshProject("shmproject");
     writeFile(dir / "src" / "hello.shl",
               "fun <> = main() {\n  ? 6 * 7\n}\n");
-    writeFile(dir / "ed1.json",
+    writeFile(dir / "rstudio.json",
               "{\n"
               "  \"name\": \"hello\",\n"
               "  \"build\": { \"target\": \"hello\", \"groups\": [\"Sources\"] },\n"
@@ -1703,36 +1703,36 @@ void aShalimarProject(const std::string& ed1, const std::string& shc) {
               "}\n");
 
     std::string arguments = "--project \"" + dir.string() + "\" --shc \"" + shc + "\"";
-    Screen built = drive(ed1, arguments, kF4 + ctrl('q'), dir);
+    Screen built = drive(rstudio, arguments, kF4 + ctrl('q'), dir);
     check(onScreen(built, "built hello"), "F4 builds the project's one program");
     check(file::exists(dir / "hello") || file::exists(dir / "hello.exe"),
           "and leaves it beside the project, where it can be found again");
 
     // Run project: F10, three columns right to Build, three items down.
-    Screen ran = drive(ed1, arguments,
+    Screen ran = drive(rstudio, arguments,
                        kF10 + times(kRight, 3) + times(kDown, 3) + kEnter + ctrl('q'), dir);
     check(onScreen(ran, "42"), "running the project runs what came out");
 
     // A second program in the group, and the target names the first.
     writeFile(dir / "src" / "other.shl", "fun <> = main() {\n  ? 1\n}\n");
-    writeFile(dir / "ed1.json",
+    writeFile(dir / "rstudio.json",
               "{\n"
               "  \"name\": \"hello\",\n"
               "  \"build\": { \"target\": \"hello\", \"groups\": [\"Sources\"] },\n"
               "  \"groups\": { \"Sources\": [\"src/other.shl\", \"src/hello.shl\"] }\n"
               "}\n");
-    Screen chose = drive(ed1, arguments, kF4 + ctrl('q'), dir);
+    Screen chose = drive(rstudio, arguments, kF4 + ctrl('q'), dir);
     check(!wasShown(chose, "programs and builds one"),
           "a target named after one of them builds that one");
 
     // And a target named after none of them is refused rather than guessed.
-    writeFile(dir / "ed1.json",
+    writeFile(dir / "rstudio.json",
               "{\n"
               "  \"name\": \"hello\",\n"
               "  \"build\": { \"target\": \"neither\", \"groups\": [\"Sources\"] },\n"
               "  \"groups\": { \"Sources\": [\"src/other.shl\", \"src/hello.shl\"] }\n"
               "}\n");
-    Screen refusedIt = drive(ed1, arguments, kF4 + ctrl('q'), dir);
+    Screen refusedIt = drive(rstudio, arguments, kF4 + ctrl('q'), dir);
     check(wasShown(refusedIt, "programs and builds one"),
           "a target named after none of them is refused, not guessed at");
 
@@ -1757,13 +1757,13 @@ void aShalimarProject(const std::string& ed1, const std::string& shc) {
               "  ? area(6.0, 7.0)\n"
               "  ? nearly(0.1 + 0.2, 0.3)\n"
               "}\n");
-    writeFile(dir / "ed1.json",
+    writeFile(dir / "rstudio.json",
               "{\n"
               "  \"name\": \"hello\",\n"
               "  \"build\": { \"target\": \"hello\", \"groups\": [\"Sources\"] },\n"
               "  \"groups\": { \"Sources\": [\"src/shapes.shl\", \"src/hello.shl\"] }\n"
               "}\n");
-    Screen two = drive(ed1, arguments,
+    Screen two = drive(rstudio, arguments,
                        kF10 + times(kRight, 3) + times(kDown, 3) + kEnter + ctrl('q'), dir);
     check(wasShown(two, "42.0000000"),
           "a program calling a function in another file of the project builds and runs");
@@ -1776,13 +1776,13 @@ void aShalimarProject(const std::string& ed1, const std::string& shc) {
     //
     // In one group: no compiler takes both, so naming one cannot help.
     writeFile(dir / "src" / "bit.c", "int bit(void) { return 1; }\n");
-    writeFile(dir / "ed1.json",
+    writeFile(dir / "rstudio.json",
               "{\n"
               "  \"name\": \"hello\",\n"
               "  \"build\": { \"target\": \"hello\", \"groups\": [\"Sources\"] },\n"
               "  \"groups\": { \"Sources\": [\"src/hello.shl\", \"src/bit.c\"] }\n"
               "}\n");
-    Screen together = drive(ed1, arguments, kF4 + ctrl('q'), dir);
+    Screen together = drive(rstudio, arguments, kF4 + ctrl('q'), dir);
     check(wasShown(together, "Shalimar and C or C++ in one group"),
           "Shalimar and C in one group is refused, naming the group");
 
@@ -1791,7 +1791,7 @@ void aShalimarProject(const std::string& ed1, const std::string& shc) {
     // the same three startup symbols, so two of them collide - and the
     // language has no declarations, so a call across a link could not be
     // checked. Compiler-S/docs/LINKING.md has it in full.
-    writeFile(dir / "ed1.json",
+    writeFile(dir / "rstudio.json",
               "{\n"
               "  \"name\": \"hello\",\n"
               "  \"build\": { \"target\": \"hello\", \"groups\": [\"Sources\", \"C\"] },\n"
@@ -1800,7 +1800,7 @@ void aShalimarProject(const std::string& ed1, const std::string& shc) {
               "    \"C\": [\"src/bit.c\"]\n"
               "  }\n"
               "}\n");
-    Screen apart = drive(ed1, arguments, kF4 + ctrl('q'), dir);
+    Screen apart = drive(rstudio, arguments, kF4 + ctrl('q'), dir);
     check(wasShown(apart, "whole program"),
           "and in a group of its own it is refused for what a Shalimar object is");
 
@@ -1812,7 +1812,7 @@ void aShalimarProject(const std::string& ed1, const std::string& shc) {
 // and no cdb here: the program stops itself, so this runs on every machine the
 // suite runs on - including Windows, where cc1's own target cannot be debugged
 // at all and every check in stoppingAndStepping is skipped.
-void stoppingShalimar(const std::string& ed1, const std::string& shc) {
+void stoppingShalimar(const std::string& rstudio, const std::string& shc) {
     std::printf("stopping a Shalimar program from the editor\n");
 
     if (shc.empty()) {
@@ -1840,7 +1840,7 @@ void stoppingShalimar(const std::string& ed1, const std::string& shc) {
     // The caret starts on line 1; line 8 is the call.
     const std::string toTheCall = times(kDown, 7);
 
-    Screen stopped = drive(ed1, arguments, toTheCall + kF9 + kF8 + ctrl('q'), dir);
+    Screen stopped = drive(rstudio, arguments, toTheCall + kF9 + kF8 + ctrl('q'), dir);
     check(onScreen(stopped, "stopped at steps.shl:8"),
           "F8 runs it and it stops on the line, with no debugger anywhere near it");
     check(onScreen(stopped, "> 8"), "the gutter marks where it is standing");
@@ -1851,20 +1851,20 @@ void stoppingShalimar(const std::string& ed1, const std::string& shc) {
     check(onScreen(stopped, "not what is in it"),
           "and the tab says why there are no variables, rather than showing none");
 
-    Screen inside = drive(ed1, arguments, toTheCall + kF9 + kF8 + kF6 + ctrl('q'), dir);
+    Screen inside = drive(rstudio, arguments, toTheCall + kF9 + kF8 + kF6 + ctrl('q'), dir);
     check(onScreen(inside, "steps.shl:2"), "F6 steps into the call");
 
     // Out of the call is the statement *after* the one that made it: the call's
     // own statement was entered before the call was made, and stepping out
     // looks for the next statement shallower than where it is.
-    Screen back = drive(ed1, arguments, toTheCall + kF9 + kF8 + kF6 + kF7 + kF7 + ctrl('q'), dir);
+    Screen back = drive(rstudio, arguments, toTheCall + kF9 + kF8 + kF6 + kF7 + kF7 + ctrl('q'), dir);
     check(onScreen(back, "steps.shl:9"), "and stepping on comes back past the call");
 
     // The program's own printing reaches the console, which is the point of
     // the channel keeping the two streams apart: a #stop in the middle of a
     // half-written line would have been unreadable and would have changed what
     // the program appeared to print.
-    Screen printed = drive(ed1, arguments,
+    Screen printed = drive(rstudio, arguments,
                            toTheCall + kF9 + kF8 + kF8 + ctrl('q'), dir);
     check(wasShown(printed, "returned"), "carrying on to the end says so");
 
@@ -1874,7 +1874,7 @@ void stoppingShalimar(const std::string& ed1, const std::string& shc) {
     //
     // Ctrl-D is the toggle rather than the debug half of a pair, and debug is
     // where a project starts - so one press is release.
-    Screen release = drive(ed1, arguments, ctrl('d') + toTheCall + kF9 + kF8 + ctrl('q'), dir);
+    Screen release = drive(rstudio, arguments, ctrl('d') + toTheCall + kF9 + kF8 + ctrl('q'), dir);
     check(wasShown(release, "no debugger in it"),
           "and a release build says what it has not got, not what shc has never had");
 
@@ -1888,7 +1888,7 @@ void stoppingShalimar(const std::string& ed1, const std::string& shc) {
 // editor names the linker itself, because no compiler here takes an object as
 // an input - hand cc1 a .o and it reads it as C and complains about a stray
 // byte on line 1.
-void aCompilerPerGroup(const std::string& ed1, const std::string& cc1) {
+void aCompilerPerGroup(const std::string& rstudio, const std::string& cc1) {
     std::printf("a compiler per group, and one link\n");
 
     // The machine's real C++ compiler, by name. Written out rather than asked
@@ -1920,7 +1920,7 @@ void aCompilerPerGroup(const std::string& ed1, const std::string& cc1) {
     // here, which is the point: it is two *parts* rather than two languages,
     // so the object-and-link path is what runs, on a machine where the whole
     // of it can be checked.
-    writeFile(dir / "ed1.json",
+    writeFile(dir / "rstudio.json",
               "{\n  \"name\": \"two\",\n  \"indent\": 4,\n"
               "  \"groups\": {\n"
               "    \"Sources\": [\"src/main.c\"],\n"
@@ -1930,7 +1930,7 @@ void aCompilerPerGroup(const std::string& ed1, const std::string& cc1) {
 
     std::string arguments = "--project \"" + dir.string() + "\" --cc1 \"" + cc1 + "\"";
 
-    Screen built = drive(ed1, arguments, kF4 + ctrl('q'), dir);
+    Screen built = drive(rstudio, arguments, kF4 + ctrl('q'), dir);
     check(onScreen(built, "Sources (cc1)"), "each group is compiled under its own name");
     check(onScreen(built, "Library (cc1)"), "including the one that named its compiler");
     check(onScreen(built, "linking with"), "and the editor says what it linked with");
@@ -1943,7 +1943,7 @@ void aCompilerPerGroup(const std::string& ed1, const std::string& cc1) {
     check(!file::exists(dir / "main.o") && !file::exists(dir / "helper.o"),
           "and no objects are left lying about the project");
 
-    Screen ran = drive(ed1, arguments,
+    Screen ran = drive(rstudio, arguments,
                        kF10 + times(kRight, 3) + times(kDown, 3) + kEnter + ctrl('q'), dir);
     check(wasShown(ran, "helper 42"), "running it runs what the two groups made together");
 
@@ -1975,7 +1975,7 @@ void aCompilerPerGroup(const std::string& ed1, const std::string& cc1) {
                   "    int total = 0;\n"
                   "    for (std::size_t i = 0; i < v.size(); ++i) total += v[i];\n"
                   "    return total;\n}\n");
-        writeFile(three / "ed1.json",
+        writeFile(three / "rstudio.json",
                   "{\n  \"name\": \"three\",\n  \"indent\": 4,\n"
                   "  \"groups\": {\n"
                   "    \"Sources\": [\"src/main.c\"],\n"
@@ -1985,7 +1985,7 @@ void aCompilerPerGroup(const std::string& ed1, const std::string& cc1) {
                   "\"groups\": [\"Sources\", \"Legacy\", \"Engine\"] }\n}\n");
 
         std::string theirs = "--project \"" + three.string() + "\" --cc1 \"" + cc1 + "\"";
-        Screen made = drive(ed1, theirs, kF4 + ctrl('q'), three);
+        Screen made = drive(rstudio, theirs, kF4 + ctrl('q'), three);
         check(wasShown(made, "Sources (cc1)"), "a C group that says nothing goes to cc1");
         check(wasShown(made, std::string("Legacy (") + cpp + ")"),
               "a C group that names the host's C++ compiler goes there instead");
@@ -1993,7 +1993,7 @@ void aCompilerPerGroup(const std::string& ed1, const std::string& cc1) {
               "and a C++ group needs to name nothing, there being one answer");
         check(onScreen(made, "built three"), "all three link into one program");
 
-        Screen went = drive(ed1, theirs,
+        Screen went = drive(rstudio, theirs,
                             kF10 + times(kRight, 3) + times(kDown, 3) + kEnter + ctrl('q'),
                             three);
         check(wasShown(went, "total 45"),
@@ -2005,7 +2005,7 @@ void aCompilerPerGroup(const std::string& ed1, const std::string& cc1) {
     // to be looked for among the target's sources starting at the first, which
     // is right when there is one command and wrong the moment there are two.
     writeFile(dir / "lib" / "helper.c", "int helper(int n) { return n * ; }\n");
-    Screen broken = drive(ed1, arguments, kF4 + ctrl('q'), dir);
+    Screen broken = drive(rstudio, arguments, kF4 + ctrl('q'), dir);
     check(onScreen(broken, "error"), "an error in the second group is reported");
     check(onScreen(broken, "helper.c"), "naming the file it is actually in");
 
@@ -2019,7 +2019,7 @@ void aCompilerPerGroup(const std::string& ed1, const std::string& cc1) {
 // somebody picking Language > C by hand, and there is nowhere else that says
 // which. A menu that lists five compilers without saying which one you are on
 // is a menu that sends you to the other end of the screen to find out.
-void theMenuSaysWhereYouAre(const std::string& ed1) {
+void theMenuSaysWhereYouAre(const std::string& rstudio) {
     std::printf("the menu marks what you are already on\n");
 
     file::path dir = freshProject("menu-marks");
@@ -2030,7 +2030,7 @@ void theMenuSaysWhereYouAre(const std::string& ed1) {
     // Tools is the seventh column. Nothing has been overridden, so "By
     // language" is the one marked.
     const std::string toTools = kF10 + times(kRight, 6);
-    Screen fresh = drive(ed1, arguments, toTools + ctrl('q'), dir);
+    Screen fresh = drive(rstudio, arguments, toTools + ctrl('q'), dir);
     check(onScreen(fresh, "\xe2\x80\xa2 By language"), "the compiler nobody chose is marked");
     check(onScreen(fresh, "  cc1"), "and the ones nobody is on are not");
 
@@ -2038,7 +2038,7 @@ void theMenuSaysWhereYouAre(const std::string& ed1) {
     // The second F10 is bare. A menu reopens on the column it was left on, so
     // walking right again from Tools lands somewhere else entirely - which is
     // the hazard this suite has been caught by more than once.
-    Screen chose = drive(ed1, arguments, toTools + kDown + kEnter + kF10 + ctrl('q'), dir);
+    Screen chose = drive(rstudio, arguments, toTools + kDown + kEnter + kF10 + ctrl('q'), dir);
     check(onScreen(chose, "\xe2\x80\xa2 cc1"), "choosing one marks it");
     check(!onScreen(chose, "\xe2\x80\xa2 By language"), "and unmarks what it replaced");
 
@@ -2046,17 +2046,17 @@ void theMenuSaysWhereYouAre(const std::string& ed1) {
     // bar cannot show: the file is C either way, and only the mark says
     // whether that was its name or a choice.
     const std::string toLanguage = kF10 + times(kRight, 5);
-    Screen byName = drive(ed1, arguments, toLanguage + ctrl('q'), dir);
+    Screen byName = drive(rstudio, arguments, toLanguage + ctrl('q'), dir);
     check(onScreen(byName, "\xe2\x80\xa2 By extension"), "a language nobody chose is marked too");
 
-    Screen byHand = drive(ed1, arguments, toLanguage + kDown + kEnter + kF10 + ctrl('q'), dir);
+    Screen byHand = drive(rstudio, arguments, toLanguage + kDown + kEnter + kF10 + ctrl('q'), dir);
     check(onScreen(byHand, "\xe2\x80\xa2 C"), "and choosing C marks C");
     check(!onScreen(byHand, "\xe2\x80\xa2 By extension"),
           "which the status bar cannot tell you - it says C either way");
 
     // Debug and release are a state as much as a command, and are marked on
     // the same grounds. Build is the fourth column, Debug its fifth item.
-    Screen release = drive(ed1, arguments, ctrl('d') + kF10 + times(kRight, 3) + ctrl('q'), dir);
+    Screen release = drive(rstudio, arguments, ctrl('d') + kF10 + times(kRight, 3) + ctrl('q'), dir);
     check(onScreen(release, "\xe2\x80\xa2 Release"), "release is marked once you are in it");
 
     file::remove_all(dir);
@@ -2064,7 +2064,7 @@ void theMenuSaysWhereYouAre(const std::string& ed1) {
 
 // The Debug menu, grouped - and the three things a Shalimar program cannot do,
 // greyed while one is stopped.
-void theDebugMenuGroups(const std::string& ed1, const std::string& shc) {
+void theDebugMenuGroups(const std::string& rstudio, const std::string& shc) {
     std::printf("the Debug menu's rules, and what Shalimar cannot do\n");
 
     file::path dir = freshProject("debug-menu");
@@ -2077,7 +2077,7 @@ void theDebugMenuGroups(const std::string& ed1, const std::string& shc) {
 
     // Debug is the fifth column. The rules are there whatever is running.
     const std::string toDebug = kF10 + times(kRight, 4);
-    Screen grouped = drive(ed1, arguments, toDebug + ctrl('q'), dir);
+    Screen grouped = drive(rstudio, arguments, toDebug + ctrl('q'), dir);
     check(onScreen(grouped, "Start / continue"), "the Debug menu opens");
     // A rule joins the sides of the box, so its ends are the tee characters
     // the panel's own rules use - which is how it is told from a plain row.
@@ -2086,7 +2086,7 @@ void theDebugMenuGroups(const std::string& ed1, const std::string& shc) {
     // Down from Start / continue reaches Debug project and then, stepping over
     // the rule, Toggle breakpoint. If rules could be landed on, two downs
     // would stop on one.
-    Screen stepped = drive(ed1, arguments, toDebug + times(kDown, 2) + kEnter + ctrl('q'), dir);
+    Screen stepped = drive(rstudio, arguments, toDebug + times(kDown, 2) + kEnter + ctrl('q'), dir);
     check(!wasShown(stepped, "nothing is running"),
           "and down steps over the rule rather than landing on it");
 
@@ -2099,7 +2099,7 @@ void theDebugMenuGroups(const std::string& ed1, const std::string& shc) {
     // With a Shalimar program stopped, the three that need a stack or a
     // variable are not offered. Line 8 is the call.
     const std::string stop = times(kDown, 7) + kF9 + kF8;
-    Screen running = drive(ed1, arguments, stop + toDebug + ctrl('q'), dir);
+    Screen running = drive(rstudio, arguments, stop + toDebug + ctrl('q'), dir);
     check(onScreen(running, "Up the stack"), "the items are still listed while it is stopped");
     check(onScreen(running, "Watch expression"), "including the watch");
 
@@ -2111,7 +2111,7 @@ void theDebugMenuGroups(const std::string& ed1, const std::string& shc) {
 }
 
 // Help, which is the one menu whose whole job is to be readable.
-void theHelpMenu(const std::string& ed1) {
+void theHelpMenu(const std::string& rstudio) {
     std::printf("the manual, from the Help menu\n");
 
     file::path dir = freshProject("help-menu");
@@ -2122,7 +2122,7 @@ void theHelpMenu(const std::string& ed1) {
     // Help is the ninth column and Contents its first item, which is already
     // selected when the menu opens - so no downs.
     const std::string toContents = kF10 + times(kRight, 8) + kEnter;
-    Screen shown = drive(ed1, arguments, toContents + ctrl('q'), dir);
+    Screen shown = drive(rstudio, arguments, toContents + ctrl('q'), dir);
     check(onScreen(shown, "the manual"), "Help > Contents shows the manual's contents");
     check(onScreen(shown, "What it is"), "with the first page in it");
     check(onScreen(shown, "three languages"), "and a line saying what that page is about");
@@ -2132,7 +2132,7 @@ void theHelpMenu(const std::string& ed1) {
     // about::version() for it. A contents and an About that disagreed about
     // which version this is would be the sort of thing nobody notices for a
     // year.
-    Screen about = drive(ed1, arguments, kF10 + times(kRight, 8) + times(kDown, 2) + kEnter +
+    Screen about = drive(rstudio, arguments, kF10 + times(kRight, 8) + times(kDown, 2) + kEnter +
                                              ctrl('q'), dir);
     check(onScreen(about, "RStudio"), "Help > About still names the product");
 
@@ -2143,7 +2143,7 @@ void theHelpMenu(const std::string& ed1) {
     // is showing, so a line below the fold never reaches the terminal at all -
     // which is what stops it flickering and is also why it cannot be checked
     // from out here without scrolling to it first.
-    Screen keys = drive(ed1, arguments, kF1 + ctrl('q'), dir);
+    Screen keys = drive(rstudio, arguments, kF1 + ctrl('q'), dir);
     check(onScreen(keys, "these keys"), "F1 shows the keys");
     check(!onScreen(keys, "the manual"), "which is a different screen from the contents");
 
@@ -2152,14 +2152,14 @@ void theHelpMenu(const std::string& ed1) {
 
 int main(int argc, char** argv) {
 #ifdef _WIN32
-    std::string ed1 = "RStudioConsole.exe";
+    std::string rstudio = "RStudioConsole.exe";
 #else
-    std::string ed1 = "./RStudio.exe";
+    std::string rstudio = "./RStudio.exe";
 #endif
     std::string cc1;
     std::string shc;
 
-    if (argc > 1) ed1 = argv[1];
+    if (argc > 1) rstudio = argv[1];
     // Named in the environment rather than positionally: an empty CC1 on a
     // make line collapses, and the compiler after it then arrives as the one
     // before - which reads as fifty debugger failures and is nothing of the
@@ -2187,36 +2187,36 @@ int main(int argc, char** argv) {
         shc.clear();
     }
 
-    std::printf("driving %s\n\n", ed1.c_str());
+    std::printf("driving %s\n\n", rstudio.c_str());
 
-    editingAndLayout(ed1);
-    aDirectoryWithNoProject(ed1);
-    colouring(ed1);
-    fileCommands(ed1);
-    projectPane(ed1);
-    thePicker(ed1);
-    pickingAProject(ed1);
-    closingTheProject(ed1);
-    findingAndReplacing(ed1);
-    leavingWithChanges(ed1);
-    reindenting(ed1);
-    undoing(ed1);
-    selectingAndPasting(ed1);
-    multiByteText(ed1);
-    compiling(ed1, cc1);
-    buildingTheProject(ed1, cc1);
-    buildingWithCl(ed1);
-    configurations(ed1, cc1);
-    debugPanelPerTarget(ed1);
-    runningTheProgram(ed1, cc1);
-    stoppingAndStepping(ed1, cc1);
-    compilingShalimar(ed1, shc);
-    aShalimarProject(ed1, shc);
-    stoppingShalimar(ed1, shc);
-    aCompilerPerGroup(ed1, cc1);
-    theHelpMenu(ed1);
-    theMenuSaysWhereYouAre(ed1);
-    theDebugMenuGroups(ed1, shc);
+    editingAndLayout(rstudio);
+    aDirectoryWithNoProject(rstudio);
+    colouring(rstudio);
+    fileCommands(rstudio);
+    projectPane(rstudio);
+    thePicker(rstudio);
+    pickingAProject(rstudio);
+    closingTheProject(rstudio);
+    findingAndReplacing(rstudio);
+    leavingWithChanges(rstudio);
+    reindenting(rstudio);
+    undoing(rstudio);
+    selectingAndPasting(rstudio);
+    multiByteText(rstudio);
+    compiling(rstudio, cc1);
+    buildingTheProject(rstudio, cc1);
+    buildingWithCl(rstudio);
+    configurations(rstudio, cc1);
+    debugPanelPerTarget(rstudio);
+    runningTheProgram(rstudio, cc1);
+    stoppingAndStepping(rstudio, cc1);
+    compilingShalimar(rstudio, shc);
+    aShalimarProject(rstudio, shc);
+    stoppingShalimar(rstudio, shc);
+    aCompilerPerGroup(rstudio, cc1);
+    theHelpMenu(rstudio);
+    theMenuSaysWhereYouAre(rstudio);
+    theDebugMenuGroups(rstudio, shc);
 
     std::printf("\n%d checks, %d failed\n", checks, failures);
     return failures == 0 ? 0 : 1;
