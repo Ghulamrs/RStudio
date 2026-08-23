@@ -3,7 +3,8 @@
 A project is one file — **`prime.pro`**, named after the program it builds —
 and there does not have to be one. Ordinary JSON inside; the suffix says what
 the file is *for* rather than what it is made of, the way `.vcxproj` and
-`.xcodeproj` do.
+`.xcodeproj` do — and the editor colours it as JSON, keys apart from values, so
+opening one tells you what it says.
 
 **`docs/sample.pro` is the template**: every key there is, filled in, to read
 and copy. It is not a project and nothing opens it — a `.pro` is only looked

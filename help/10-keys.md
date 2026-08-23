@@ -41,7 +41,7 @@ are files in it.
 Console, Debug, Assembly.
 **Debug** — Start / continue, Debug project, Toggle breakpoint, Step over, Step
 into, Step out, Up the stack, Down the stack, Watch expression, Stop debugging.
-**Language** — By extension, C, C++, Shalimar, Plain text.
+**Language** — By extension, C, C++, Shalimar, JSON, Plain text.
 **Tools** — By language, cc1, shc, MSVC (cl), C++ (host). Ours first, then the
 machine's.
 **Target** — the three architectures.

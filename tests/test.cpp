@@ -2944,6 +2944,51 @@ void sayWhereHomeIs(const std::string& where) {
 // does not care - and surfaced on Linux as four failures and a segfault, in a
 // test that had gone on using a project that never loaded.
 // One rule for which group a file belongs in, asked by three callers.
+// JSON, which the editor colours and compiles nothing from.
+void jsonIsALanguage() {
+    std::printf("JSON, and the project file being legible\n");
+
+    check(editor::languageFor("prime.pro") == editor::LangJson, "a .pro is JSON");
+    check(editor::languageFor("RStudio.json") == editor::LangJson, "and so is a .json");
+    check(editor::languageFor("PRIME.PRO") == editor::LangJson, "whatever the case");
+    checkEqual(editor::languageName(editor::LangJson), "JSON", "and it is named");
+
+    // Nothing compiles it, and the refusal says what it is rather than
+    // "cannot compile this file".
+    editor::Toolchain tool;
+    check(!editor::canCompile(editor::ToolCc1, editor::LangJson), "cc1 does not compile it");
+    check(!editor::canCompile(editor::ToolShc, editor::LangJson), "nor does shc");
+    check(!editor::canCompile(editor::hostCppToolchain(), editor::LangJson),
+          "nor the machine's C++ compiler");
+    check(editor::refusal(editor::ToolCc1, editor::LangJson).find("JSON") != std::string::npos,
+          "and the refusal names the language");
+    (void)tool;
+
+    // A key is coloured apart from a value, which is the whole of what makes a
+    // project file scannable: the thing before the colon is the name.
+    editor::SyntaxState state;
+    std::string line = "  \"name\": \"sample\",";
+    std::vector<unsigned char> kind = editor::highlight(line, editor::LangJson, state);
+    check(kind[2] == editor::KindType, "a string before a colon is marked as a key");
+    check(kind[line.find("\"sample\"")] == editor::KindString, "and the value after it as a string");
+
+    std::string numbers = "  \"indent\": 4, \"tabs\": true, \"none\": null";
+    std::vector<unsigned char> marks = editor::highlight(numbers, editor::LangJson, state);
+    check(marks[numbers.find('4')] == editor::KindNumber, "a number is a number");
+    check(marks[numbers.find("true")] == editor::KindKeyword, "true is one of the three words");
+    check(marks[numbers.find("null")] == editor::KindKeyword, "and so is null");
+
+    // An escaped quote does not end the string, which is the one place JSON's
+    // rules differ from Shalimar's.
+    std::string escaped = "\"a\\\"b\": 1";
+    std::vector<unsigned char> got = editor::highlight(escaped, editor::LangJson, state);
+    // "a\"b": 1  - the key is characters 0 to 5, the escaped quote being 2 and 3.
+    check(got[0] == editor::KindType && got[3] == editor::KindType &&
+              got[5] == editor::KindType,
+          "an escaped quote does not end the key early");
+    check(got[6] != editor::KindType, "and the colon after it is not part of the key");
+}
+
 void whereAFileBelongs() {
     std::printf("which group a file's name puts it in\n");
 
@@ -4226,6 +4271,7 @@ int main(int argc, char** argv) {
     theProjectFilesOldName();
     namedProjectFiles();
     whereAFileBelongs();
+    jsonIsALanguage();
     talkingToAChild();
     whatADebuggerSays();
     aStepThatWentNowhere();

@@ -173,6 +173,64 @@ void markAsm(const std::string& line, std::vector<unsigned char>& kind) {
 // about: one kind of comment, one kind of literal, no escapes inside it, no
 // preprocessor, and no character literal at all - an apostrophe is not a token
 // there, so it colours nothing.
+// JSON, which has no comments, no escapes worth colouring differently, and
+// three words.
+//
+// A string is marked as a *type* when the next thing after it is a colon and
+// as a string otherwise - so the keys of an object stand away from its values,
+// which is the whole of what makes a project file scannable. That is the only
+// cleverness here and it is one lookahead deep.
+void markJson(const std::string& line, std::vector<unsigned char>& kind) {
+    for (size_t i = 0; i < line.size(); ++i) {
+        char c = line[i];
+
+        if (c == '"') {
+            size_t j = i + 1;
+            for (; j < line.size(); ++j) {
+                if (line[j] == '\\') { ++j; continue; }   // \" does not end it
+                if (line[j] == '"') break;
+            }
+
+            size_t end = (j < line.size()) ? j : line.size() - 1;
+
+            // What follows, ignoring spaces: a colon makes this a key.
+            size_t after = end + 1;
+            while (after < line.size() && (line[after] == ' ' || line[after] == '\t')) ++after;
+            unsigned char as = (after < line.size() && line[after] == ':') ? KindType : KindString;
+
+            for (size_t k = i; k <= end; ++k) kind[k] = as;
+            i = end;
+            continue;
+        }
+
+        if ((c >= '0' && c <= '9') || (c == '-' && i + 1 < line.size() &&
+                                       line[i + 1] >= '0' && line[i + 1] <= '9')) {
+            size_t j = i;
+            for (; j < line.size(); ++j) {
+                char d = line[j];
+                if (!((d >= '0' && d <= '9') || d == '-' || d == '+' || d == '.' ||
+                      d == 'e' || d == 'E'))
+                    break;
+            }
+            for (size_t k = i; k < j; ++k) kind[k] = KindNumber;
+            i = j - 1;
+            continue;
+        }
+
+        // true, false, null - the only bare words JSON has.
+        if (c == 't' || c == 'f' || c == 'n') {
+            static const char* const words[3] = {"true", "false", "null"};
+            for (size_t w = 0; w < 3; ++w) {
+                size_t len = std::strlen(words[w]);
+                if (line.compare(i, len, words[w]) != 0) continue;
+                for (size_t k = i; k < i + len; ++k) kind[k] = KindKeyword;
+                i += len - 1;
+                break;
+            }
+        }
+    }
+}
+
 void markShalimar(const std::string& line, std::vector<unsigned char>& kind) {
     size_t i = 0;
 
@@ -261,6 +319,10 @@ Language languageFor(const std::string& path) {
         endsWith(path, ".ipp"))
         return LangCpp;
     if (endsWith(path, ".s") || endsWith(path, ".asm")) return LangAsm;
+
+    // .pro is a project file and .json is JSON; both are read as JSON, which
+    // is what a .pro is made of whatever its name says.
+    if (endsWith(path, ".json") || endsWith(path, ".pro")) return LangJson;
     return LangPlain;
 }
 
@@ -270,6 +332,7 @@ const char* languageName(Language lang) {
         case LangCpp:      return "C++";
         case LangShalimar: return "Shalimar";
         case LangAsm:      return "asm";
+        case LangJson:     return "JSON";
         default:           return "text";
     }
 }
@@ -280,6 +343,7 @@ const char* languageSuffix(Language lang) {
         case LangCpp:      return "cpp";
         case LangShalimar: return "shl";
         case LangAsm:      return "s";
+        case LangJson:     return "json";
         default:           return "txt";
     }
 }
@@ -302,7 +366,8 @@ void advanceState(const std::string& line, Language lang, SyntaxState& state) {
     // Shalimar has no block comment and no literal that outlives its line, so
     // nothing it writes can leave anything behind. That is the same reason
     // plain text and assembly need no walk.
-    if (lang == LangPlain || lang == LangAsm || lang == LangShalimar) {
+    if (lang == LangPlain || lang == LangAsm || lang == LangShalimar ||
+        lang == LangJson) {
         state.comment = false;
         return;
     }
@@ -346,6 +411,10 @@ std::vector<unsigned char> highlight(const std::string& line, Language lang,
     }
     if (lang == LangShalimar) {
         markShalimar(line, kind);
+        return kind;
+    }
+    if (lang == LangJson) {
+        markJson(line, kind);
         return kind;
     }
 

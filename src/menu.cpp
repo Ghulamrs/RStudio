@@ -111,6 +111,7 @@ Menu::Menu() : active_(false), dropped_(false), column_(0), item_(0) {
     language.items.push_back({"C", "", ActionLangC});
     language.items.push_back({"C++", "", ActionLangCpp});
     language.items.push_back({"Shalimar", "", ActionLangShalimar});
+    language.items.push_back({"JSON", "", ActionLangJson});
     language.items.push_back({"Plain text", "", ActionLangText});
     columns_.push_back(language);
 

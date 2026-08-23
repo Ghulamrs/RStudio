@@ -274,6 +274,7 @@ private:
     ToolStripMenuItem^ langCItem_;
     ToolStripMenuItem^ langCppItem_;
     ToolStripMenuItem^ langShalimarItem_;
+    ToolStripMenuItem^ langJsonItem_;
     ToolStripMenuItem^ langTextItem_;
     ToolStripMenuItem^ debugConfigItem_;
     ToolStripMenuItem^ releaseConfigItem_;
@@ -655,6 +656,9 @@ private:
         langShalimarItem_ = gcnew ToolStripMenuItem(
             "Shalimar", nullptr, gcnew EventHandler(this, &MainForm::OnLangShalimar));
         language->DropDownItems->Add(langShalimarItem_);
+        langJsonItem_ = gcnew ToolStripMenuItem(
+            "JSON", nullptr, gcnew EventHandler(this, &MainForm::OnLangJson));
+        language->DropDownItems->Add(langJsonItem_);
         langTextItem_ = gcnew ToolStripMenuItem(
             "Plain text", nullptr, gcnew EventHandler(this, &MainForm::OnLangText));
         language->DropDownItems->Add(langTextItem_);
@@ -4039,6 +4043,7 @@ private:
             langCItem_->Checked = languageChoice_ == RSTUDIO_LANG_C;
             langCppItem_->Checked = languageChoice_ == RSTUDIO_LANG_CPP;
             langShalimarItem_->Checked = languageChoice_ == RSTUDIO_LANG_SHALIMAR;
+            langJsonItem_->Checked = languageChoice_ == RSTUDIO_LANG_JSON;
             langTextItem_->Checked = languageChoice_ == RSTUDIO_LANG_PLAIN;
         }
         debugConfigItem_->Checked = config_ == RSTUDIO_CONFIG_DEBUG;
@@ -4138,6 +4143,9 @@ private:
     void OnLangCpp(Object^, EventArgs^) { ChooseLanguage(RSTUDIO_LANG_CPP, "language: C++"); }
     void OnLangShalimar(Object^, EventArgs^) {
         ChooseLanguage(RSTUDIO_LANG_SHALIMAR, "language: Shalimar");
+    }
+    void OnLangJson(Object^, EventArgs^) {
+        ChooseLanguage(RSTUDIO_LANG_JSON, "language: JSON");
     }
     void OnLangText(Object^, EventArgs^) {
         ChooseLanguage(RSTUDIO_LANG_PLAIN, "language: plain text");

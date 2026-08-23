@@ -55,6 +55,7 @@ static_assert(RSTUDIO_KIND_LABEL == static_cast<int>(editor::KindLabel), "kind n
 static_assert(RSTUDIO_LANG_CPP == static_cast<int>(editor::LangCpp), "language numbering has drifted");
 static_assert(RSTUDIO_LANG_SHALIMAR == static_cast<int>(editor::LangShalimar), "language numbering has drifted");
 static_assert(RSTUDIO_LANG_ASM == static_cast<int>(editor::LangAsm), "language numbering has drifted");
+static_assert(RSTUDIO_LANG_JSON == static_cast<int>(editor::LangJson), "language numbering has drifted");
 static_assert(RSTUDIO_TOOL_MSVC == static_cast<int>(editor::ToolMsvc), "toolchain numbering has drifted");
 static_assert(RSTUDIO_TOOL_SHC == static_cast<int>(editor::ToolShc), "toolchain numbering has drifted");
 static_assert(RSTUDIO_TOOL_CXX == static_cast<int>(editor::ToolCxx), "toolchain numbering has drifted");

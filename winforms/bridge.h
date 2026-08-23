@@ -32,7 +32,8 @@ enum {
     RSTUDIO_KIND_CHAR, RSTUDIO_KIND_COMMENT, RSTUDIO_KIND_PREPROC, RSTUDIO_KIND_NUMBER,
     RSTUDIO_KIND_LABEL
 };
-enum { RSTUDIO_LANG_PLAIN = 0, RSTUDIO_LANG_C, RSTUDIO_LANG_CPP, RSTUDIO_LANG_SHALIMAR, RSTUDIO_LANG_ASM };
+enum { RSTUDIO_LANG_PLAIN = 0, RSTUDIO_LANG_C, RSTUDIO_LANG_CPP, RSTUDIO_LANG_SHALIMAR,
+       RSTUDIO_LANG_ASM, RSTUDIO_LANG_JSON };
 
 // Which language's punctuation the layout rules follow. Not the same question
 // as which language the file is - assembly and plain text are laid out by

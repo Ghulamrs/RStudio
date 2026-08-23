@@ -26,6 +26,15 @@ enum Language {
     LangCpp,
     LangShalimar,
     LangAsm,   // what cc1 and shc write, so the assembly tab is coloured too
+
+    // A project file, and any other JSON. Added last on purpose: winforms
+    // bridge.h pins these numbers with static_asserts and the window reads
+    // them, so a new value goes on the end where it cannot renumber the rest.
+    //
+    // Nothing compiles it. It is here so that the file describing a project is
+    // legible when you open it, which - now that a project is prime.pro rather
+    // than a name the editor knows - is a file people will actually read.
+    LangJson,
     LangCount
 };
 

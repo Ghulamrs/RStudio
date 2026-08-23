@@ -75,6 +75,7 @@ enum Action {
     ActionLangC,
     ActionLangCpp,
     ActionLangShalimar,
+    ActionLangJson,
     ActionLangText,
     ActionToolAuto,
     ActionToolCc1,

@@ -1075,6 +1075,7 @@ bool Editor::menuItemIsCurrent(Action action) const {
         case ActionLangC:        return langChoice_ == LangC;
         case ActionLangCpp:      return langChoice_ == LangCpp;
         case ActionLangShalimar: return langChoice_ == LangShalimar;
+        case ActionLangJson:     return langChoice_ == LangJson;
         case ActionLangText:     return langChoice_ == LangPlain;
 
         // Which compiler runs. Same shape: "By language" is current when
@@ -3297,8 +3298,12 @@ void Editor::perform(Action action) {
         case ActionLangC:
         case ActionLangCpp:
         case ActionLangShalimar:
+        case ActionLangJson:
         case ActionLangText: {
-            static const Language chosen[] = {LangC, LangCpp, LangShalimar, LangPlain};
+            // Indexed by how far the action is from ActionLangC, so this array
+            // and the order of those actions in menu.h are one fact written
+            // twice. Keep them together.
+            static const Language chosen[] = {LangC, LangCpp, LangShalimar, LangJson, LangPlain};
             langChoice_ = chosen[action - ActionLangC];
             applyLanguage();
             resetDebug();   // which language it is decides which compiler runs
