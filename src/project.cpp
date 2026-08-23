@@ -62,7 +62,7 @@ const char* languageWord(Language lang) {
 }  // namespace
 
 Project::Project()
-    : loaded_(false), toolchain_(ToolAuto), config_(ConfigDebug),
+    : loaded_(false), toolchain_(ToolAuto),
       arch_(hostArch()) {}
 
 const char* Project::fileName() { return "RStudio.json"; }
@@ -213,7 +213,6 @@ bool Project::load(const std::string& dir, std::string& error) {
     toolchain_ = toolchainFrom(root.get("toolchain").text("auto"));
     // Debug unless the file says otherwise: the one you want while the code is
     // still being written is the one you want by default.
-    config_ = root.get("config").text("debug") == "release" ? ConfigRelease : ConfigDebug;
     // The machine this is being opened on, unless the file names a target. It
     // used to default to x86_64-windows wherever it was opened, which quietly
     // made every project a cross build on the other two machines - the assembly
@@ -310,7 +309,6 @@ bool Project::save(std::string& error) {
     Json root = Json::object();
     root.set("name", Json::fromText(name_));
     root.set("toolchain", Json::fromText(toolchainWord(toolchain_)));
-    root.set("config", Json::fromText(configName(config_)));
     root.set("arch", Json::fromText(arch_));
     root.set("indent", Json::fromNumber(static_cast<double>(indent_.width)));
     root.set("tabs", Json::fromBool(indent_.tabs));

@@ -969,7 +969,6 @@ void projects() {
     style.tabs = true;
     made.setIndent(style);
     made.setToolchain(editor::ToolMsvc);
-    made.setConfig(editor::ConfigRelease);
 
     std::string error;
     check(made.save(error), "it writes itself out");
@@ -982,7 +981,20 @@ void projects() {
     check(read.indent().width == 2 && read.indent().tabs, "the layout settings survive");
     check(read.groups()[0].name == "Sources", "and the groups keep their order");
     check(read.toolchain() == editor::ToolMsvc, "the compiler choice survives");
-    check(read.config() == editor::ConfigRelease, "and so does the configuration");
+
+    // Debug or release is deliberately *not* in here since 2026-08-23. It is
+    // what you are building today rather than what the program is, and a
+    // project file travels - it should not arrive telling whoever opens it
+    // which configuration to be in. It lives in the machine's own settings.
+    std::string onDisk;
+    {
+        std::ifstream f(read.file().c_str());
+        std::ostringstream all;
+        all << f.rdbuf();
+        onDisk = all.str();
+    }
+    check(onDisk.find("\"config\"") == std::string::npos,
+          "and the configuration is not written into the project at all");
     check(read.groups().size() == 2, "the groups survive");
     check(read.groupOf("src/main.c") < read.groups().size(), "and what is in them");
 
@@ -1003,8 +1015,9 @@ void projects() {
     check(small.load(tiny.string(), error), "an empty object is a project");
     check(error.empty() && small.indent().width == 4 && !small.indent().tabs,
           "and every setting falls back to its default");
-    check(small.config() == editor::ConfigDebug,
-          "debug being the one you want while the code is still being written");
+    checkEqual(editor::settings::configuration(), "debug",
+               "and the configuration defaults to debug, which is what you want "
+               "while the code is still being written");
 
     file::remove_all(dir);
 }

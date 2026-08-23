@@ -167,6 +167,17 @@ std::string setAside() {
     return moved ? *moved : std::string();
 }
 
+std::string configuration() {
+    std::string said = readAll().get("config").text("debug");
+    return said == "release" ? said : std::string("debug");
+}
+
+bool rememberConfiguration(const std::string& which) {
+    Json root = readAll();
+    root.set("config", Json::fromText(which == "release" ? "release" : "debug"));
+    return writeAll(root);
+}
+
 std::string codeFont() { return readAll().get("font").text(std::string()); }
 
 bool rememberCodeFont(const std::string& described) {

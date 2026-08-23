@@ -169,18 +169,42 @@ std::vector<std::string> lastScreen(const std::string& raw) {
     return rows;
 }
 
+// A home directory of the run's own, so that one drive cannot change what the
+// next one sees.
+//
+// The editor keeps per-machine settings - which project was last open, the
+// font, the frame, and since 2026-08-23 debug or release - in the user's own
+// directory. That is right for a person and wrong for a suite: a case that
+// presses Ctrl-D leaves the editor in release, and every case after it starts
+// there. It made a test that had passed for weeks fail the moment the
+// configuration moved out of the project file, and the case it broke was three
+// hundred lines away from the one that changed it.
+//
+// Named for the run rather than shared, and never cleaned up between drives:
+// some cases *want* what the last drive remembered.
+std::string ownHome(const file::path& where) {
+    std::string home = (where / ".home").string();
+    editor::path::makeDirectories(home);
+    return home;
+}
+
 Screen drive(const std::string& rstudio, const std::string& arguments,
              const std::string& keys, const file::path& where) {
     file::path keyFile = where / "keys.in";
     file::path outFile = where / "screen.out";
     writeFile(keyFile, keys);
 
+    std::string home = ownHome(where);
     std::string command = "\"" + rstudio + "\" " + arguments + " < \"" + keyFile.string() +
                           "\" > \"" + outFile.string() + "\" 2>&1";
 #ifdef _WIN32
+    // Both, because path::homeDir asks USERPROFILE first and HOMEPATH after.
+    command = "set \"USERPROFILE=" + home + "\" && set \"HOMEPATH=" + home + "\" && " + command;
     // cmd eats the outer pair when a command has both a quoted program and
     // quoted arguments, exactly as it does for the compiler commands.
     command = "\"" + command + "\"";
+#else
+    command = "HOME=\"" + home + "\" " + command;
 #endif
     if (std::system(command.c_str()) < 0) std::printf("  (could not run %s)\n", rstudio.c_str());
 
@@ -209,10 +233,14 @@ Screen driveIn(const std::string& rstudio, const std::string& arguments,
     writeFile(keyFile, keys);
 
     std::string editorPath = editor::path::absolute(rstudio);
+    std::string home = ownHome(where);
 #ifdef _WIN32
-    std::string command = "cd /d \"" + from.string() + "\" && ";
+    std::string command = "set \"USERPROFILE=" + home + "\" && set \"HOMEPATH=" + home +
+                          "\" && cd /d \"" + from.string() + "\" && ";
 #else
-    std::string command = "cd \"" + from.string() + "\" && ";
+    // The assignment goes on the editor, not on the cd: `HOME=x cd y && prog`
+    // sets it for the cd alone and prog runs without it.
+    std::string command = "cd \"" + from.string() + "\" && HOME=\"" + home + "\" ";
 #endif
     command += "\"" + editorPath + "\" " + arguments + " < \"" + keyFile.string() +
                "\" > \"" + outFile.string() + "\" 2>&1";
@@ -1178,15 +1206,20 @@ void configurations(const std::string& rstudio, const std::string& cc1) {
     Screen shownDebug = drive(rstudio, common, ctrl('q'), dir);
     check(onScreen(shownDebug, "debug"), "and debug is what it starts in");
 
-    // The project file remembers it.
-    writeFile(dir / "RStudio.json",
+    // **The project file does not remember it, and that is the point.** Which
+    // of the two you are building is what you are doing today, not a property
+    // of the program - and a project file travels, so one arriving with
+    // "config": "release" in it would put everyone who opened it into release.
+    // A "config" key in a project is read by nothing now.
+    writeFile(dir / "Conf.pro",
               "{\n  \"name\": \"Conf\",\n  \"config\": \"release\",\n"
               "  \"groups\": { \"Sources\": [] }\n}\n");
     Screen fromFile = drive(rstudio, common, ctrl('q'), dir);
-    check(onScreen(fromFile, "release"), "the project's configuration is used");
+    check(onScreen(fromFile, "debug"),
+          "a configuration written into a project file is ignored");
 
-    Screen overridden = drive(rstudio, common + " --config debug", ctrl('q'), dir);
-    check(onScreen(overridden, "debug"), "and the flag still overrides it");
+    Screen overridden = drive(rstudio, common + " --config release", ctrl('q'), dir);
+    check(onScreen(overridden, "release"), "and the flag still decides the run");
 
 #ifdef _WIN32
     // cl can show the difference whether or not cc1 is about: NDEBUG takes

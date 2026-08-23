@@ -147,7 +147,12 @@ int rstudio_project_indent_width(RStudioProject* project);
 int rstudio_project_indent_tabs(RStudioProject* project);
 int rstudio_project_case_indent(RStudioProject* project);
 int rstudio_project_toolchain(RStudioProject* project);
-int rstudio_project_config(RStudioProject* project);
+/* Debug or release for this machine, and remembering a change to it. It was
+   rstudio_project_config, read off the project; it is settings now, because
+   which one you are building is what you are doing today rather than what the
+   program is, and a project file travels. 0 debug, 1 release. */
+int rstudio_configuration(void);
+void rstudio_remember_configuration(int config);
 const char* rstudio_project_arch(RStudioProject* project);
 
 /* ---- changing the project ------------------------------------------------ */

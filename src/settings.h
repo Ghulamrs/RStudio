@@ -51,6 +51,16 @@ bool plainFrame();
 // sitting at, like the frame above it: the same RStudio.json opened elsewhere must
 // not drag along a font that machine may not have. Empty when nothing was ever
 // chosen, and the window uses its own default then.
+// Debug or release, as a word. **Here rather than in the project file**, since
+// 2026-08-23: which of the two you are building right now is what *you* are
+// doing today, not a property of the program. A project file travels - it is
+// in somebody's version control - and it should not arrive telling everyone
+// who opens it which configuration to be in.
+//
+// "debug" when nothing was ever chosen, which is what the editor starts in.
+std::string configuration();
+bool rememberConfiguration(const std::string& which);
+
 std::string codeFont();
 bool rememberCodeFont(const std::string& described);
 

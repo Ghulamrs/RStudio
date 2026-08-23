@@ -54,8 +54,8 @@ single file's is a scratch thing the editor made in order to run it.
 - **`prime.pro`**, in a directory, says what *that project* is: its name, its
   groups, what it builds, how it indents.
 - **`~/.rstudio/config.json`** says what *this machine* had: the last project
-  you were in, the font the window draws code in, and whatever else earns a
-  place. In your own directory rather than beside the program, because the
+  you were in, whether you are building debug or release, the font the window
+  draws code in, and whatever else earns a place. In your own directory rather than beside the program, because the
   program's directory is build output — it is deleted and rebuilt — and there
   is more than one copy of RStudio on a machine. It was `~/.rstudioconfig.json`
   and `~/.ed1config.json` before; either is still read when it is the only one

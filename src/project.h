@@ -82,7 +82,6 @@ ToolchainKind toolchainOf(const Toolchain& tool, const Part& part);
 //     "indent": 4,
 //     "tabs": false,
 //     "toolchain": "auto",
-//     "config": "debug",
 //     "arch": "x86_64-windows",     // the machine's own when it is left out
 //     "groups": {
 //       "Examples": ["examples/hello.c", "examples/smart.cpp"]
@@ -200,12 +199,10 @@ public:
     std::string targetProgram() const;
     const IndentStyle& indent() const { return indent_; }
     ToolchainKind toolchain() const { return toolchain_; }
-    Configuration config() const { return config_; }
     const std::string& arch() const { return arch_; }
 
     void setIndent(const IndentStyle& style) { indent_ = style; }
     void setToolchain(ToolchainKind kind) { toolchain_ = kind; }
-    void setConfig(Configuration config) { config_ = config; }
     void setArch(const std::string& arch) { arch_ = arch; }
 
     // A project made up from a directory, with one group holding what is
@@ -267,7 +264,6 @@ private:
     bool oneShalimarProgram(std::vector<std::string>& sources, std::string& why,
                             std::string* detail) const;
     ToolchainKind toolchain_;
-    Configuration config_;
     std::string arch_;
 };
 

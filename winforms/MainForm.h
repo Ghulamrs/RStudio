@@ -2053,7 +2053,7 @@ private:
                 indentTabs_ = rstudio_project_indent_tabs(project_);
                 indentCase_ = rstudio_project_case_indent(project_);
                 toolKind_ = rstudio_project_toolchain(project_);
-                config_ = rstudio_project_config(project_);
+                config_ = rstudio_configuration();
                 arch_ = FromUtf8(rstudio_project_arch(project_));
                 ShowChoices();
                 rstudio_remember_project(reinterpret_cast<const char*>(pinned));
@@ -2077,7 +2077,7 @@ private:
         indentTabs_ = rstudio_project_indent_tabs(project_);
         indentCase_ = rstudio_project_case_indent(project_);
         toolKind_ = rstudio_project_toolchain(project_);
-        config_ = rstudio_project_config(project_);
+        config_ = rstudio_configuration();
         arch_ = FromUtf8(rstudio_project_arch(project_));
         ShowChoices();
 
@@ -2153,7 +2153,7 @@ private:
         indentTabs_ = rstudio_project_indent_tabs(project_);
         indentCase_ = rstudio_project_case_indent(project_);
         toolKind_ = rstudio_project_toolchain(project_);
-        config_ = rstudio_project_config(project_);
+        config_ = rstudio_configuration();
         arch_ = FromUtf8(rstudio_project_arch(project_));
         ShowChoices();
 
@@ -4078,13 +4078,18 @@ private:
         OnTarget(targetItems_[(at + 1) % targetItems_->Count], nullptr);
     }
 
+    // Kept for the next run, in this machine's settings rather than in the
+    // project - which is where the terminal front end keeps it too, so the two
+    // do not disagree about what you were last building.
     void OnDebugConfig(Object^, EventArgs^) {
         config_ = RSTUDIO_CONFIG_DEBUG;
+        rstudio_remember_configuration(config_);
         ShowChoices();
         what_->Text = "debug";
     }
     void OnReleaseConfig(Object^, EventArgs^) {
         config_ = RSTUDIO_CONFIG_RELEASE;
+        rstudio_remember_configuration(config_);
         ShowChoices();
         what_->Text = "release";
     }

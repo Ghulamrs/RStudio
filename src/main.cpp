@@ -211,12 +211,18 @@ int main(int argc, char** argv) {
              toolchain == "clang++") ed.setToolchain(editor::hostCppToolchain());
     else if (toolchain == "auto") ed.setToolchain(editor::ToolAuto);
 
+    // Debug or release comes from this machine's settings now, not from the
+    // project file - it is what you are doing today rather than what the
+    // program is - and --config still wins for this run, the same way the
+    // frame below does.
     if (config == "release") ed.setConfig(editor::ConfigRelease);
     else if (config == "debug") ed.setConfig(editor::ConfigDebug);
     else if (!config.empty()) {
         std::fprintf(stderr, "%s: unknown configuration %s\n", me.c_str(), config.c_str());
         return 2;
     }
+    else if (editor::settings::configuration() == "release")
+        ed.setConfig(editor::ConfigRelease);
 
     if (width > 0) ed.setIndentWidth(static_cast<size_t>(width));
     // What was chosen last time, unless this run says otherwise.

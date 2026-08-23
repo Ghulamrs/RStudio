@@ -446,7 +446,6 @@ void Editor::applyProject() {
     // the file is what the project always does, the flag is what today needs.
     style_ = project_.indent();
     tool_.kind = project_.toolchain();
-    config_ = project_.config();
     for (size_t i = 0; i < 3; ++i)
         if (project_.arch() == kArches[i]) arch_ = i;
 }
@@ -3263,7 +3262,7 @@ void Editor::perform(Action action) {
             break;
         case ActionConfigDebug:
             config_ = ConfigDebug;
-            if (project_.loaded()) project_.setConfig(config_);
+            settings::rememberConfiguration("debug");
             resetDebug();
             // The flags themselves, rather than a second copy of them written
             // out by hand: that copy is what went stale when cc1 grew a -g.
@@ -3272,7 +3271,7 @@ void Editor::perform(Action action) {
             break;
         case ActionConfigRelease:
             config_ = ConfigRelease;
-            if (project_.loaded()) project_.setConfig(config_);
+            settings::rememberConfiguration("release");
             resetDebug();
             say("release:" + configFlags(resolve(tool_, lang_), config_, kArches[arch_]) +
                 (optimises(resolve(tool_, lang_)) ? "" : " - cc1 has no -O"));

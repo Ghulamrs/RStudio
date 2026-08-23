@@ -19,6 +19,13 @@ one that leaves four things to their defaults.
 | a group's `toolchain` | the project's, and then the language |
 | `build` | no project program; Ctrl-B still builds the file in front of you |
 
+**Debug or release is not in here.** Which of the two you are building is what
+*you* are doing today, not a property of the program — and a project file
+travels, so one arriving with a configuration in it would put everyone who
+opened it into release. It lives in `~/.rstudio/config.json` with the rest of
+what this machine had, `--config` overrides it for one run, and a `"config"`
+key left in a project file is read by nothing.
+
 **A directory may hold several.** `prime.pro` and `sums.pro` side by side is
 the case the naming is for: opening the directory takes the first by name and
 says so, and `Project ▸ Open project` lists them to choose from. Whichever you

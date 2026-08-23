@@ -479,8 +479,12 @@ int rstudio_project_case_indent(RStudioProject* project) {
 int rstudio_project_toolchain(RStudioProject* project) {
     return static_cast<int>(project->project.toolchain());
 }
-int rstudio_project_config(RStudioProject* project) {
-    return static_cast<int>(project->project.config());
+int rstudio_configuration(void) {
+    return editor::settings::configuration() == "release" ? RSTUDIO_CONFIG_RELEASE : 0;
+}
+
+void rstudio_remember_configuration(int config) {
+    editor::settings::rememberConfiguration(config == RSTUDIO_CONFIG_RELEASE ? "release" : "debug");
 }
 const char* rstudio_project_arch(RStudioProject* project) {
     project->answer = project->project.arch();
