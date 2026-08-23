@@ -394,10 +394,10 @@ void Editor::closeDocument() {
     if (doc_ >= docs_.size()) doc_ = docs_.size() - 1;
     restore();
 
-    // The same reason as in open(): with no project the pane is showing what
-    // is open, and one of them has just stopped being. With a project it is
-    // showing the project, which closing a file does not change.
-    if (!project_.loaded()) refreshTree();
+    // The same reason as in open(): one of the files the pane lists has just
+    // stopped being open, and the pane lists them whether or not a project is
+    // loaded underneath.
+    refreshTree();
     say("closed");
 }
 
@@ -429,11 +429,10 @@ void Editor::open(const std::string& path) {
     cx_ = cy_ = rowoff_ = coloff_ = 0;
     applyLanguage();
 
-    // With no project the pane is the list of open files, so it has just
-    // changed. With one, it is the project's own list and opening a file is
-    // not an event in it - the file is either already named there or is not
-    // part of it.
-    if (!project_.loaded()) refreshTree();
+    // Always. The pane carries the open files above the project's groups now,
+    // so opening one is an event in it whether there is a project or not -
+    // which is the whole of what "the pane never changes" was about.
+    refreshTree();
 
     size_t at = tree_.find(path);
     if (at < tree_.size()) treeSel_ = at;
@@ -483,10 +482,10 @@ void Editor::openFirstFile() {
 // back to listing whatever folder the editor was standing in looked exactly
 // like a project, and closing a file left its name sitting in it.
 void Editor::refreshTree() {
+    std::vector<std::string> open = openPaths();
     if (project_.loaded()) {
-        tree_.showProject(project_);
+        tree_.showProject(project_, open);
     } else {
-        std::vector<std::string> open = openPaths();
         if (open.empty()) tree_.clear(); else tree_.showOpenFiles(open);
     }
     if (treeSel_ >= tree_.size()) treeSel_ = tree_.size() ? tree_.size() - 1 : 0;
@@ -1972,8 +1971,14 @@ std::string Editor::targetFile() const {
 
 std::string Editor::groupUnderCursor() const {
     if (!project_.loaded()) return std::string();
-    for (size_t i = treeSel_ + 1; i-- > 0;)
-        if (i < tree_.size() && tree_.entries()[i].group) return tree_.entries()[i].name;
+    for (size_t i = treeSel_ + 1; i-- > 0;) {
+        if (i >= tree_.size() || !tree_.entries()[i].group) continue;
+        // "Open files" is a heading, not a group: it says what you have open,
+        // and a file cannot be *put* there. Standing in it means no group was
+        // pointed at, and the caller's own default applies.
+        if (tree_.entries()[i].session) return std::string();
+        return tree_.entries()[i].name;
+    }
     return std::string();
 }
 
@@ -1982,7 +1987,14 @@ void Editor::createFile() {
     std::string name = prompt("new file: ", cancelled);
     if (cancelled || name.empty()) { say("nothing made"); return; }
 
-    Outcome done = editor::createFile(project_, name, groupUnderCursor());
+    // The same rule: a new .h goes to Headers wherever the pane cursor happens
+    // to be standing. The cursor still decides for anything the rule has no
+    // opinion about, which is how a file gets into a group of somebody's own
+    // making.
+    std::string group = groupForFile(path::filename(name));
+    if (group.empty()) group = groupUnderCursor();
+
+    Outcome done = editor::createFile(project_, name, group);
     say(done.message);
     if (!done.ok) return;
 
@@ -2078,10 +2090,17 @@ void Editor::addToProject() {
     if (!project_.loaded()) { say("there is no project - make one first"); return; }
     if (buf_.path().empty()) { say("save the file first, so it has a name"); return; }
 
+    // Offered by what the file is, not always "Sources". A header added by
+    // hand used to land among the sources and have to be moved out again.
+    std::string wanted = groupForFile(path::filename(buf_.path()));
+    if (wanted.empty()) wanted = "Sources";
+
     bool cancelled = false;
     std::string group =
-        prompt("add " + project_.relative(buf_.path()) + " to group [Sources]: ", cancelled);
+        prompt("add " + project_.relative(buf_.path()) + " to group [" + wanted + "]: ",
+               cancelled);
     if (cancelled) { say("not added"); return; }
+    if (group.empty()) group = wanted;
 
     Outcome done = editor::addExisting(project_, buf_.path(), group);
     say(done.message);

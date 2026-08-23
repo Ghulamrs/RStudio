@@ -15,6 +15,13 @@ as `ed1.json` is saved back as `ed1.json`, so nothing ends up holding both.
 Rename it yourself when you want the new one; nothing here will do it behind
 your back.
 
+**A file's name decides which group it is offered to.** A `.h` or `.hpp` goes
+to Headers, a `.shl` to Shalimar, and the rest of what this editor compiles to
+Sources - the same rule whether the project was written from a directory, the
+file was added with **Add this file**, or it was made with **New file**. The
+three used to agree only by accident, and a header added by hand landed among
+the sources. Type a different group name over the one offered and that wins.
+
 **There is no project file extension.** A project is a directory with an
 `RStudio.json` in it, and that is the whole of what being one consists of — there
 is nothing to look for called `.proj`. `Project ▸ Open project...` lists the

@@ -2836,6 +2836,24 @@ void sayWhereHomeIs(const std::string& where) {
 // strings into the wrong case went unnoticed on a Mac - where the filesystem
 // does not care - and surfaced on Linux as four failures and a segfault, in a
 // test that had gone on using a project that never loaded.
+// One rule for which group a file belongs in, asked by three callers.
+void whereAFileBelongs() {
+    std::printf("which group a file's name puts it in\n");
+
+    checkEqual(editor::groupForFile("main.c"), "Sources", "a .c is a source");
+    checkEqual(editor::groupForFile("engine.cpp"), "Sources", "and so is a .cpp");
+    checkEqual(editor::groupForFile("wide.cc"), "Sources", "and a .cc");
+    checkEqual(editor::groupForFile("counter.h"), "Headers", "a .h is a header");
+    checkEqual(editor::groupForFile("vector3.hpp"), "Headers", "and a .hpp");
+    checkEqual(editor::groupForFile("gcd.shl"), "Shalimar",
+               "Shalimar goes in a group of its own, since it shares one with nothing");
+    check(editor::groupForFile("notes.txt").empty(),
+          "and something this editor does not compile belongs nowhere");
+
+    // The suffix decides, not the case of it.
+    checkEqual(editor::groupForFile("READ.H"), "Headers", "whatever the case of the suffix");
+}
+
 void theProjectFilesOldName() {
     std::printf("a project written under the old name\n");
 
@@ -4035,6 +4053,7 @@ int main(int argc, char** argv) {
     aProjectMadeFromWhatIsThere();
     whatItRemembers();
     theProjectFilesOldName();
+    whereAFileBelongs();
     talkingToAChild();
     whatADebuggerSays();
     aStepThatWentNowhere();

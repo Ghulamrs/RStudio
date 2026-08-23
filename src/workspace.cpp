@@ -81,9 +81,21 @@ Outcome renameFile(Project& project, const std::string& fromAbsolute,
 
 namespace {
 
+// Case-insensitively, because syntax.cpp's languageFor already is - a file
+// called READ.H is coloured as C there - and two rules about the same suffix
+// that disagree about case is a file that reads as one thing and is filed as
+// another.
 bool endsWith(const std::string& name, const std::string& suffix) {
     if (name.size() < suffix.size()) return false;
-    return name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0;
+
+    size_t at = name.size() - suffix.size();
+    for (size_t i = 0; i < suffix.size(); ++i) {
+        char a = name[at + i], b = suffix[i];
+        if (a >= 'A' && a <= 'Z') a = static_cast<char>(a - 'A' + 'a');
+        if (b >= 'A' && b <= 'Z') b = static_cast<char>(b - 'A' + 'a');
+        if (a != b) return false;
+    }
+    return true;
 }
 
 // The suffixes worth putting in a project made without being told, and which
@@ -100,7 +112,7 @@ bool endsWith(const std::string& name, const std::string& suffix) {
 // a .shl into Sources beside a .c would therefore write a project that cannot
 // build - a refusal earned by the editor rather than by whoever owns the
 // directory.
-std::string groupFor(const std::string& name) {
+std::string groupForNamed(const std::string& name) {
     if (endsWith(name, ".h") || endsWith(name, ".hpp")) return "Headers";
 
     // One suffix. .shm - what the phone app writes - was recognised here too
@@ -124,6 +136,8 @@ bool worthDescending(const std::string& name) {
 
 }  // namespace
 
+std::string groupForFile(const std::string& name) { return groupForNamed(name); }
+
 Outcome beginFromWhatIsThere(Project& project, const std::string& directory) {
     std::string root = path::absolute(directory);
     project.begin(root, path::filename(root));
@@ -139,7 +153,7 @@ Outcome beginFromWhatIsThere(Project& project, const std::string& directory) {
     std::vector<path::Entry> here = path::entries(root);
     for (size_t i = 0; i < here.size(); ++i) {
         if (!here[i].directory) {
-            std::string group = groupFor(here[i].name);
+            std::string group = groupForNamed(here[i].name);
             if (group.empty()) continue;
             project.addFile(here[i].name, group);
             ++found;
@@ -150,7 +164,7 @@ Outcome beginFromWhatIsThere(Project& project, const std::string& directory) {
         std::vector<path::Entry> under = path::entries(path::join(root, here[i].name));
         for (size_t j = 0; j < under.size(); ++j) {
             if (under[j].directory) continue;
-            std::string group = groupFor(under[j].name);
+            std::string group = groupForNamed(under[j].name);
             if (group.empty()) continue;
             project.addFile(here[i].name + "/" + under[j].name, group);
             ++found;

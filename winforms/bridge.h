@@ -157,6 +157,12 @@ const char* rstudio_project_arch(RStudioProject* project);
    reason goes into `why` when the answer is no. */
 int rstudio_project_allows(const char* relative, char* why, int whySize);
 
+/* Which group a file's name puts it in - "Headers" for a .h, "Shalimar" for a
+   .shl, "Sources" for the rest, and empty for anything this editor does not
+   compile. The same call the terminal front end makes, so a header added in
+   the window lands where a header added in the terminal does. */
+const char* rstudio_group_for_file(const char* name);
+
 int rstudio_project_loaded(RStudioProject* project);
 const char* rstudio_project_root(RStudioProject* project);
 void rstudio_project_set_root(RStudioProject* project, const char* path);

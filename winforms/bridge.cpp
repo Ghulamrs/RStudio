@@ -510,6 +510,12 @@ void rstudio_project_set_root(RStudioProject* project, const char* path) {
 
 void rstudio_project_close(RStudioProject* project) { project->project.close(); }
 
+const char* rstudio_group_for_file(const char* name) {
+    static std::string answer;
+    answer = editor::groupForFile(name ? name : "");
+    return answer.c_str();
+}
+
 const char* rstudio_project_relative(RStudioProject* project, const char* path) {
     project->answer = project->project.relative(path ? path : "");
     return project->answer.c_str();

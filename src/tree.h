@@ -20,6 +20,11 @@ struct TreeEntry {
     std::string name;
     bool directory = false;
     bool group = false;    // a project's group, which is not a directory
+
+    // A row in the "Open files" section rather than in the project. It is
+    // still a file you can press enter on; what it is not is somewhere a file
+    // can be *put*, which is why groupUnderCursor has to be able to tell.
+    bool session = false;
     bool open = false;
     int depth = 0;
 };
@@ -33,7 +38,13 @@ public:
     // Shows the project's groups instead of the directory. A group is not a
     // directory and nothing on disk matches it, which is the point: it is the
     // project's own arrangement of the same files.
-    void showProject(const Project& project);
+    // The project's groups, with the files that are open listed above them.
+    //
+    // Both, because they answer different questions and a pane that answers
+    // only one of them is the pane people report as broken: the project says
+    // what the work *is* and does not move when you open a file, and the open
+    // list says what you are *doing* and is the only part that can.
+    void showProject(const Project& project, const std::vector<std::string>& open);
 
     // The files that are open, which is what the pane shows when there is no
     // project to show instead. Paths, in the order they were opened; a

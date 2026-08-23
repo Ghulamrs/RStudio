@@ -1145,6 +1145,7 @@ private:
         sheet->box->BringToFront();
 
         sheets_->Add(sheet);
+        PaneFollowsTabs();
         files_->TabPages->Add(sheet->page);
         files_->SelectedTab = sheet->page;
         return sheet;
@@ -2080,8 +2081,41 @@ private:
 
     // Rebuilt from the project as it stands, so a change shows without the
     // file being read again.
+    // A small helper so the two things that change the pane - a tab opening and
+    // a tab closing - do not each have to remember to.
+    void PaneFollowsTabs() {
+        // Called from MakeSheet, which runs while the window is still being
+        // built - before LoadProject on a first run, and once more for the
+        // empty sheet that replaces the last closed one. Both of those can
+        // reach here with no project yet, and asking a null one whether it is
+        // loaded is not a question with an answer.
+        if (project_ == nullptr || tree_ == nullptr) return;
+        if (rstudio_project_loaded(project_) != 0) FillTree();
+    }
+
     void FillTree() {
         tree_->Nodes->Clear();
+
+        // What is open, above the project, and only when something is.
+        //
+        // The project says what the work is and does not move when a file is
+        // opened - correct, and also why the pane read as stuck: a file closed
+        // from the File menu left its name there and a file opened did not
+        // appear. Neither is a thing a project's list can do. This is, and it
+        // is the same section the terminal front end grew for the same report.
+        if (sheets_->Count > 0) {
+            TreeNode^ open = gcnew TreeNode("Open files");
+            for (int i = 0; i < sheets_->Count; ++i) {
+                String^ full = sheets_[i]->path;
+                String^ shown = (full == nullptr || full->Length == 0)
+                                    ? "[no name]"
+                                    : System::IO::Path::GetFileName(full);
+                TreeNode^ leaf = gcnew TreeNode(shown);
+                leaf->Tag = full;      // nullptr for one never saved, which Open checks
+                open->Nodes->Add(leaf);
+            }
+            tree_->Nodes->Add(open);
+        }
 
         int groups = rstudio_project_groups(project_);
         for (int group = 0; group < groups; ++group) {
@@ -2137,6 +2171,15 @@ private:
 
     String^ OutcomePath() { return FromUtf8(rstudio_outcome_path(project_)); }
 
+    // Asked of the core, so the window and the terminal cannot come to differ
+    // about where a header goes.
+    String^ GroupForFile(String^ name) {
+        if (name == nullptr || name->Length == 0) return "";
+        array<Byte>^ leaf = Utf8Of(System::IO::Path::GetFileName(name));
+        pin_ptr<Byte> pinned = &leaf[0];
+        return FromUtf8(rstudio_group_for_file(reinterpret_cast<const char*>(pinned)));
+    }
+
     void OnNewFile(Object^, EventArgs^) {
         String^ root = RootNow();
         String^ name = Ask("New file (name, or one directory and a name)",
@@ -2148,7 +2191,11 @@ private:
 
         array<Byte>^ relative = Utf8Of(name);
         pin_ptr<Byte> relativePin = &relative[0];
-        array<Byte>^ group = Utf8Of(GroupUnderCursor());
+        // A new .h goes to Headers wherever the pane cursor is standing; the
+        // cursor still decides for anything the rule has no opinion about.
+        String^ wanted = GroupForFile(name);
+        if (wanted->Length == 0) wanted = GroupUnderCursor();
+        array<Byte>^ group = Utf8Of(wanted);
         pin_ptr<Byte> groupPin = &group[0];
 
         if (!Did(rstudio_create_file(project_, reinterpret_cast<const char*>(relativePin),
@@ -2327,6 +2374,7 @@ private:
             Sheet^ sheet = sheets_[i];
             sheets_->Remove(sheet);
             files_->TabPages->Remove(sheet->page);
+            PaneFollowsTabs();
         }
 
         // Its breakpoints go with it, as they do in Editor::deleteFile. A file
@@ -2365,7 +2413,10 @@ private:
             return;
         }
 
-        String^ group = Ask("Add to group", "Sources");
+        String^ wanted = GroupForFile(path_);
+        if (wanted->Length == 0) wanted = "Sources";
+
+        String^ group = Ask("Add to group", wanted);
         if (group == nullptr || group->Length == 0) { what_->Text = "not added"; return; }
 
         array<Byte>^ path = Utf8Of(path_);
@@ -2547,6 +2598,7 @@ private:
             MakeSheet(nullptr, "");
             OnSheetChanged(nullptr, nullptr);
         }
+        PaneFollowsTabs();
         what_->Text = "closed";
     }
 

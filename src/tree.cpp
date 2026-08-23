@@ -28,11 +28,34 @@ void Tree::setRoot(const std::string& where) {
     reread();
 }
 
-void Tree::showProject(const Project& project) {
+void Tree::showProject(const Project& project, const std::vector<std::string>& open) {
     showing_ = ShowingProject;
     root_ = project.root();
     error_.clear();
     entries_.clear();
+
+    // What is open, first, and only when something is. An empty heading would
+    // be a row spent saying nothing.
+    if (!open.empty()) {
+        TreeEntry head;
+        head.name = "Open files";
+        head.path = "open:";      // no path can collide with it
+        head.directory = true;
+        head.group = true;
+        head.session = true;
+        head.depth = 0;
+        head.open = true;         // never folded: it is the part that moves
+        entries_.push_back(head);
+
+        for (size_t i = 0; i < open.size(); ++i) {
+            TreeEntry file;
+            file.name = path::filename(open[i]);
+            file.path = open[i];
+            file.session = true;
+            file.depth = 1;
+            entries_.push_back(file);
+        }
+    }
 
     for (size_t i = 0; i < project.groups().size(); ++i) {
         const Group& group = project.groups()[i];

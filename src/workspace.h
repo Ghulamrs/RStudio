@@ -38,6 +38,17 @@ Outcome moveToGroup(Project& project, const std::string& absolute,
                     const std::string& group);
 
 // Puts a file that already exists into the project.
+// Which group a file belongs in, by its name: "Headers" for a .h or .hpp,
+// "Shalimar" for a .shl, "Sources" for the rest of what this editor compiles,
+// and empty for anything it does not.
+//
+// One rule, in one place, because three things ask it: the scanner that writes
+// a project out of a directory, Add this file, and New file. They used to
+// agree only by accident - the scanner sorted headers correctly and the other
+// two put everything in Sources, so a header added by hand landed among the
+// sources and had to be moved.
+std::string groupForFile(const std::string& name);
+
 Outcome addExisting(Project& project, const std::string& absolute,
                     const std::string& group);
 

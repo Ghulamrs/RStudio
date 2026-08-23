@@ -45,6 +45,13 @@ reads `C` for a `.c` file whether that came from its name or from your picking
 them — the project's own arrangement, not the directory's. `Ctrl-P` shows and
 hides it, enter opens the file under the cursor.
 
+**What you have open is listed above the project**, under a heading of its own,
+and that part moves: a file opened appears there, a file closed goes, and the
+heading itself is only there while something is open. The project's groups
+below it do not move, because a project says what the work *is* and opening a
+file is not a change to that. The two questions have two answers and the pane
+gives both.
+
 Each file is shown **by its own name**, not by the path the project file writes:
 `RStudio.json` says `src/first.c` and the pane says `first.c`. The grouping is
 what a project has instead of directories, so the prefix said nothing the pane

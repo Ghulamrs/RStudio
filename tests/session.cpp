@@ -839,6 +839,47 @@ void whichProjectAFileBelongsTo(const std::string& rstudio) {
     file::remove_all(dir);
 }
 
+// The pane following what is open, which is the half a project pane cannot do
+// on its own.
+//
+// A project says what the work *is* and does not move when a file is opened;
+// that is correct, and it is also why the pane read as broken - a file closed
+// from the File menu left its name sitting there, and a file opened did not
+// appear. Both are true of the project's list and neither is true of the
+// "Open files" section above it.
+//
+// Driven with a file the project does not list, so its name on the screen can
+// only have come from the open list.
+void thePaneFollowsWhatIsOpen(const std::string& rstudio) {
+    std::printf("the pane follows what is open\n");
+
+    file::path dir = freshProject("following");
+    writeFile(dir / "src" / "one.c", "int one(void) { return 1; }\n");
+    writeFile(dir / "outside.c", "int outside(void) { return 2; }\n");
+    writeFile(dir / "RStudio.json",
+              "{\n  \"name\": \"Follows\",\n"
+              "  \"groups\": { \"Sources\": [\"src/one.c\"] }\n}\n");
+
+    std::string project = " --project \"" + dir.string() + "\"";
+    std::string outside = "\"" + (dir / "outside.c").string() + "\"" + project;
+
+    Screen opened = drive(rstudio, outside, ctrl('q'), dir);
+    check(onScreen(opened, "Open files"), "what is open has a heading of its own");
+    check(onScreen(opened, "outside.c"),
+          "and a file the project does not list is still shown while it is open");
+    check(onScreen(opened, "one.c"), "with the project's own files under it as before");
+
+    // File menu, fifth item.
+    const std::string closeFile = kF10 + times(kDown, 4) + kEnter;
+    Screen closed = drive(rstudio, outside, closeFile + ctrl('q'), dir);
+    check(!onScreen(closed, "outside.c"), "closing it takes the name off the pane");
+    check(onScreen(closed, "one.c"), "and leaves the project where it was");
+    check(!onScreen(closed, "Open files"),
+          "the heading goes too when nothing is open, rather than standing empty");
+
+    file::remove_all(dir);
+}
+
 void projectPane(const std::string& rstudio) {
     std::printf("the project pane\n");
 
@@ -2262,6 +2303,7 @@ int main(int argc, char** argv) {
     fileCommands(rstudio);
     projectPane(rstudio);
     whichProjectAFileBelongsTo(rstudio);
+    thePaneFollowsWhatIsOpen(rstudio);
     thePicker(rstudio);
     pickingAProject(rstudio);
     closingTheProject(rstudio);
