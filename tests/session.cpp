@@ -192,6 +192,43 @@ Screen drive(const std::string& rstudio, const std::string& arguments,
     return screen;
 }
 
+// The same, run *from* a directory rather than from wherever the suite is.
+//
+// Needed because a relative filename is the whole of one bug: the editor is
+// given `src/alpha.c`, and what it can work out about which project that
+// belongs to depends on the directory it is standing in. Handing it an
+// absolute path instead would test a path the bug never took.
+//
+// The editor is named absolutely for the same reason - `./RStudio.exe` and a
+// bare `RStudioConsole.exe` both stop resolving the moment the shell changes
+// directory.
+Screen driveIn(const std::string& rstudio, const std::string& arguments,
+               const std::string& keys, const file::path& where, const file::path& from) {
+    file::path keyFile = where / "keys.in";
+    file::path outFile = where / "screen.out";
+    writeFile(keyFile, keys);
+
+    std::string editorPath = editor::path::absolute(rstudio);
+#ifdef _WIN32
+    std::string command = "cd /d \"" + from.string() + "\" && ";
+#else
+    std::string command = "cd \"" + from.string() + "\" && ";
+#endif
+    command += "\"" + editorPath + "\" " + arguments + " < \"" + keyFile.string() +
+               "\" > \"" + outFile.string() + "\" 2>&1";
+#ifdef _WIN32
+    command = "\"" + command + "\"";
+#endif
+    if (std::system(command.c_str()) < 0) std::printf("  (could not run %s)\n", rstudio.c_str());
+
+    Screen screen;
+    screen.raw = readFile(outFile);
+    screen.rows = lastScreen(screen.raw);
+    file::remove(keyFile);
+    file::remove(outFile);
+    return screen;
+}
+
 // The bottom line, which is where the editor says what just happened.
 std::string message(const Screen& screen) {
     for (size_t i = screen.rows.size(); i-- > 0;) {
@@ -770,6 +807,36 @@ void pickingAProject(const std::string& rstudio) {
     check(onScreen(went, "Beta"), "picking a directory that is a project opens it");
 
     file::remove_all(parent);
+}
+
+// Which project a named file belongs to, which is not the same question as
+// which directory it is in.
+//
+// A project keeps its sources a directory down, so the file named on the
+// command line is almost never beside the project file. Looking only beside it
+// meant `RStudio src/alpha.c`, run from the project's own root, found no
+// project there - and then fell through to whatever project was last open, or
+// to the demo. The pane filled with somebody else's files while the edit view
+// held yours, and nothing you did to the file changed the pane, because the
+// pane was not showing your project at all. That is what this is here to stop.
+void whichProjectAFileBelongsTo(const std::string& rstudio) {
+    std::printf("the project a named file belongs to\n");
+
+    file::path dir = freshProject("belongs");
+    writeFile(dir / "src" / "alpha.c", "int alpha(void) { return 1; }\n");
+    writeFile(dir / "RStudio.json",
+              "{\n  \"name\": \"Belongs\",\n"
+              "  \"groups\": { \"Sources\": [\"src/alpha.c\"] }\n}\n");
+
+    // No --project: the editor has to work it out from the file alone. Driven
+    // from inside the project's root, which is how anybody would type it.
+    Screen found = driveIn(rstudio, "src/alpha.c", ctrl('q'), dir, dir);
+    check(onScreen(found, "- Sources"), "a file one directory down finds its project");
+    check(onScreen(found, "alpha.c"), "and the pane holds that project's files");
+    check(!onScreen(found, "first.c"),
+          "not the demo project, which is where it used to end up");
+
+    file::remove_all(dir);
 }
 
 void projectPane(const std::string& rstudio) {
@@ -2194,6 +2261,7 @@ int main(int argc, char** argv) {
     colouring(rstudio);
     fileCommands(rstudio);
     projectPane(rstudio);
+    whichProjectAFileBelongsTo(rstudio);
     thePicker(rstudio);
     pickingAProject(rstudio);
     closingTheProject(rstudio);

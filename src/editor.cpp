@@ -798,7 +798,25 @@ void Editor::drawBody(std::string& out) const {
                 cell += " ";
                 cell += e.name;
             }
-            bool picked = (row < tree_.size() && row == treeSel_);
+            // The pane makes one mark, and it means two different things.
+            //
+            // With the pane focused it is the cursor - where the arrows are,
+            // what enter will open - and it belongs on treeSel_.
+            //
+            // With the pane not focused there is nothing to be a cursor for,
+            // and the only honest thing the mark can say is *this is the file
+            // you are editing*. It used to say treeSel_ there as well, which
+            // is the last row that was moved to - so closing a file left the
+            // mark sitting on a name that was no longer open, and opening a
+            // file the project does not list left it sitting on the previous
+            // one. Asking the buffer instead means it cannot say either.
+            bool picked;
+            if (focus_ == FocusTree) {
+                picked = (row < tree_.size() && row == treeSel_);
+            } else {
+                picked = row < tree_.size() && !buf_.path().empty() &&
+                         path::same(tree_.entries()[row].path, buf_.path());
+            }
             if (picked) out += (focus_ == FocusTree) ? "\x1b[7m" : "\x1b[4m";
             out += window(cell, 0, static_cast<size_t>(treeCols_));
             if (picked) out += "\x1b[m";
@@ -1850,9 +1868,30 @@ void Editor::openPrompt() {
     std::string prefix;
 
     for (;;) {
+        // **The project's own files first, when there is a project.** Listing
+        // the root directory alone was nearly useless there: a project keeps
+        // its sources a directory down, so the first thing offered was the
+        // project file and the name of a folder, and the file you actually
+        // wanted was two steps away. Worse, typing its name matched nothing,
+        // and a name that matches nothing is taken as typed - so asking for
+        // `beta` in a project holding src/beta.c made an empty new file called
+        // `beta` and left the pane pointing somewhere else entirely.
+        //
+        // Only at the top. Once a directory has been picked, the list is what
+        // is in that directory and nothing else, which is what browsing means.
+        std::vector<std::string> offered;
+        if (project_.loaded() && prefix.empty()) {
+            const std::vector<Group>& groups = project_.groups();
+            for (size_t i = 0; i < groups.size(); ++i)
+                for (size_t j = 0; j < groups[i].files.size(); ++j)
+                    offered.push_back(groups[i].files[j]);
+        }
+        std::vector<std::string> here = whatIsIn(where);
+        for (size_t i = 0; i < here.size(); ++i) offered.push_back(here[i]);
+
         bool cancelled = false;
         std::string name = prompt("open" + (prefix.empty() ? std::string() : " " + prefix) + ": ",
-                                  cancelled, whatIsIn(where));
+                                  cancelled, offered);
         if (cancelled || name.empty()) { say("not opened"); return; }
 
         if (name[name.size() - 1] == '/') {

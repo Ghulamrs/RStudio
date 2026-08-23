@@ -159,14 +159,25 @@ int main(int argc, char** argv) {
         size_t at = file.find_last_of("/\\");
         std::string beside = (at == std::string::npos) ? std::string(".") : file.substr(0, at);
 
+        // **Made absolute before anything is asked of it.** parent() of a
+        // relative one-word directory is the empty string - parent("src") is
+        // "" - and an empty answer here does not mean "no project", it means
+        // "the directory the editor was started in", which fileIn() then
+        // happily finds a project in. The result was `project` set to "", which
+        // reads as *nothing named at all* two lines below, so opening
+        // src/alpha.c from a project's own root quietly opened the last project
+        // instead - or the demo. The pane then had nothing to do with the file
+        // in the edit view, which is how this was noticed.
+        beside = editor::path::absolute(beside);
+
         // Beside the file, then one directory up. Two levels because that is
         // how deep a project path is allowed to be - a file lives in the root
         // or one directory under it - so src/one.c belongs to the project in
         // the directory holding src, and looking only beside the file would
         // miss every project laid out that way, which is most of them.
+        std::string up = editor::path::parent(beside);
         if (!editor::Project::fileIn(beside).empty()) project = beside;
-        else if (!editor::Project::fileIn(editor::path::parent(beside)).empty())
-            project = editor::path::parent(beside);
+        else if (!up.empty() && !editor::Project::fileIn(up).empty()) project = up;
         else onItsOwn = true;
     }
 
