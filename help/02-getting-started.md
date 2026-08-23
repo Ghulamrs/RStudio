@@ -52,8 +52,10 @@ single file's is a scratch thing the editor made in order to run it.
 
 - **`RStudio.json`**, in a directory, says what *that project* is: its name, its
   groups, what it builds, how it indents.
-- **`~/.ed1config.json`** says what *this machine* had: the last project you
-  were in, and whatever else earns a place.
+- **`~/.rstudioconfig.json`** says what *this machine* had: the last project
+  you were in, and whatever else earns a place. It was `~/.ed1config.json`
+  before 2026-08-23; that one is still read when it is the only one there, and
+  retired the first time anything is written.
 
 The second could not be folded into the first. Every `RStudio.json` on disk would
 then claim to have been the most recent one.

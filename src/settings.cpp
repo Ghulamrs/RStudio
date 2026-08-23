@@ -12,8 +12,33 @@ namespace settings {
 std::string fileName() {
     std::string home = path::homeDir();
     if (home.empty()) return std::string();
+    return path::join(home, ".rstudioconfig.json");
+}
+
+std::string formerFileName() {
+    std::string home = path::homeDir();
+    if (home.empty()) return std::string();
     return path::join(home, ".ed1config.json");
 }
+
+namespace {
+
+// The one to read: the current name, or the name it had before 2026-08-23 when
+// that is what is on this machine, or nothing when the editor has never run
+// here. Reading the old one matters more than it looks - it holds which
+// project you were last in, which is the whole of what a first run without
+// arguments has to go on.
+std::string toRead() {
+    std::string now = fileName();
+    if (!now.empty() && path::exists(now)) return now;
+
+    std::string before = formerFileName();
+    if (!before.empty() && path::exists(before)) return before;
+
+    return std::string();
+}
+
+}  // namespace
 
 namespace {
 
@@ -31,7 +56,7 @@ void rememberMoved(const std::string& where) { moved = new std::string(where); }
 bool writeAll(const Json& root);
 
 Json readAll() {
-    std::string where = fileName();
+    std::string where = toRead();
     if (where.empty()) return Json::object();
 
     FILE* in = std::fopen(where.c_str(), "rb");
@@ -78,6 +103,19 @@ bool writeAll(const Json& root) {
     std::string text = root.write();
     std::fwrite(text.data(), 1, text.size(), out);
     std::fclose(out);
+
+    // Written under the current name, so the one it had before is finished -
+    // and it is removed rather than left, because a settings file that is on
+    // disk and silently not read is worse than no file at all. Everything it
+    // held came through readAll and has just been written to the new one, so
+    // there is nothing in it to lose.
+    //
+    // Unlike a project's RStudio.json, which is somebody's file in somebody's
+    // directory and is saved back under whichever name it was found by. This
+    // one is the editor's own bookkeeping in a home directory, and migrating
+    // it is the editor's business.
+    std::string before = formerFileName();
+    if (!before.empty() && before != where && path::exists(before)) path::remove(before);
     return true;
 }
 
@@ -104,45 +142,29 @@ bool rememberCodeFont(const std::string& described) {
     return writeAll(root);
 }
 
+// Through readAll, like everything else here. It used to open the file itself
+// - its own fopen, its own parse, the same twenty lines - and that copy is what
+// made the rename to .rstudioconfig.json quietly lose the last project: readAll
+// had learned to fall back to the old name and this had not. A second
+// implementation of "read the settings" is a second thing to teach.
 std::string lastProject() {
-    std::string where = fileName();
-    if (where.empty()) return std::string();
-
-    // stdio, not <fstream> - see the note in buffer.cpp.
-    FILE* in = std::fopen(where.c_str(), "rb");
-    if (!in) return std::string();
-
-    std::string text;
-    char chunk[1024];
-    size_t got;
-    while ((got = std::fread(chunk, 1, sizeof chunk, in)) > 0) text.append(chunk, got);
-    std::fclose(in);
-
-    std::string why;
-    Json root = Json::parse(text, why);
-    if (!why.empty() || !root.is(Json::Object)) return std::string();
-
-    std::string project = root.get("project").text("");
+    std::string project = readAll().get("project").text("");
     if (project.empty() || !path::isDirectory(project)) return std::string();
     return project;
 }
 
 bool rememberProject(const std::string& directory) {
-    std::string where = fileName();
-    if (where.empty() || directory.empty()) return false;
+    if (fileName().empty() || directory.empty()) return false;
 
     // Read, change one thing, write: this file holds more than the project
     // now, and building a fresh object here would throw the rest away.
     Json root = readAll();
     root.set("project", Json::fromText(path::absolute(directory)));
 
-    FILE* out = std::fopen(where.c_str(), "wb");
-    if (!out) return false;
-
-    std::string text = root.write();
-    std::fwrite(text.data(), 1, text.size(), out);
-    std::fclose(out);
-    return true;
+    // And through writeAll, for the same reason lastProject reads through
+    // readAll: this had its own copy of the write, so the migration that
+    // retires the old file never ran on the one path that always runs.
+    return writeAll(root);
 }
 
 }  // namespace settings

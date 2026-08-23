@@ -20,9 +20,16 @@ namespace editor {
 // thing worth remembering does not need a new format or a new file.
 namespace settings {
 
-// `.ed1config.json` beside your own files. Empty when the machine will not say
+// `.rstudioconfig.json` beside your own files - `.ed1config.json` before
+// 2026-08-23, which is still read once and then migrated. Empty when the
+// machine will not say
 // where those are, in which case nothing is remembered and nothing complains.
 std::string fileName();
+
+// The name it had before 2026-08-23. Read when the current one is not there,
+// and removed once anything has been written under the new name - see the note
+// in settings.cpp for why this one migrates where a project file does not.
+std::string formerFileName();
 
 // The project that was open last, or empty. A directory that has been deleted
 // or renamed since is not offered: what is wanted is somewhere to open, not a
@@ -55,7 +62,7 @@ bool rememberCodeFont(const std::string& described);
 // a fresh object over whatever was there. Nothing said, nothing kept.
 //
 // Now, once, in this order: the old file is renamed to
-// `.ed1config.json.error`, a fresh empty one is written in its place, and this
+// `.rstudioconfig.json.error`, a fresh empty one is written in its place, and this
 // says where the old one went so a front end can tell you. The same courtesy
 // an RStudio.json gets, which is never written over when it will not parse. This is
 // less precious than somebody's project file, but it may hold a hand-edit, or a

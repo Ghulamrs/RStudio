@@ -362,7 +362,7 @@ line, and rows are what a terminal has least of.
 
 **If your console draws them badly, `--plain` frames it with `-`, `|` and `+`
 instead**, and Edit ▸ Plain frame switches between the two and remembers which
-you chose in `~/.ed1config.json`. That is not a matter of taste: a font that has
+you chose in `~/.rstudioconfig.json`. That is not a matter of taste: a font that has
 the plain line but not the junctions makes the console fetch `┬` from a second
 face, whose crossbar sits at a different height, and the frame appears to break
 at every join. Nothing in the program can mend that, so this is the way round
@@ -891,7 +891,7 @@ table below.
 whatever this machine has - fixed-pitch only, since the gutter's numbers are
 laid out on every character being the same width. It applies to every tab at
 once, because a file does not have a typeface: the person reading it does. And
-it is remembered in `~/.ed1config.json`, beside the last project and the frame
+it is remembered in `~/.rstudioconfig.json`, beside the last project and the frame
 style, for the same reason those are there. A font is not a property of a
 project at all: it belongs to the person reading, and often only to the hour -
 a face that is comfortable in the morning is not the one wanted at the end of a

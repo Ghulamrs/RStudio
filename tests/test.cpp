@@ -2838,8 +2838,10 @@ void whatItRemembers() {
     sayWhereHomeIs(home);
 
     check(pth::homeDir() == home, "home is where the machine says it is");
-    check(editor::settings::fileName().find(".ed1config.json") != std::string::npos,
+    check(editor::settings::fileName().find(".rstudioconfig.json") != std::string::npos,
           "the editor's own configuration is beside your files");
+    check(editor::settings::formerFileName().find(".ed1config.json") != std::string::npos,
+          "and the name it had before is still known, so it can be read once");
     check(editor::settings::lastProject().empty(), "and remembers nothing to begin with");
 
     // A configuration that will not parse is not silently buried. It is kept
