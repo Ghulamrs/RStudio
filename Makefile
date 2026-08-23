@@ -76,7 +76,27 @@ SHM_SRC := src/shalimar/channel.cpp src/shalimar/session.cpp
 OBJDIR := obj
 OBJ := $(patsubst src/%.cpp,$(OBJDIR)/%.o,$(SRC) $(SHM_SRC))
 
-RStudio.exe: $(OBJ)
+# Where the finished program goes. `.` is this directory, which is what every
+# suite and script here already expects, so a plain `make` is unchanged. The
+# workspace build names one directory and has all three programs built into
+# it - the editor and the two compilers it drives - so that what RStudio finds
+# beside itself is what was just built, rather than what somebody remembered
+# to copy.
+BINDIR ?= .
+EDITOR := $(BINDIR)/RStudio.exe
+
+# Which Shalimar runtime this machine's shc builds, spelled the same way
+# Compiler-S/Makefile spells it. Named here because `confirm` below has to ask
+# for the archive by name, and a glob would pass on a directory holding some
+# other machine's.
+ifeq ($(UNAME_S),Darwin)
+  SHM_TARGET ?= arm64-darwin
+else
+  SHM_TARGET ?= x86_64-linux
+endif
+
+$(EDITOR): $(OBJ)
+	@mkdir -p $(BINDIR)
 	$(CXX) $(CXXFLAGS) -o $@ $(OBJ)
 
 # One rule for both, making whatever directory the object goes in. A second
@@ -119,13 +139,51 @@ tests/test: tests/test.cpp src/compile.cpp src/indent.cpp src/syntax.cpp \
 # The other half of the checking: the editor itself, driven by keystrokes.
 # CC1 and SHC name compilers for the build cases; without them those cases
 # are skipped rather than failed.
-session: tests/session RStudio.exe
-	CC1="$(CC1)" SHC="$(SHC)" ./tests/session ./RStudio.exe
+session: tests/session $(EDITOR)
+	CC1="$(CC1)" SHC="$(SHC)" ./tests/session $(EDITOR)
 
 tests/session: tests/session.cpp src/path.cpp src/path.h
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/session.cpp src/path.cpp
 
 check: test session
+
+# ---- what RStudio drives, and the confirmation that it is there -------------
+#
+# The editor links against none of these. It *runs* them, and it finds them
+# beside itself - path::besideProgram, asked before PATH, so that a compiler
+# shipped with this copy is the one this copy runs. Which means "built" and
+# "usable" are two different states, and until now nothing checked the second.
+#
+# That gap is not hypothetical: a bin/ was assembled holding shc.exe without
+# the runtime archives shc links, and every build stayed green and every suite
+# passed, because a suite that cannot find a compiler skips its cases and says
+# so quietly. The failure waited for somebody to open a Shalimar file and press
+# Run, and then read as a broken compiler rather than an incomplete directory.
+#
+# Both archives are named, not only the release one. Debug is the editor's
+# default configuration and links the other file, so checking one of the two
+# would confirm exactly the half that was not about to be used.
+DEPENDENCIES := cc1.exe shc.exe \
+       lib/shmrt-$(SHM_TARGET).a lib/shmrt-$(SHM_TARGET)-debug.a
+
+confirm: $(EDITOR)
+	@missing=0; \
+	for dep in $(DEPENDENCIES); do \
+	    if [ -e "$(BINDIR)/$$dep" ]; then \
+	        echo "  ok       $$dep"; \
+	    else \
+	        echo "  MISSING  $$dep"; \
+	        missing=1; \
+	    fi; \
+	done; \
+	if [ $$missing -ne 0 ]; then \
+	    echo ""; \
+	    echo "RStudio.exe is in $(BINDIR) without what it drives. Build the three"; \
+	    echo "together with 'make -f workspace.mk', or name them with \$$CC1 and \$$SHC."; \
+	    exit 1; \
+	fi; \
+	echo ""; \
+	echo "RStudio.exe and everything it drives are in $(BINDIR)"
 
 # The Xcode project is generated from the source list above rather than kept by
 # hand, so it cannot fall behind it. Run this after adding or removing a file.
@@ -140,15 +198,15 @@ xcodeproj:
 # PRODUCT names it, so a different one can be asked for without editing this.
 PRODUCT ?= $(HOME)/cc1-studio
 
-product: RStudio.exe
+product: $(EDITOR)
 	mkdir -p "$(PRODUCT)/bin" "$(PRODUCT)/examples"
-	cp RStudio.exe "$(PRODUCT)/bin/"
+	cp $(EDITOR) "$(PRODUCT)/bin/"
 	cp README.md "$(PRODUCT)/"
 	cp examples/*.c examples/*.cpp "$(PRODUCT)/examples/"
 	@echo "RStudio is in $(PRODUCT)"
 
 clean:
 	rm -rf $(OBJDIR)
-	rm -f RStudio.exe tests/test tests/session
+	rm -f $(EDITOR) tests/test tests/session
 
-.PHONY: test session check xcodeproj product clean
+.PHONY: test session check confirm xcodeproj product clean

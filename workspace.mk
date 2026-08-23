@@ -21,20 +21,52 @@
 CC1_DIR ?= ../Compiler-C
 SHC_DIR ?= ../Compiler-S
 
-.PHONY: all cc1 shc editor bin check clean
+# ---- one directory, named once and given to all three -----------------------
+#
+# Each of the three Makefiles takes a BINDIR saying where its finished program
+# goes, and each defaults to its own repository - so building any one of them
+# alone is exactly what it always was. This is the only place that overrides
+# the three at once, because this is the only build that knows all three exist.
+#
+# The default is RStudio's own root, which is where RStudio.exe is built and
+# therefore the directory the editor searches first: it finds the compilers it
+# drives with path::besideProgram, before PATH, so that a compiler shipped with
+# this copy is the one this copy runs.
+#
+# **Built into, not collected into.** The rule this replaces built the three in
+# three places and copied them here afterwards, and a copy step is a step that
+# can be incomplete - shc.exe arrived without the runtime archives it links,
+# which no build and no suite could see and only pressing Run revealed.
+# Nothing is copied now; the three are simply told where to write.
+#
+# Absolute, because each sub-make runs in its own directory and a relative path
+# would mean three different places.
+BINDIR ?= $(CURDIR)
+OUT := $(abspath $(BINDIR))
 
-all: editor
+.PHONY: all cc1 shc editor confirm bin check clean
+
+# `confirm` and not `editor`, so that the last thing a workspace build does is
+# check that what the editor drives is actually beside it.
+all: confirm
 
 cc1:
-	$(MAKE) -C $(CC1_DIR)
+	$(MAKE) -C $(CC1_DIR) BINDIR=$(OUT)
 
 shc:
-	$(MAKE) -C $(SHC_DIR)
+	$(MAKE) -C $(SHC_DIR) BINDIR=$(OUT)
 
 # The dependency, said the same way it is said in the other two: the editor is
 # built after the compilers it drives. Nothing of them ends up inside it.
 editor: cc1 shc
-	$(MAKE)
+	$(MAKE) BINDIR=$(OUT)
+
+# Asked of RStudio rather than answered here. The editor is the thing that
+# knows what it drives - the list is in its own Makefile, beside the code that
+# goes looking for them - and this only calls it once all three have been
+# built into one place.
+confirm: editor
+	$(MAKE) BINDIR=$(OUT) confirm
 
 # Each suite is that project's own, called by the name that project uses -
 # both compilers say `test` and only the editor says `check`. Calling `check`
@@ -48,7 +80,7 @@ editor: cc1 shc
 # ignore a failure and lose the real ones with it.
 HOST := $(shell uname -s)
 
-check: editor
+check: confirm
 ifeq ($(HOST),Darwin)
 	cd $(CC1_DIR) && ./tests/arm64.sh
 	cd $(CC1_DIR) && ./tests/fingerprint.sh
@@ -56,32 +88,36 @@ else
 	$(MAKE) -C $(CC1_DIR) test
 endif
 	$(MAKE) -C $(SHC_DIR) test
-# cc1.exe and shc.exe, which is what those two build. Naming the old ones did
-# not fail - the editor's suite skips the cases that need a compiler and says
-# so quietly - so the count fell from 792 and 232 to 686 and 115 and everything
-# still read as green. A suite that skips is not a suite that passes.
-	$(MAKE) check CC1=$(abspath $(CC1_DIR))/cc1.exe SHC=$(abspath $(SHC_DIR))/shc.exe
+# The two just built into $(OUT), and not the copies in the compilers' own
+# trees. Those are usually the same file and occasionally are not, and the
+# occasion is exactly the one worth catching: this build wrote its compilers
+# somewhere, and this is the suite that says whether what it wrote works.
+#
+# Naming the wrong ones does not fail - the editor's suite skips the cases that
+# need a compiler and says so quietly - so the count fell from 792 and 232 to
+# 686 and 115 and everything still read as green. A suite that skips is not a
+# suite that passes.
+	$(MAKE) BINDIR=$(OUT) check CC1=$(OUT)/cc1.exe SHC=$(OUT)/shc.exe
 
-# One directory holding what you would actually run: the editor and the two
-# compilers it drives, side by side. They are built where they belong - each
-# repository keeps its own build - and copied here afterwards, so that no
-# compiler's Makefile has to know the editor exists. The dependency runs one
-# way and this keeps it that way.
+# The alternative destination, for anyone who would rather the checkout root
+# stayed as it was. Nothing is copied into it - see the `bin` rule below.
 BIN := bin
 
 # Emptied first. A binary that was renamed leaves its old self here otherwise,
 # and a directory holding both cc1 and cc1.exe is one where nobody can say
 # which was run.
-bin: editor
-	rm -rf $(BIN)
-	@mkdir -p $(BIN)
-	cp $(CC1_DIR)/cc1.exe $(BIN)/
-	cp $(SHC_DIR)/shc.exe $(BIN)/
-	cp RStudio.exe $(BIN)/
-	@echo "RStudio.exe, cc1.exe and shc.exe are in $(BIN)/"
+# The same build, into bin/ instead of into the root - for anyone who would
+# rather the checkout stayed clean. It is one line now because the three
+# already take a BINDIR: this names a different one and gets out of the way.
+#
+# It used to be a second collector with a second destination, which is what
+# made it possible for it to collect the wrong set. There is nothing here to
+# get wrong any more.
+bin:
+	$(MAKE) -f workspace.mk BINDIR=$(CURDIR)/$(BIN)
 
 clean:
 	rm -rf $(BIN)
-	$(MAKE) -C $(CC1_DIR) clean
-	$(MAKE) -C $(SHC_DIR) clean
-	$(MAKE) clean
+	$(MAKE) -C $(CC1_DIR) BINDIR=$(OUT) clean
+	$(MAKE) -C $(SHC_DIR) BINDIR=$(OUT) clean
+	$(MAKE) BINDIR=$(OUT) clean

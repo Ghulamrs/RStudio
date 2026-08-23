@@ -31,8 +31,16 @@ gui.png
 # Xcode's own build directory, when the project is built in place
 build/
 
-# What make -f workspace.mk bin puts together: the editor and the two
-# compilers, copied from where each was built.
+# What a workspace build leaves here: the two compilers RStudio drives, built
+# into this directory rather than collected into it, and shc's runtime
+# archives - which live beside shc because that is where shc looks for them.
+# None of the three is this repository's to carry.
+cc1.exe
+shc.exe
+lib/
+
+# The same build, into bin/ instead, for anyone who would rather the checkout
+# stayed clean.
 bin/
 
 # A scratch file that appeared in the root and was swept into a commit by
