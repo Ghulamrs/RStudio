@@ -13,32 +13,32 @@ namespace {
 // What is said to know an answer is complete. A prompt is not enough - the
 // program being debugged writes down the same pipe - so the editor asks for
 // something back that nothing else would ever print.
-const char* const kMarker = "<<ed1-done>>";
+const char* const kMarker = "<<rstudio-done>>";
 
 // And each of them wants it asked for differently, for opposite reasons.
 //
 // lldb echoes every command it is given when its input is a pipe. A command
 // with the marker written in it therefore puts the marker on the stream before
 // the answer rather than after, and every answer read that way is the one
-// before the one asked for. Joining it only where it is printed - "<<ed1" plus
+// before the one asked for. Joining it only where it is printed - "<<rstudio" plus
 // "-done>>" - means the echo cannot be mistaken for the reply.
 //
 // gdb does not echo commands, so it needs no such trick; and it must not be
 // given one, because it prints its prompt between them. Split across two
-// commands the marker arrives as "<<ed1(gdb) -done>>" and is never seen whole,
+// commands the marker arrives as "<<rstudio(gdb) -done>>" and is never seen whole,
 // which is a debugger that appears never to start.
 std::string markerCommand(DebuggerKind kind) {
-    if (kind == DebuggerGdb) return "echo <<ed1-done>>\\n";
+    if (kind == DebuggerGdb) return "echo <<rstudio-done>>\\n";
     if (kind == DebuggerCdb) {
         // Assembled from a character code, so that the marker is not in the
-        // command. cdb by itself echoes nothing and ".echo <<ed1-done>>" was
+        // command. cdb by itself echoes nothing and ".echo <<rstudio-done>>" was
         // enough - but on a console it is the console that echoes, and the
         // echo arrived before the answer and was read as it. That is the same
         // fault the lldb spelling above exists to avoid, reaching cdb by a
         // different road once it was given a console to be unbuffered on.
-        return ".printf \"<<ed1%cdone>>\\n\", 0x2d";
+        return ".printf \"<<rstudio%cdone>>\\n\", 0x2d";
     }
-    return "script print(\"<<ed1\" + \"-done>>\")";
+    return "script print(\"<<rstudio\" + \"-done>>\")";
 }
 
 void sayMarker(Process& child, DebuggerKind kind) {
@@ -321,7 +321,7 @@ std::string dbg_programOutput(DebuggerKind kind, const std::string& said) {
         if (prompt != DebuggerNone) line = withoutPrompt(line);
 
         if (trimmed(line).empty()) continue;
-        if (line.find("<<ed1") != std::string::npos) continue;   // the marker, and asking for it
+        if (line.find("<<rstudio") != std::string::npos) continue;   // the marker, and asking for it
         if (sourceEcho(line)) continue;
 
         if (kind == DebuggerLldb && lldbOwn(line)) continue;
