@@ -529,13 +529,21 @@ void Editor::openProject(const std::string& path) {
         // Remembered so that the next run opens here without being told. It is
         // the editor's own configuration and not the project's - see
         // settings.h for why it cannot live in an RStudio.json.
-        settings::rememberProject(project_.root());
+        settings::rememberProject(project_.file());
         // "ready" rather than a bare count: it is the first thing on the line
         // when the editor comes up on a project it was told about or one it
         // remembered, and what it means is that there is nothing to do first.
         size_t howMany = project_.groups().size();
-        say("ready - " + project_.name() + ", " + number(howMany) +
-            (howMany == 1 ? " group" : " groups"));
+        std::string said = "ready - " + project_.name() + ", " + number(howMany) +
+                           (howMany == 1 ? " group" : " groups");
+
+        // A directory may hold several named projects, and one of them had to
+        // be picked to get this far. Saying so is the difference between an
+        // editor that chose and an editor that appears not to have noticed.
+        size_t named = Project::projectFilesIn(project_.root()).size();
+        if (named > 1)
+            said += " - " + number(named) + " projects here, Project > Open project chooses";
+        say(said);
         sayIfSettingsWereBad();
     } else if (error.empty()) {
         // Nothing to read, so one is written from what is in the directory
@@ -546,7 +554,7 @@ void Editor::openProject(const std::string& path) {
         if (made.ok) {
             applyProject();
             refreshTree();
-            settings::rememberProject(project_.root());
+            settings::rememberProject(project_.file());
             say(made.message);
         } else {
             tree_.setRoot(path);
@@ -1843,7 +1851,15 @@ std::vector<std::string> Editor::whatIsIn(const std::string& directory) const {
 std::vector<std::string> Editor::projectsIn(const std::string& directory) const {
     std::vector<std::string> found;
 
-    if (!Project::fileIn(directory).empty()) found.push_back("./");
+    // The named projects here, by name, so a directory holding prime.pro and
+    // sums.pro offers both rather than one "." that quietly means whichever
+    // sorts first. This is the case the whole naming change exists for.
+    std::vector<std::string> named = Project::projectFilesIn(directory);
+    for (size_t i = 0; i < named.size(); ++i) found.push_back(path::filename(named[i]));
+
+    // "." only for a directory that is a project under one of the older
+    // whole-directory names - there is nothing else to call it.
+    if (named.empty() && !Project::fileIn(directory).empty()) found.push_back("./");
 
     std::vector<path::Entry> here = path::entries(directory);
     for (size_t i = 0; i < here.size(); ++i) {
@@ -1852,7 +1868,11 @@ std::vector<std::string> Editor::projectsIn(const std::string& directory) const 
         found.push_back(here[i].name + "/");
     }
 
-    std::sort(found.begin() + (found.empty() ? 0 : 1), found.end());
+    // The named projects are already sorted and stay at the top; only the
+    // directories under them are sorted here.
+    std::sort(found.begin() + static_cast<long>(named.empty() ? (found.empty() ? 0 : 1)
+                                                              : named.size()),
+              found.end());
     return found;
 }
 
@@ -1918,6 +1938,17 @@ void Editor::openProjectPrompt() {
         if (cancelled || name.empty()) { say("no project opened"); return; }
 
         if (name == "./") { openProject(where); return; }
+
+        // A named project, picked from the list above. openProject takes a
+        // file as readily as a directory, which is what lets one of several be
+        // opened in particular.
+        if (name.size() > 4 && name[name.size() - 1] != '/') {
+            std::string named = path::join(where, name);
+            if (path::exists(named) && !path::isDirectory(named)) {
+                openProject(named);
+                return;
+            }
+        }
 
         if (name[name.size() - 1] == '/') {
             std::string into = path::join(where, name.substr(0, name.size() - 1));
@@ -2116,6 +2147,34 @@ void Editor::newProject() {
                                         name, buf_.path());
     say(done.message);
     if (done.ok) refreshTree();
+}
+
+// Writing the project out under a name of its own - which is how a project
+// held in one of the older whole-directory files becomes a named one. Nothing
+// converts a project without being asked, and this is the asking.
+void Editor::saveProjectAs() {
+    if (!project_.loaded()) { say("there is no project to save"); return; }
+
+    std::string offered = project_.name() + Project::suffix();
+
+    bool cancelled = false;
+    std::string name = prompt("save the project as [" + offered + "]: ", cancelled);
+    if (cancelled) { say("not saved"); return; }
+    if (name.empty()) name = offered;
+
+    // The suffix is added when it was left off, because somebody typing a
+    // project's name is not thinking about extensions.
+    if (name.size() <= 4 || name.rfind(Project::suffix()) != name.size() - 4)
+        name += Project::suffix();
+
+    std::string error;
+    if (!project_.saveAs(path::join(project_.root(), name), error)) {
+        say(error.empty() ? "could not save the project" : error);
+        return;
+    }
+    refreshTree();
+    settings::rememberProject(project_.file());
+    say(name + " written - the project is saved there from now on");
 }
 
 void Editor::saveProject() {
@@ -3143,6 +3202,7 @@ void Editor::perform(Action action) {
         case ActionProjectNew:   newProject(); break;
         case ActionProjectOpen:  openProjectPrompt(); break;
         case ActionProjectSave:  saveProject(); break;
+        case ActionProjectSaveAs: saveProjectAs(); break;
         case ActionProjectClose: closeProject(); break;
         case ActionProjectAdd:   addToProject(); break;
         case ActionFileCreate:   createFile(); break;

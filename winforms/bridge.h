@@ -163,6 +163,16 @@ int rstudio_project_allows(const char* relative, char* why, int whySize);
    the window lands where a header added in the terminal does. */
 const char* rstudio_group_for_file(const char* name);
 
+/* The suffix a named project file has - ".pro" - so the window's dialogs can
+   filter on it without keeping their own copy of the answer. */
+const char* rstudio_project_suffix(void);
+
+/* Write the project out under a different name and keep saving there. 1 when
+   it worked; the reason goes into `why` when it did not. The old file is left
+   where it is - converting a project is asked for, never done in passing. */
+int rstudio_project_save_as(RStudioProject* project, const char* file,
+                            char* why, int whySize);
+
 int rstudio_project_loaded(RStudioProject* project);
 const char* rstudio_project_root(RStudioProject* project);
 void rstudio_project_set_root(RStudioProject* project, const char* path);

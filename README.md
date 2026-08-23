@@ -509,7 +509,8 @@ neither can drift into saying something else.
 
 ## The project
 
-A project is one file, `RStudio.json`, and there does not have to be one - without
+A project is one file - `prime.pro`, named after what it builds - and there does
+not have to be one. Without
 it the pane on the left shows the files you have open, and nothing at all when
 none are. It used to list the directory instead, which looked the same as a
 project and left a closed file's name sitting in it.
@@ -589,7 +590,7 @@ groups named - headers and anything else are passed over, and groups that are
 not named are not built, which is what keeps a project's own tests and examples
 out of its program. Say nothing and nothing is built: that is not an error and
 it is what every project written before this says. The program is left beside
-`RStudio.json`, so it is still there when the editor is not.
+the project file, so it is still there when the editor is not.
 
 Where one compiler makes the whole of it, it does the linking too - `cc1 a.c
 b.c -o prog`, since several inputs link together, and cl the same when it is
@@ -879,7 +880,7 @@ file in the middle, Console, Debug and Assembly across the bottom. It is C++/CLI
 and it **consumes the native core directly** - the same indent.cpp, syntax.cpp,
 project.cpp and compile.cpp the terminal editor uses, compiled into the same
 binary as native code. Nothing is duplicated: laying a file out, colouring it,
-reading RStudio.json and choosing between cc1 and cl are all the same code running.
+reading the project file and choosing between cc1 and cl are all the same code running.
 
 **File ▸ New** gives a blank buffer with no name, as the terminal's does, and
 `Ctrl+PageDown` / `Ctrl+PageUp` move between the open files rather than the
@@ -895,7 +896,7 @@ it is remembered in `~/.rstudioconfig.json`, beside the last project and the fra
 style, for the same reason those are there. A font is not a property of a
 project at all: it belongs to the person reading, and often only to the hour -
 a face that is comfortable in the morning is not the one wanted at the end of a
-long day. Putting it in an `RStudio.json` would push one person's eyes onto everyone
+long day. Putting it in a project file would push one person's eyes onto everyone
 who opens that project. A name that machine does not have is
 quietly the default rather than a complaint at startup.
 

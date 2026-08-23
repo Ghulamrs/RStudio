@@ -26,7 +26,8 @@ yet.
 
 ## Opening a directory that has no project
 
-A directory with no `RStudio.json` gets one written from what is already in it, in
+A directory with no project file gets one written from what is already in it — named
+after the directory, `work.pro` for a directory called `work` — in
 two groups — **Headers** and **Sources**. Nothing is moved on disk; the file
 just describes what is there.
 
@@ -39,7 +40,7 @@ directory instead.
 
 | | |
 | --- | --- |
-| the project's program | beside `RStudio.json`, named by the target |
+| the project's program | beside the project file, named by the target |
 | a single file's program | a temporary, removed when you are done with it |
 | object files | a temporary directory of the editor's own, cleared after |
 | the assembly | shown in the Assembly tab, not left on disk |
@@ -50,14 +51,17 @@ single file's is a scratch thing the editor made in order to run it.
 
 ## Two configuration files, two different questions
 
-- **`RStudio.json`**, in a directory, says what *that project* is: its name, its
+- **`prime.pro`**, in a directory, says what *that project* is: its name, its
   groups, what it builds, how it indents.
-- **`~/.rstudioconfig.json`** says what *this machine* had: the last project
-  you were in, and whatever else earns a place. It was `~/.ed1config.json`
-  before 2026-08-23; that one is still read when it is the only one there, and
-  retired the first time anything is written.
+- **`~/.rstudio/config.json`** says what *this machine* had: the last project
+  you were in, the font the window draws code in, and whatever else earns a
+  place. In your own directory rather than beside the program, because the
+  program's directory is build output — it is deleted and rebuilt — and there
+  is more than one copy of RStudio on a machine. It was `~/.rstudioconfig.json`
+  and `~/.ed1config.json` before; either is still read when it is the only one
+  there, and retired the first time anything is written.
 
-The second could not be folded into the first. Every `RStudio.json` on disk would
+The second could not be folded into the first. Every project file on disk would
 then claim to have been the most recent one.
 
 ## Getting help without leaving

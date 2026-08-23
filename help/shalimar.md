@@ -49,7 +49,7 @@ the program first. A directory knows what is next to it and a project knows
 what is its own.
 
 Since every Shalimar file has a `main()` and nothing inside a file can say it
-is the program, **`"target"` in `RStudio.json` picks which one it is**. A target named
+is the program, **`"target"` in the project file picks which one it is**. A target named
 after none of them is refused rather than guessed at.
 
 ## A program that stops itself

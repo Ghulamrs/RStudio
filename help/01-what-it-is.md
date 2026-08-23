@@ -19,7 +19,7 @@ produced, and a breakpoint works the same whichever of the three you are in.
 | `RStudioConsole.exe` | Windows | and over the Windows console |
 
 **Every rule lives in `src/` and all three call it.** Laying a line out,
-colouring it, reading `RStudio.json`, choosing a compiler, driving a debugger —
+colouring it, reading the project file, choosing a compiler, driving a debugger —
 one implementation each. Only `editor.cpp` with `terminal*.cpp`, and
 `winforms/`, are specific to a front end.
 

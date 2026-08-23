@@ -116,10 +116,27 @@ public:
     // directory only gains the new name when a new project is made there.
     static std::string fileIn(const std::string& directory);
 
+    // ".pro" - the suffix a named project file has. The contents are ordinary
+    // JSON; the suffix says what the file is for rather than what it is made
+    // of, the way .vcxproj and .xcodeproj do.
+    static const char* suffix();
+
+    // Every named project file in `directory`, sorted. Empty when there is
+    // none, which is not an error - fileIn falls back to the older
+    // whole-directory names, and a directory with no project at all is a
+    // directory this editor is perfectly happy to open.
+    static std::vector<std::string> projectFilesIn(const std::string& directory);
+
     // Looks for the file in `dir`. Absent is not an error - it means there is
     // no project, and the pane shows the directory instead.
     bool load(const std::string& dir, std::string& error);
     bool save(std::string& error);
+
+    // Write it out under a different name and keep saving there. What
+    // Project > Save as project file does: it is how a project written under
+    // one of the older whole-directory names becomes a named .pro, and the
+    // only thing that converts one - nothing does it behind your back.
+    bool saveAs(const std::string& file, std::string& error);
 
     bool loaded() const { return loaded_; }
     const std::string& root() const { return root_; }

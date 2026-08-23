@@ -1024,7 +1024,8 @@ void operations() {
     check(made.ok, "a file is made");
     check(file::exists(dir / "src" / "one.c"), "and it is there on disk");
     check(project.groupOf("src/one.c") < project.groups().size(), "and in the project");
-    check(file::exists(dir / "RStudio.json"), "and the project was written");
+    // Named after the project, not the directory: begin() was given "Work".
+    check(file::exists(dir / "Work.pro"), "and the project was written, under its own name");
     check(!made.path.empty(), "and it says where the file went");
 
     check(!editor::createFile(project, "src/one.c", "Sources").ok, "twice is refused");
@@ -2871,11 +2872,12 @@ void aProjectMadeFromWhatIsThere() {
     editor::Outcome made = editor::beginFromWhatIsThere(project, dir);
     check(made.ok, "a project is made where there was none");
     check(project.loaded(), "and the project says it is loaded");
-    check(pth::exists(pth::join(dir, "RStudio.json")), "and the file is written");
+    check(pth::exists(pth::join(dir, "rstudio-made-project.pro")),
+          "and the file is written, named after the directory");
     check(project.name() == "rstudio-made-project", "named after the directory it is in");
 
     // What it picked up, and what it left alone.
-    std::string written = readWholeFile(pth::join(dir, "RStudio.json"));
+    std::string written = readWholeFile(pth::join(dir, "rstudio-made-project.pro"));
     check(written.find("one.c") != std::string::npos, "source in the directory is in it");
     check(written.find("src/two.cpp") != std::string::npos, "and source one level down");
     check(written.find("src/two.h") != std::string::npos, "headers as well as sources");
@@ -2946,6 +2948,61 @@ void whereAFileBelongs() {
     checkEqual(editor::groupForFile("READ.H"), "Headers", "whatever the case of the suffix");
 }
 
+// Named project files: prime.pro rather than one RStudio.json per directory.
+void namedProjectFiles() {
+    std::printf("named project files\n");
+    namespace pth = editor::path;
+
+    std::string dir = pth::join(pth::tempDir(), "rstudio-named-projects");
+    pth::removeTree(dir);
+    pth::makeDirectories(dir);
+    writeSource(pth::join(dir, "a.c"), "int a(void) { return 1; }\n");
+    writeSource(pth::join(dir, "b.c"), "int b(void) { return 2; }\n");
+
+    checkEqual(editor::Project::suffix(), ".pro", "the suffix is .pro");
+    check(editor::Project::projectFilesIn(dir).empty(), "a directory with none has none");
+
+    writeSource(pth::join(dir, "alpha.pro"),
+                "{\n  \"name\": \"alpha\",\n  \"groups\": { \"Sources\": [\"a.c\"] }\n}\n");
+    writeSource(pth::join(dir, "beta.pro"),
+                "{\n  \"name\": \"beta\",\n  \"groups\": { \"Sources\": [\"b.c\"] }\n}\n");
+
+    std::vector<std::string> named = editor::Project::projectFilesIn(dir);
+    check(named.size() == 2, "both named projects are found");
+    check(named.size() == 2 && pth::filename(named[0]) == "alpha.pro",
+          "sorted, so which one is found first does not depend on the filesystem");
+
+    // A directory can be opened, and answers with the first by name.
+    std::string error;
+    editor::Project byDirectory;
+    check(byDirectory.load(dir, error), "a directory holding named projects opens");
+    check(byDirectory.name() == "alpha", "at the first of them by name");
+
+    // Or one of them can be named outright, which is what the picker and the
+    // remembered last project both do.
+    editor::Project byName;
+    check(byName.load(pth::join(dir, "beta.pro"), error), "and one can be opened by name");
+    check(byName.name() == "beta", "which is the one that opens");
+    check(byName.groupOf("b.c") < byName.groups().size(), "with its own files");
+
+    // A .pro one directory down is not a project of this directory. That is
+    // what keeps docs/sample.pro a template rather than somebody's project.
+    pth::makeDirectories(pth::join(dir, "inner"));
+    writeSource(pth::join(pth::join(dir, "inner"), "hidden.pro"), "{ \"name\": \"hidden\" }\n");
+    check(editor::Project::projectFilesIn(dir).size() == 2,
+          "a .pro one directory down is not found - the search is this directory only");
+
+    // Saving under a new name keeps saving there, and leaves the old file be.
+    editor::Project moved;
+    check(moved.load(pth::join(dir, "alpha.pro"), error), "a project opens");
+    check(moved.saveAs(pth::join(dir, "renamed.pro"), error), "and saves under another name");
+    check(pth::exists(pth::join(dir, "renamed.pro")), "the new file is written");
+    check(pth::exists(pth::join(dir, "alpha.pro")), "and the old one is left alone");
+    check(pth::filename(moved.file()) == "renamed.pro", "further saves go to the new one");
+
+    pth::removeTree(dir);
+}
+
 void theProjectFilesOldName() {
     std::printf("a project written under the old name\n");
 
@@ -2995,10 +3052,16 @@ void whatItRemembers() {
     sayWhereHomeIs(home);
 
     check(pth::homeDir() == home, "home is where the machine says it is");
-    check(editor::settings::fileName().find(".rstudioconfig.json") != std::string::npos,
-          "the editor's own configuration is beside your files");
-    check(editor::settings::formerFileName().find(".ed1config.json") != std::string::npos,
-          "and the name it had before is still known, so it can be read once");
+    check(editor::settings::fileName().find(".rstudio/config.json") != std::string::npos ||
+              editor::settings::fileName().find(".rstudio\\config.json") != std::string::npos,
+          "the editor's own configuration is under a directory of its own");
+    // Two renames in one day, so this names whichever earlier one is on this
+    // machine, and the most recent of them when neither is.
+    std::string before = editor::settings::formerFileName();
+    check(before.find(".rstudioconfig.json") != std::string::npos ||
+              before.find(".ed1config.json") != std::string::npos,
+          "and a name it had before is still known, so it can be read once");
+    check(before != editor::settings::fileName(), "and it is not the current one");
     check(editor::settings::lastProject().empty(), "and remembers nothing to begin with");
 
     // A configuration that will not parse is not silently buried. It is kept
@@ -3007,6 +3070,9 @@ void whatItRemembers() {
     // bad file wrote straight over it.
     {
         std::string config = editor::settings::fileName();
+        // The editor makes this directory when it writes; a test that writes
+        // the file itself has to make it too.
+        pth::makeDirectories(pth::parent(config));
         writeSource(config, "{ this is not json at all");
         editor::settings::rememberProject(home);   // any read is enough to trip it
 
@@ -4145,6 +4211,7 @@ int main(int argc, char** argv) {
     aProjectMadeFromWhatIsThere();
     whatItRemembers();
     theProjectFilesOldName();
+    namedProjectFiles();
     whereAFileBelongs();
     talkingToAChild();
     whatADebuggerSays();

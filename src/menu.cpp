@@ -44,6 +44,7 @@ Menu::Menu() : active_(false), dropped_(false), column_(0), item_(0) {
     project.items.push_back({"New project", "", ActionProjectNew});
     project.items.push_back({"Open project...", "", ActionProjectOpen});
     project.items.push_back({"Save project", "", ActionProjectSave});
+    project.items.push_back({"Save as project file...", "", ActionProjectSaveAs});
     project.items.push_back({"Close project", "", ActionProjectClose});
     // The three above are the project itself; the five below are files in it.
     // A rule costs nothing to walk past - stepTo skips whatever is not

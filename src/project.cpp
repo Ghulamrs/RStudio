@@ -68,7 +68,59 @@ Project::Project()
 const char* Project::fileName() { return "RStudio.json"; }
 const char* Project::formerFileName() { return "ed1.json"; }
 
+// Whether a name ends in the project suffix, ignoring case - the same rule
+// workspace.cpp uses for source suffixes and syntax.cpp for languages, so a
+// PRIME.PRO is not a file this editor can see two ways about.
+static bool namedPro(const std::string& name) {
+    const std::string suffix = Project::suffix();
+    if (name.size() <= suffix.size()) return false;   // ".pro" alone is not a name
+
+    size_t at = name.size() - suffix.size();
+    for (size_t i = 0; i < suffix.size(); ++i) {
+        char a = name[at + i], b = suffix[i];
+        if (a >= 'A' && a <= 'Z') a = static_cast<char>(a - 'A' + 'a');
+        if (b >= 'A' && b <= 'Z') b = static_cast<char>(b - 'A' + 'a');
+        if (a != b) return false;
+    }
+    return true;
+}
+
+const char* Project::suffix() { return ".pro"; }
+
+// Every named project file in a directory, sorted, so which one is found first
+// does not depend on the order the filesystem happens to hand them back.
+//
+// This directory only. Not one level down, not recursively - which is what
+// keeps a template like docs/sample.pro from ever being mistaken for somebody's
+// project. A file that is meant to be read rather than opened has to be
+// somewhere the search does not go, and "the directory you asked for" is a rule
+// anybody can hold in their head.
+std::vector<std::string> Project::projectFilesIn(const std::string& directory) {
+    std::vector<std::string> found;
+    std::string base = path::absolute(directory);
+
+    std::vector<path::Entry> here = path::entries(base);
+    for (size_t i = 0; i < here.size(); ++i) {
+        if (here[i].directory || !namedPro(here[i].name)) continue;
+        found.push_back(base + "/" + here[i].name);
+    }
+
+    std::sort(found.begin(), found.end());
+    return found;
+}
+
+// The project file to open in a directory, by name if there is one and by the
+// older whole-directory names if not.
+//
+// Several .pro is not an error and not ambiguous here: the first by name is
+// answered, which is what a caller that only wants *a* project needs - working
+// out which project a named source file belongs to, say. A caller that can ask
+// a person which one - opening a directory on purpose - asks projectFilesIn
+// instead and offers the list.
 std::string Project::fileIn(const std::string& directory) {
+    std::vector<std::string> named = projectFilesIn(directory);
+    if (!named.empty()) return named[0];
+
     std::string base = path::absolute(directory);
     std::string now = base + "/" + fileName();
     if (path::exists(now)) return now;
@@ -90,9 +142,14 @@ std::string Project::relative(const std::string& file) const {
     return out;
 }
 
+// A project made here is a named one: prime.pro, not RStudio.json. The older
+// whole-directory names are still read - every project written before this has
+// one - and a project loaded under one is saved back to it, so nothing is
+// converted behind anybody's back. Project > Save as project file is how a
+// person converts one when they mean to.
 void Project::begin(const std::string& dir, const std::string& name) {
     root_ = path::absolute(dir);
-    file_ = root_ + "/" + fileName();
+    file_ = root_ + "/" + name + suffix();
     name_ = name;
     groups_.clear();
 
@@ -105,13 +162,29 @@ void Project::begin(const std::string& dir, const std::string& name) {
     loaded_ = true;
 }
 
+// Takes a directory, or a project file by name.
+//
+// Both, because a directory holding two named projects has to be openable at
+// one of them in particular - by the picker, and by the last-project the
+// editor remembers, which would otherwise reopen whichever sorts first and
+// quietly ignore which one you were actually in.
 bool Project::load(const std::string& dir, std::string& error) {
     error.clear();
     loaded_ = false;
 
     std::string base = path::absolute(dir);
-    std::string path = fileIn(base);
-    if (path.empty()) return false;   // no project here, which is not a fault
+
+    std::string path;
+    if (path::isDirectory(base)) {
+        path = fileIn(base);
+        if (path.empty()) return false;   // no project here, which is not a fault
+    } else {
+        // Named directly. The root is the directory holding it, which is what
+        // every relative path in the file is counted from.
+        if (!path::exists(base)) return false;
+        path = base;
+        base = path::parent(base);
+    }
 
     // stdio, not <fstream> - see the note in buffer.cpp.
     FILE* in = std::fopen(path.c_str(), "rb");
@@ -206,6 +279,25 @@ bool Project::load(const std::string& dir, std::string& error) {
 
     loaded_ = true;
     return true;
+}
+
+bool Project::saveAs(const std::string& file, std::string& error) {
+    error.clear();
+    if (!loaded_) {
+        error = "there is no project to save";
+        return false;
+    }
+
+    // The old file is left exactly where it is. Two project files in a
+    // directory is a state this editor understands - it lists them and lets
+    // you pick - and deleting somebody's file to tidy up after a rename is not
+    // this command's business.
+    std::string was = file_;
+    file_ = file;
+    if (save(error)) return true;
+
+    file_ = was;   // nothing written, so nothing has moved
+    return false;
 }
 
 bool Project::save(std::string& error) {

@@ -265,6 +265,7 @@ private:
     std::vector<std::string> projectsIn(const std::string& directory) const;
 
     void openProjectPrompt();
+    void saveProjectAs();
 
     // The dialog's box, worked out once. drawDialog and placeCursor both need
     // it and both used to compute it, which is two copies of eight lines that

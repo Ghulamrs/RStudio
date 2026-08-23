@@ -9,16 +9,39 @@
 namespace editor {
 namespace settings {
 
+// ~/.rstudio/config.json - a directory of its own rather than a loose dotfile
+// in the home root.
+//
+// **In the user's path and not beside the binary, and that is not a
+// preference.** Three things decide it. The binary's directory is build output
+// here - x64\Release\ or the repository root - and is deleted and rebuilt
+// routinely, taking anything kept in it. There are several copies of this
+// editor on each machine, so settings beside one of them would mean each
+// remembering a different last project. And a real install is often not
+// writable without administrator rights, where a home directory always is.
 std::string fileName() {
     std::string home = path::homeDir();
     if (home.empty()) return std::string();
-    return path::join(home, ".rstudioconfig.json");
+    return path::join(path::join(home, ".rstudio"), "config.json");
 }
+
+// The two names this had before, newest first. Read when the current one is
+// not there, and retired on the first write - see writeAll. Kept in a list
+// because there have now been two renames in one day and a third would
+// otherwise mean touching three functions.
+const char* const kFormerNames[2] = {".rstudioconfig.json", ".ed1config.json"};
 
 std::string formerFileName() {
     std::string home = path::homeDir();
     if (home.empty()) return std::string();
-    return path::join(home, ".ed1config.json");
+
+    for (size_t i = 0; i < 2; ++i) {
+        std::string old = path::join(home, kFormerNames[i]);
+        if (path::exists(old)) return old;
+    }
+    // None on disk: name the most recent one, which is what a message about
+    // the old name should say.
+    return path::join(home, kFormerNames[0]);
 }
 
 namespace {
@@ -32,9 +55,13 @@ std::string toRead() {
     std::string now = fileName();
     if (!now.empty() && path::exists(now)) return now;
 
-    std::string before = formerFileName();
-    if (!before.empty() && path::exists(before)) return before;
+    std::string home = path::homeDir();
+    if (home.empty()) return std::string();
 
+    for (size_t i = 0; i < 2; ++i) {
+        std::string old = path::join(home, kFormerNames[i]);
+        if (path::exists(old)) return old;
+    }
     return std::string();
 }
 
@@ -98,6 +125,9 @@ bool writeAll(const Json& root) {
     std::string where = fileName();
     if (where.empty()) return false;
 
+    // ~/.rstudio may not exist yet, and fopen will not make it.
+    path::makeDirectories(path::parent(where));
+
     FILE* out = std::fopen(where.c_str(), "wb");
     if (!out) return false;
     std::string text = root.write();
@@ -114,8 +144,11 @@ bool writeAll(const Json& root) {
     // directory and is saved back under whichever name it was found by. This
     // one is the editor's own bookkeeping in a home directory, and migrating
     // it is the editor's business.
-    std::string before = formerFileName();
-    if (!before.empty() && before != where && path::exists(before)) path::remove(before);
+    std::string home = path::homeDir();
+    for (size_t i = 0; !home.empty() && i < 2; ++i) {
+        std::string old = path::join(home, kFormerNames[i]);
+        if (old != where && path::exists(old)) path::remove(old);
+    }
     return true;
 }
 
@@ -147,9 +180,12 @@ bool rememberCodeFont(const std::string& described) {
 // made the rename to .rstudioconfig.json quietly lose the last project: readAll
 // had learned to fall back to the old name and this had not. A second
 // implementation of "read the settings" is a second thing to teach.
+// What was open last: a project file by name, or - for anything remembered
+// before named projects existed - the directory one was found in. Either is
+// handed straight to Project::load, which takes both.
 std::string lastProject() {
     std::string project = readAll().get("project").text("");
-    if (project.empty() || !path::isDirectory(project)) return std::string();
+    if (project.empty() || !path::exists(project)) return std::string();
     return project;
 }
 

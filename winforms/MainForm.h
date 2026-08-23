@@ -469,8 +469,12 @@ private:
         ToolStripMenuItem^ project = gcnew ToolStripMenuItem("&Project");
         project->DropDownItems->Add("New project...", nullptr,
                                     gcnew EventHandler(this, &MainForm::OnNewProject));
+        project->DropDownItems->Add("Open project file...", nullptr,
+                                    gcnew EventHandler(this, &MainForm::OnOpenProjectFile));
         project->DropDownItems->Add("Save project", nullptr,
                                     gcnew EventHandler(this, &MainForm::OnSaveProject));
+        project->DropDownItems->Add("Save as project file...", nullptr,
+                                    gcnew EventHandler(this, &MainForm::OnSaveProjectAs));
         project->DropDownItems->Add("Close project", nullptr,
                                     gcnew EventHandler(this, &MainForm::OnCloseProject));
         project->DropDownItems->Add("Add this file...", nullptr,
@@ -2007,11 +2011,19 @@ private:
         LoadProject(pick->SelectedPath);
     }
 
-    void LoadProject(String^ directory) {
+    // Takes a directory to search, or a named project file to open outright -
+    // the same pair Project::load takes, and for the same reason: a directory
+    // may hold several .pro files and one of them has to be nameable.
+    void LoadProject(String^ where) {
+        bool named = System::IO::File::Exists(where);
+
+        // The pane, the dialogs and begin-from-what-is-there all want the
+        // directory, never the file.
+        String^ directory = named ? System::IO::Path::GetDirectoryName(where) : where;
         projectDirectory_ = directory;
         tree_->Nodes->Clear();
 
-        array<Byte>^ bytes = Utf8Of(directory);
+        array<Byte>^ bytes = Utf8Of(where);
         pin_ptr<Byte> pinned = &bytes[0];
 
         array<Byte>^ error = gcnew array<Byte>(512);
@@ -2031,9 +2043,11 @@ private:
             // A project file that will not *parse* is somebody's work and is
             // never written over; then the pane shows the directory and the
             // message says what is wrong with it.
+            array<Byte>^ dirBytes = Utf8Of(directory);
+            pin_ptr<Byte> dirPin = &dirBytes[0];
             if (why->Length == 0 &&
                 rstudio_begin_from_what_is_there(project_,
-                                             reinterpret_cast<const char*>(pinned)) != 0) {
+                                             reinterpret_cast<const char*>(dirPin)) != 0) {
                 FillTree();
                 indentWidth_ = rstudio_project_indent_width(project_);
                 indentTabs_ = rstudio_project_indent_tabs(project_);
@@ -2467,6 +2481,65 @@ private:
     }
 
     void OnSaveProject(Object^, EventArgs^) { Did(rstudio_save_project(project_)); }
+
+    // A directory can hold several named projects, and a folder picker cannot
+    // say which one - it selects directories. This one selects the project.
+    void OnOpenProjectFile(Object^, EventArgs^) {
+        String^ suffix = FromUtf8(rstudio_project_suffix());   // ".pro"
+
+        OpenFileDialog^ pick = gcnew OpenFileDialog();
+        pick->Title = "Open project file";
+        pick->Filter = "RStudio projects (*" + suffix + ")|*" + suffix +
+                       "|All files (*.*)|*.*";
+        if (projectDirectory_ != nullptr) pick->InitialDirectory = projectDirectory_;
+        if (pick->ShowDialog() != System::Windows::Forms::DialogResult::OK) {
+            what_->Text = "no project opened";
+            return;
+        }
+
+        // LoadProject takes either, the same as the core's Project::load: a
+        // directory to search or a project to open outright.
+        LoadProject(pick->FileName);
+    }
+
+    // Writing the project out under a name of its own, which is how one held
+    // in an older whole-directory file becomes a named project. Nothing
+    // converts a project without being asked, and this is the asking.
+    void OnSaveProjectAs(Object^, EventArgs^) {
+        if (rstudio_project_loaded(project_) == 0) {
+            what_->Text = "there is no project to save";
+            return;
+        }
+
+        String^ suffix = FromUtf8(rstudio_project_suffix());
+        String^ offered = FromUtf8(rstudio_project_name(project_)) + suffix;
+
+        SaveFileDialog^ pick = gcnew SaveFileDialog();
+        pick->Title = "Save as project file";
+        pick->FileName = offered;
+        pick->Filter = "RStudio projects (*" + suffix + ")|*" + suffix;
+        pick->InitialDirectory = FromUtf8(rstudio_project_root(project_));
+        if (pick->ShowDialog() != System::Windows::Forms::DialogResult::OK) {
+            what_->Text = "not saved";
+            return;
+        }
+
+        array<Byte>^ where = Utf8Of(pick->FileName);
+        pin_ptr<Byte> wherePin = &where[0];
+        array<Byte>^ why = gcnew array<Byte>(512);
+        pin_ptr<Byte> whyPin = &why[0];
+
+        if (rstudio_project_save_as(project_, reinterpret_cast<const char*>(wherePin),
+                                    reinterpret_cast<char*>(whyPin), why->Length) == 0) {
+            what_->Text = FromUtf8(reinterpret_cast<const char*>(whyPin));
+            return;
+        }
+
+        projectDirectory_ = System::IO::Path::GetDirectoryName(pick->FileName);
+        FillTree();
+        what_->Text = System::IO::Path::GetFileName(pick->FileName) +
+                      " written - the project is saved there from now on";
+    }
 
     // Closing the project is closing the *view* of it: RStudio.json is not touched,
     // nothing is taken out of it, and every open tab stays open. What goes is

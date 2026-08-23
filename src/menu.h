@@ -39,6 +39,7 @@ enum Action {
     ActionProjectNew,
     ActionProjectOpen,
     ActionProjectSave,
+    ActionProjectSaveAs,
     ActionProjectClose,
     ActionProjectAdd,
     ActionFileCreate,

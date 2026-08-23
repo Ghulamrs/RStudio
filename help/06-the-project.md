@@ -1,11 +1,44 @@
 # 6. The project
 
-A project is one file, `RStudio.json`, and there does not have to be one — without
-it the pane on the left shows the files you have open, and nothing at all when
-none are.
+A project is one file — **`prime.pro`**, named after the program it builds —
+and there does not have to be one. Ordinary JSON inside; the suffix says what
+the file is *for* rather than what it is made of, the way `.vcxproj` and
+`.xcodeproj` do.
+
+**`docs/sample.pro` is the template**: every key there is, filled in, to read
+and copy. It is not a project and nothing opens it — a `.pro` is only looked
+for in the directory you actually open, never one below, which is what keeps a
+template a template. `examples/example.pro` is the opposite: a real, minimal
+one that leaves four things to their defaults.
+
+| key | left out means |
+| --- | --- |
+| `name` | the directory's own name |
+| `arch` | this machine |
+| `toolchain` | `auto` — the language chooses: C to cc1, C++ to the host's, Shalimar to shc |
+| a group's `toolchain` | the project's, and then the language |
+| `build` | no project program; Ctrl-B still builds the file in front of you |
+
+**A directory may hold several.** `prime.pro` and `sums.pro` side by side is
+the case the naming is for: opening the directory takes the first by name and
+says so, and `Project ▸ Open project` lists them to choose from. Whichever you
+opened is the one reopened next time.
+
+**`Project ▸ Save as project file...`** writes one out under a name of its own.
+That is the only thing that converts a project — see below.
+
+## What was here before
+
+It was one `RStudio.json` per directory, and `ed1.json` before that. Both are
+still read, and a project opened under either is **saved back to it** — nothing
+is converted behind your back, and a directory never quietly ends up with two
+project files. Convert one when you mean to, with Save as project file.
+
+With no project at all, the pane on the left shows the files you have open, and
+nothing at all when none are.
 
 `Project ▸ Close project` is how you get there from a project. It closes the
-view and not the project: `RStudio.json` is left exactly as it was, nothing is
+view and not the project: the project file is left exactly as it was, nothing is
 taken out of it, and every file you have open stays open.
 
 **It was called `ed1.json` until 2026-08-23**, when the last thing still
@@ -23,10 +56,10 @@ three used to agree only by accident, and a header added by hand landed among
 the sources. Type a different group name over the one offered and that wins.
 
 **There is no project file extension.** A project is a directory with an
-`RStudio.json` in it, and that is the whole of what being one consists of — there
+a `.pro` in it, and that is the whole of what being one consists of — there
 is nothing to look for called `.proj`. `Project ▸ Open project...` lists the
 directories under the one you are in and opens the one you pick; a directory
-that holds an `RStudio.json` is opened, and one that does not is stepped into, so
+that holds a project file is opened, and one that does not is stepped into, so
 you can walk down to where the project actually is.
 
 ```json
@@ -72,7 +105,7 @@ looking the way its author left it.
 ```
 
 - **`target`** is the program's name, without `.exe`. It lands beside
-  `RStudio.json`, so it is still there when the editor is not.
+  the project file, so it is still there when the editor is not.
 - **`groups`** is which groups go into it — deliberately not all of them, so a
   project's own tests, examples, headers and notes stay out of its program.
 

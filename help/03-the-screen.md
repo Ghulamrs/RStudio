@@ -53,7 +53,7 @@ file is not a change to that. The two questions have two answers and the pane
 gives both.
 
 Each file is shown **by its own name**, not by the path the project file writes:
-`RStudio.json` says `src/first.c` and the pane says `first.c`. The grouping is
+the project file says `src/first.c` and the pane says `first.c`. The grouping is
 what a project has instead of directories, so the prefix said nothing the pane
 was not already saying — and repeated down a column it read as though the files
 lived somewhere they do not. The full path is on the status bar the moment the
@@ -61,7 +61,7 @@ file is opened.
 
 With no project it shows the files you have open instead, in the order you
 opened them, and nothing at all when none are. `Project ▸ Close project` is what
-puts it in that state: it closes the *view* of the project, leaving `RStudio.json`
+puts it in that state: it closes the *view* of the project, leaving the project file
 exactly as it was and every open file open.
 
 **Questions are asked in a box** of their own, in the middle of the text — not
@@ -103,7 +103,7 @@ status bar's last field says where it is.
 
 **The `*` on the compiler is the useful one.** Without it, somebody named that
 compiler by hand — with `Ctrl-K`, the Tools menu, `--toolchain`, or a group in
-`RStudio.json` — and the file's own language is not deciding.
+the project file — and the file's own language is not deciding.
 
 ## The message line
 

@@ -510,6 +510,20 @@ void rstudio_project_set_root(RStudioProject* project, const char* path) {
 
 void rstudio_project_close(RStudioProject* project) { project->project.close(); }
 
+const char* rstudio_project_suffix(void) { return editor::Project::suffix(); }
+
+int rstudio_project_save_as(RStudioProject* project, const char* file,
+                            char* why, int whySize) {
+    std::string error;
+    bool ok = project->project.saveAs(file ? file : "", error);
+    if (!ok && why && whySize > 0) {
+        std::string said = error.empty() ? std::string("could not save the project") : error;
+        std::strncpy(why, said.c_str(), static_cast<size_t>(whySize) - 1);
+        why[whySize - 1] = '\0';
+    }
+    return ok ? 1 : 0;
+}
+
 const char* rstudio_group_for_file(const char* name) {
     static std::string answer;
     answer = editor::groupForFile(name ? name : "");

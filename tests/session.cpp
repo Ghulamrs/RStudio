@@ -344,7 +344,7 @@ void fileCommands(const std::string& rstudio) {
     const std::string toProject = kF10 + times(kRight, 2);
 
     // New file...
-    drive(rstudio, project, toProject + times(kDown, 5) + kEnter + "src/made.c" + kEnter + ctrl('q'),
+    drive(rstudio, project, toProject + times(kDown, 6) + kEnter + "src/made.c" + kEnter + ctrl('q'),
           dir);
     check(file::exists(dir / "src" / "made.c"), "New file makes the file");
     check(readFile(dir / "RStudio.json").find("src/made.c") != std::string::npos,
@@ -352,14 +352,14 @@ void fileCommands(const std::string& rstudio) {
 
     // A path two directories deep is refused, and nothing is written.
     Screen deep = drive(rstudio, project,
-                        toProject + times(kDown, 5) + kEnter + "a/b/deep.c" + kEnter + ctrl('q'),
+                        toProject + times(kDown, 6) + kEnter + "a/b/deep.c" + kEnter + ctrl('q'),
                         dir);
     check(!file::exists(dir / "a"), "a file two directories deep is not made");
     check(onScreen(deep, "two levels at most"), "and the rule says so on screen");
 
     // Rename... acts on the file being edited.
     drive(rstudio, "\"" + (dir / "src" / "made.c").string() + "\"" + project,
-          toProject + times(kDown, 6) + kEnter + "src/moved.c" + kEnter + ctrl('q'), dir);
+          toProject + times(kDown, 7) + kEnter + "src/moved.c" + kEnter + ctrl('q'), dir);
     check(!file::exists(dir / "src" / "made.c"), "Rename takes the old name away");
     check(file::exists(dir / "src" / "moved.c"), "and puts the new one there");
     check(readFile(dir / "RStudio.json").find("src/moved.c") != std::string::npos,
@@ -367,18 +367,18 @@ void fileCommands(const std::string& rstudio) {
 
     // Move to group... changes the project and nothing on disk.
     drive(rstudio, "\"" + (dir / "src" / "moved.c").string() + "\"" + project,
-          toProject + times(kDown, 7) + kEnter + "Extras" + kEnter + ctrl('q'), dir);
+          toProject + times(kDown, 8) + kEnter + "Extras" + kEnter + ctrl('q'), dir);
     std::string written = readFile(dir / "RStudio.json");
     check(written.find("Extras") != std::string::npos, "regrouping makes the group");
     check(file::exists(dir / "src" / "moved.c"), "and leaves the file where it was");
 
     // Delete... only when the answer is yes.
     drive(rstudio, "\"" + (dir / "src" / "moved.c").string() + "\"" + project,
-          toProject + times(kDown, 8) + kEnter + "no" + kEnter + ctrl('q'), dir);
+          toProject + times(kDown, 9) + kEnter + "no" + kEnter + ctrl('q'), dir);
     check(file::exists(dir / "src" / "moved.c"), "Delete answered with no keeps the file");
 
     drive(rstudio, "\"" + (dir / "src" / "moved.c").string() + "\"" + project,
-          toProject + times(kDown, 8) + kEnter + "yes" + kEnter + ctrl('q'), dir);
+          toProject + times(kDown, 9) + kEnter + "yes" + kEnter + ctrl('q'), dir);
     check(!file::exists(dir / "src" / "moved.c"), "and answered with yes deletes it");
     check(readFile(dir / "RStudio.json").find("src/moved.c") == std::string::npos,
           "and takes it out of the project too");
@@ -697,7 +697,7 @@ void closingTheProject(const std::string& rstudio) {
     std::string opened = "\"" + (dir / "src" / "one.c").string() + "\"" + project;
 
     // Project menu, third item.
-    const std::string closeProject = kF10 + times(kRight, 2) + times(kDown, 3) + kEnter;
+    const std::string closeProject = kF10 + times(kRight, 2) + times(kDown, 4) + kEnter;
 
     Screen before = drive(rstudio, opened, ctrl('q'), dir);
     check(onScreen(before, "- First"), "the group is shown while the project is open");
@@ -1439,7 +1439,7 @@ void stoppingAndStepping(const std::string& rstudio, const std::string& cc1) {
         std::string there = "\"" + was.string() + "\" --project \"" + renaming.string() + "\"";
 
         // Project menu, then down to Rename..., as fileCommands drives it.
-        const std::string toRename = kF10 + times(kRight, 2) + times(kDown, 6) + kEnter;
+        const std::string toRename = kF10 + times(kRight, 2) + times(kDown, 7) + kEnter;
         Screen followed = drive(rstudio, there,
                                 toLoopBody + kF9 + toRename + "src/moved.c" + kEnter + ctrl('q'),
                                 renaming);
@@ -1462,12 +1462,12 @@ void stoppingAndStepping(const std::string& rstudio, const std::string& cc1) {
 
         const std::string toProject = kF10 + times(kRight, 2);
         const std::string deleteIt =
-            toProject + times(kDown, 8) + kEnter + "yes" + kEnter;
+            toProject + times(kDown, 9) + kEnter + "yes" + kEnter;
         // No kRight this time: the menu reopens on the column it was left on,
         // so a second F10 is already on Project. Walking right again lands on
         // some other menu's first item and quietly does something else.
         const std::string makeItAgain =
-            kF10 + times(kDown, 5) + kEnter + "src/stepped.c" + kEnter;
+            kF10 + times(kDown, 6) + kEnter + "src/stepped.c" + kEnter;
 
         // Twelve lines in the new file, so that line 11 is there to be marked.
         Screen reborn = drive(rstudio, there,
@@ -1675,10 +1675,14 @@ void aDirectoryWithNoProject(const std::string& rstudio) {
     writeFile(dir / "src" / "one.c", "int one;\n");
     writeFile(dir / "notes.txt", "not source\n");
 
-    check(!file::exists(dir / "RStudio.json"), "there is no project file to begin with");
+    // Named after the directory, and none of the older whole-directory names.
+    const std::string named = "rstudio-session-noproject.pro";
+    check(!file::exists(dir / named), "there is no project file to begin with");
 
     Screen made = drive(rstudio, "--project \"" + dir.string() + "\"", ctrl('q'), dir);
-    check(file::exists(dir / "RStudio.json"), "opening there writes one");
+    check(file::exists(dir / named), "opening there writes one, under the directory's name");
+    check(!file::exists(dir / "RStudio.json"),
+          "and not under the whole-directory name it used to use");
     check(wasShown(made, "so one was made"), "and says that is what it did");
     check(onScreen(made, "one.c"), "the source it found is in the pane");
     check(!onScreen(made, "notes.txt"), "and what is not source is not");
