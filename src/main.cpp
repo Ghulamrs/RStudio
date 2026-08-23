@@ -4,6 +4,7 @@
 #include <string>
 
 #include "editor.h"
+#include "path.h"
 #include "settings.h"
 #include "symbols.h"
 #include "workspace.h"
@@ -125,18 +126,58 @@ int main(int argc, char** argv) {
 
     editor::Editor ed;
 
-    // The project pane opens on the file's own directory unless told
-    // otherwise, which is nearly always the directory someone wants to see.
+    // **Opening a file does not make a project out of the directory it is in.**
+    //
+    // It used to. The pane opened on the file's own directory, and a directory
+    // with no RStudio.json gets one written from what is in it - so asking to look
+    // at one file left a project file on somebody's disk, listing everything
+    // that happened to be beside it. Editing a file is not asking for a
+    // project, and writing into a directory is not something to do on the way
+    // to reading from it.
+    //
+    // A file that *is* in a project still opens that project, which is the
+    // half of the old behaviour worth keeping and the common case: the
+    // RStudio.json is already there, so nothing is written and the pane says what
+    // the project says. A file anywhere else opens on its own, and the pane
+    // shows the files you have open - which is what it now does whenever there
+    // is no project.
+    // **A directory named on its own is the project, not a file.** `RStudio .`
+    // is how anybody opens a tree, and it used to work only by accident: the
+    // argument became `file`, its "directory" was itself, and the pane opened
+    // there while the editor tried to load a directory into a buffer. Saying
+    // it properly is also what keeps it working now that a *file* no longer
+    // makes a project out of what is around it.
+    if (!file.empty() && project.empty() && editor::path::isDirectory(file)) {
+        project = file;
+        file.clear();
+    }
+
+    // Three cases, and only one of them ends with nothing opened.
+    bool onItsOwn = false;
     if (project.empty() && !file.empty()) {
         size_t at = file.find_last_of("/\\");
-        project = (at == std::string::npos) ? std::string(".") : file.substr(0, at);
+        std::string beside = (at == std::string::npos) ? std::string(".") : file.substr(0, at);
+
+        // Beside the file, then one directory up. Two levels because that is
+        // how deep a project path is allowed to be - a file lives in the root
+        // or one directory under it - so src/one.c belongs to the project in
+        // the directory holding src, and looking only beside the file would
+        // miss every project laid out that way, which is most of them.
+        if (!editor::Project::fileIn(beside).empty()) project = beside;
+        else if (!editor::Project::fileIn(editor::path::parent(beside)).empty())
+            project = editor::path::parent(beside);
+        else onItsOwn = true;
     }
 
     // Nothing named at all: the project you were last in, and failing that a
     // small one made for the purpose. Opening on "." was what this did before,
     // and it meant a first run showed whatever directory you happened to be
     // standing in, which is rarely a project and never a welcome.
-    if (project.empty()) {
+    //
+    // A file named with no project around it does *not* come here. Falling
+    // through to the last project would put somebody else's pane behind the
+    // file you asked for, which is worse than an empty one.
+    if (project.empty() && !onItsOwn) {
         project = editor::settings::lastProject();
         if (project.empty()) project = editor::demoDirectory();
         if (project.empty()) project = ".";
@@ -145,7 +186,11 @@ int main(int argc, char** argv) {
     // Read first, so that anything named on the command line below overrides
     // it. The project file is what this project always does; a flag is what
     // today needs.
-    ed.openProject(project);
+    //
+    // Skipped entirely for a file on its own: openProject writes an RStudio.json
+    // for a directory that has none, and that is the whole of what this change
+    // is about.
+    if (!project.empty()) ed.openProject(project);
 
     if (toolchain == "msvc" || toolchain == "cl") ed.setToolchain(editor::ToolMsvc);
     else if (toolchain == "cc1") ed.setToolchain(editor::ToolCc1);

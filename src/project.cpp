@@ -65,7 +65,19 @@ Project::Project()
     : loaded_(false), toolchain_(ToolAuto), config_(ConfigDebug),
       arch_(hostArch()) {}
 
-const char* Project::fileName() { return "ed1.json"; }
+const char* Project::fileName() { return "RStudio.json"; }
+const char* Project::formerFileName() { return "ed1.json"; }
+
+std::string Project::fileIn(const std::string& directory) {
+    std::string base = path::absolute(directory);
+    std::string now = base + "/" + fileName();
+    if (path::exists(now)) return now;
+
+    std::string before = base + "/" + formerFileName();
+    if (path::exists(before)) return before;
+
+    return std::string();
+}
 
 std::string Project::absolute(const std::string& rel) const {
     if (root_.empty()) return rel;
@@ -98,11 +110,12 @@ bool Project::load(const std::string& dir, std::string& error) {
     loaded_ = false;
 
     std::string base = path::absolute(dir);
-    std::string path = base + "/" + fileName();
+    std::string path = fileIn(base);
+    if (path.empty()) return false;   // no project here, which is not a fault
 
     // stdio, not <fstream> - see the note in buffer.cpp.
     FILE* in = std::fopen(path.c_str(), "rb");
-    if (!in) return false;   // no project here, which is not a fault
+    if (!in) return false;
 
     std::string text;
     char chunk[4096];
@@ -113,7 +126,7 @@ bool Project::load(const std::string& dir, std::string& error) {
     std::string why;
     Json root = Json::parse(text, why);
     if (!why.empty()) {
-        error = std::string(fileName()) + ": " + why;
+        error = path::filename(path) + ": " + why;
         return false;
     }
     if (!root.is(Json::Object)) {

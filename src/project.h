@@ -73,7 +73,7 @@ struct Target {
 // ask it and two of them getting it right is not enough.
 ToolchainKind toolchainOf(const Toolchain& tool, const Part& part);
 
-// ed1.json, and what it says. Six keys, flat except for the groups, and every
+// RStudio.json, and what it says. Six keys, flat except for the groups, and every
 // one of them has a default - so the smallest project file that works is `{}`,
 // and the editor works with no file at all:
 //
@@ -98,7 +98,23 @@ class Project {
 public:
     Project();
 
-    static const char* fileName();   // "ed1.json"
+    // **RStudio.json since 2026-08-23.** It was `ed1.json` for as long as the
+    // editor was called ed1, and it outlived that name by a day longer than
+    // the binaries did; the three programs carry one name each now and the
+    // project file was the last thing that did not.
+    static const char* fileName();         // "RStudio.json"
+    static const char* formerFileName();   // "ed1.json", still read
+
+    // The project file in `dir`, by whichever of the two names is on disk, or
+    // empty when neither is. The new name wins when both are there.
+    //
+    // **The old name is still read, and that is not politeness.** Every project
+    // that existed before the rename has an `ed1.json` in it, and an editor
+    // that stopped finding them would be a rename breaking somebody's work for
+    // nothing. A project loaded under the old name is *saved back* under it -
+    // `file_` is whichever was found - so nothing ends up holding both, and a
+    // directory only gains the new name when a new project is made there.
+    static std::string fileIn(const std::string& directory);
 
     // Looks for the file in `dir`. Absent is not an error - it means there is
     // no project, and the pane shows the directory instead.
@@ -193,7 +209,7 @@ public:
     // limited.
     std::vector<std::string> directories() const;
 
-    // Puts the project away. Nothing loaded, nothing named, and ed1.json on
+    // Puts the project away. Nothing loaded, nothing named, and RStudio.json on
     // disk untouched - closing a project is a change to what you are looking
     // at, not to what the project is. The editor's own settings are left
     // alone too: the indent and the compiler you are working with should not

@@ -259,7 +259,7 @@ private:
     // that picking one goes into it rather than trying to open it.
     std::vector<std::string> whatIsIn(const std::string& directory) const;
 
-    // The directories under this one that hold an ed1.json, which is what
+    // The directories under this one that hold an RStudio.json, which is what
     // being a project consists of - there is no project file extension to
     // look for. "." is included when this directory is itself one.
     std::vector<std::string> projectsIn(const std::string& directory) const;

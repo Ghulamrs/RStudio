@@ -8,12 +8,12 @@ namespace editor {
 // The editor's own configuration, as against a project's.
 //
 // There are two configuration files now and they answer different questions.
-// `ed1.json` in a directory says what that project is: its groups, its indent,
+// `RStudio.json` in a directory says what that project is: its groups, its indent,
 // which compiler and target it wants. This one says what *you* had, on this
 // machine - and the first thing it holds is the project you were last in.
 //
 // That could not go in a project file. Which project was open last is not a
-// fact about any project, and putting it in one would leave every ed1.json on
+// fact about any project, and putting it in one would leave every RStudio.json on
 // disk claiming to have been the most recent.
 //
 // It is an object in a file rather than a path on a line, so that the second
@@ -36,12 +36,12 @@ bool rememberProject(const std::string& directory);
 // Whether the screen is framed in plain ASCII rather than the box-drawing
 // characters. A property of the console you are sitting at - its font may draw
 // the junctions from a second face, which breaks the lines at every join - so
-// it belongs here beside the project and not in any ed1.json.
+// it belongs here beside the project and not in any RStudio.json.
 bool plainFrame();
 
 // The font the window draws code in, kept as the window spells it - a name and
 // a size, and this side does not look inside. A property of the machine you are
-// sitting at, like the frame above it: the same ed1.json opened elsewhere must
+// sitting at, like the frame above it: the same RStudio.json opened elsewhere must
 // not drag along a font that machine may not have. Empty when nothing was ever
 // chosen, and the window uses its own default then.
 std::string codeFont();
@@ -57,7 +57,7 @@ bool rememberCodeFont(const std::string& described);
 // Now, once, in this order: the old file is renamed to
 // `.ed1config.json.error`, a fresh empty one is written in its place, and this
 // says where the old one went so a front end can tell you. The same courtesy
-// an ed1.json gets, which is never written over when it will not parse. This is
+// an RStudio.json gets, which is never written over when it will not parse. This is
 // less precious than somebody's project file, but it may hold a hand-edit, or a
 // key a later version wrote and this one does not know.
 std::string setAside();

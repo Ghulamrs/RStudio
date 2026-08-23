@@ -2020,7 +2020,7 @@ private:
             String^ why = FromUtf8(reinterpret_cast<const char*>(errorPin));
 
             // Nothing to read is not the same as something that will not read.
-            // A directory with no ed1.json gets one written from what is in it,
+            // A directory with no RStudio.json gets one written from what is in it,
             // as the terminal half has always done - the window used to show an
             // empty pane and say so, which is a worse answer to "open this
             // folder" than the one the core was already able to give.
@@ -2045,7 +2045,7 @@ private:
                 return;
             }
 
-            what_->Text = why->Length > 0 ? why : "no ed1.json in that directory";
+            what_->Text = why->Length > 0 ? why : "no RStudio.json in that directory";
 
             // No project file still leaves a directory that paths are counted
             // from, so the file commands work either way.
@@ -2415,7 +2415,7 @@ private:
 
     void OnSaveProject(Object^, EventArgs^) { Did(ed1_save_project(project_)); }
 
-    // Closing the project is closing the *view* of it: ed1.json is not touched,
+    // Closing the project is closing the *view* of it: RStudio.json is not touched,
     // nothing is taken out of it, and every open tab stays open. What goes is
     // the pane's claim to be showing a project.
     //
@@ -3879,7 +3879,7 @@ private:
     // when picked and nowhere after that, so the next thing to happen took the
     // answer away with it; the terminal has all three on its status bar for as
     // long as the editor is running. Called wherever the three can change,
-    // which includes opening a project: an ed1.json carries all of them, and a
+    // which includes opening a project: an RStudio.json carries all of them, and a
     // tick that only followed the menus would start lying the moment one was
     // opened.
     void SayBuild() {

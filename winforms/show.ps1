@@ -39,7 +39,7 @@
     .\show.ps1 -Files examples\smart.cpp -Keys "{F9}{F8}" -Then "{F6}","^2{DOWN 6}{ENTER}"
 #>
 param(
-    # The directory holding ed1.json, and where paths are counted from.
+    # The directory holding RStudio.json, and where paths are counted from.
     [string]$Project = ".",
 
     # Files to open, each getting a tab. The last one ends up in front.

@@ -121,7 +121,7 @@ struct Toolchain {
 // exactly one worth calling by default. Shalimar goes to shc, which is the only
 // thing that reads it. C is the one that two compilers can both take: cc1,
 // which this editor was written for and which is the default, and the host's,
-// which is a keystroke or one line of ed1.json away.
+// which is a keystroke or one line of RStudio.json away.
 //
 // So a group naming its compiler is, in practice, always a group of C saying
 // it wants the other one - and that is why the override exists at all.

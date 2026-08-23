@@ -1,18 +1,25 @@
 # 6. The project
 
-A project is one file, `ed1.json`, and there does not have to be one — without
+A project is one file, `RStudio.json`, and there does not have to be one — without
 it the pane on the left shows the files you have open, and nothing at all when
 none are.
 
 `Project ▸ Close project` is how you get there from a project. It closes the
-view and not the project: `ed1.json` is left exactly as it was, nothing is
+view and not the project: `RStudio.json` is left exactly as it was, nothing is
 taken out of it, and every file you have open stays open.
 
+**It was called `ed1.json` until 2026-08-23**, when the last thing still
+carrying the editor's old name was renamed with the rest. **Projects written
+under the old name still open** — the editor reads either, and a project loaded
+as `ed1.json` is saved back as `ed1.json`, so nothing ends up holding both.
+Rename it yourself when you want the new one; nothing here will do it behind
+your back.
+
 **There is no project file extension.** A project is a directory with an
-`ed1.json` in it, and that is the whole of what being one consists of — there
+`RStudio.json` in it, and that is the whole of what being one consists of — there
 is nothing to look for called `.proj`. `Project ▸ Open project...` lists the
 directories under the one you are in and opens the one you pick; a directory
-that holds an `ed1.json` is opened, and one that does not is stepped into, so
+that holds an `RStudio.json` is opened, and one that does not is stepped into, so
 you can walk down to where the project actually is.
 
 ```json
@@ -58,7 +65,7 @@ looking the way its author left it.
 ```
 
 - **`target`** is the program's name, without `.exe`. It lands beside
-  `ed1.json`, so it is still there when the editor is not.
+  `RStudio.json`, so it is still there when the editor is not.
 - **`groups`** is which groups go into it — deliberately not all of them, so a
   project's own tests, examples, headers and notes stay out of its program.
 

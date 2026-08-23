@@ -505,7 +505,7 @@ std::vector<std::string> Editor::openPaths() const {
 }
 
 // Closing the project is closing the *view* of it. Nothing is written, nothing
-// is removed from ed1.json, and the files stay open - what goes is the pane's
+// is removed from RStudio.json, and the files stay open - what goes is the pane's
 // claim to be showing a project, which is the thing that was wrong: there was
 // no way to stop looking at one, so a project opened at startup was a project
 // you were in until you quit.
@@ -529,7 +529,7 @@ void Editor::openProject(const std::string& path) {
         refreshTree();
         // Remembered so that the next run opens here without being told. It is
         // the editor's own configuration and not the project's - see
-        // settings.h for why it cannot live in an ed1.json.
+        // settings.h for why it cannot live in an RStudio.json.
         settings::rememberProject(project_.root());
         // "ready" rather than a bare count: it is the first thing on the line
         // when the editor comes up on a project it was told about or one it
@@ -1819,15 +1819,14 @@ std::vector<std::string> Editor::whatIsIn(const std::string& directory) const {
 }
 
 // **There is no project file extension.** A project is a directory with an
-// ed1.json in it - that is the whole of what being one consists of - so this
+// RStudio.json in it - that is the whole of what being one consists of - so this
 // looks for the file rather than for a name. ".  (this directory)" is offered
 // first when the directory being looked at is itself a project, since that is
 // usually the one meant.
 std::vector<std::string> Editor::projectsIn(const std::string& directory) const {
     std::vector<std::string> found;
 
-    if (path::exists(path::join(directory, Project::fileName())))
-        found.push_back("./");
+    if (!Project::fileIn(directory).empty()) found.push_back("./");
 
     std::vector<path::Entry> here = path::entries(directory);
     for (size_t i = 0; i < here.size(); ++i) {
@@ -1884,11 +1883,11 @@ void Editor::openProjectPrompt() {
 
         if (name[name.size() - 1] == '/') {
             std::string into = path::join(where, name.substr(0, name.size() - 1));
-            // A directory holding an ed1.json is the one being asked for. One
+            // A directory holding an RStudio.json is the one being asked for. One
             // that does not is a step on the way to it, so the list becomes
             // what is inside it rather than a project being made there by
             // somebody who was only looking.
-            if (path::exists(path::join(into, Project::fileName()))) {
+            if (!Project::fileIn(into).empty()) {
                 openProject(into);
                 return;
             }

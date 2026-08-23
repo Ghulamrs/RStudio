@@ -1017,7 +1017,7 @@ void operations() {
     check(made.ok, "a file is made");
     check(file::exists(dir / "src" / "one.c"), "and it is there on disk");
     check(project.groupOf("src/one.c") < project.groups().size(), "and in the project");
-    check(file::exists(dir / "ed1.json"), "and the project was written");
+    check(file::exists(dir / "RStudio.json"), "and the project was written");
     check(!made.path.empty(), "and it says where the file went");
 
     check(!editor::createFile(project, "src/one.c", "Sources").ok, "twice is refused");
@@ -1071,7 +1071,8 @@ void operations() {
     editor::Outcome loose = editor::createFile(none, "loose.c", "Sources");
     check(loose.ok, "a file can be made without a project");
     check(file::exists(bare / "loose.c"), "and it is really there");
-    check(!file::exists(bare / "ed1.json"), "and no project file was invented");
+    check(!file::exists(bare / "RStudio.json") && !file::exists(bare / "ed1.json"),
+          "and no project file was invented, under either name");
 
     file::remove_all(dir);
 }
@@ -2771,11 +2772,11 @@ void aProjectMadeFromWhatIsThere() {
     editor::Outcome made = editor::beginFromWhatIsThere(project, dir);
     check(made.ok, "a project is made where there was none");
     check(project.loaded(), "and the project says it is loaded");
-    check(pth::exists(pth::join(dir, "ed1.json")), "and the file is written");
+    check(pth::exists(pth::join(dir, "RStudio.json")), "and the file is written");
     check(project.name() == "ed1-made-project", "named after the directory it is in");
 
     // What it picked up, and what it left alone.
-    std::string written = readWholeFile(pth::join(dir, "ed1.json"));
+    std::string written = readWholeFile(pth::join(dir, "RStudio.json"));
     check(written.find("one.c") != std::string::npos, "source in the directory is in it");
     check(written.find("src/two.cpp") != std::string::npos, "and source one level down");
     check(written.find("src/two.h") != std::string::npos, "headers as well as sources");
@@ -3249,7 +3250,7 @@ void whatTheProjectBuilds() {
           "and the build is refused before a compiler runs");
     check(why.find("nowhere.c") != std::string::npos, "naming the file that is not there");
     check(why.find("not on disk") != std::string::npos, "and saying what is wrong with it");
-    check(detail.find("ed1.json") != std::string::npos, "with where the list lives");
+    check(detail.find("RStudio.json") != std::string::npos, "with where the list lives");
     check(sources.empty(), "and nothing handed back to compile");
 
     // A group that is not there, and a target with no source in it.

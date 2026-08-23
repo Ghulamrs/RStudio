@@ -664,7 +664,10 @@ void closingTheProject(const std::string& ed1) {
 
     Screen before = drive(ed1, opened, ctrl('q'), dir);
     check(onScreen(before, "- First"), "the group is shown while the project is open");
-    check(onScreen(before, "src/two.c"), "and so is a file that is not the one being edited");
+    // By its own name, not by the path the project file writes: the pane
+    // shows "two.c" where ed1.json says "src/two.c".
+    check(onScreen(before, "two.c"), "and so is a file that is not the one being edited");
+    check(!onScreen(before, "src/two.c"), "named without the directory it sits in");
 
     Screen after = drive(ed1, opened, closeProject + ctrl('q'), dir);
     check(!onScreen(after, "- First"), "closing the project takes the group off the pane");
@@ -781,7 +784,7 @@ void projectPane(const std::string& ed1) {
 
     Screen screen = drive(ed1, "--project \"" + dir.string() + "\"", ctrl('q'), dir);
     check(onScreen(screen, "- First"), "a group is shown");
-    check(onScreen(screen, "src/one.c"), "with what is in it");
+    check(onScreen(screen, "one.c"), "with what is in it");
     check(onScreen(screen, "- Second"), "and so is the next one");
     check(onScreen(screen, "Panes"), "the project's name is reported");
 
@@ -1564,10 +1567,10 @@ void aDirectoryWithNoProject(const std::string& ed1) {
     writeFile(dir / "src" / "one.c", "int one;\n");
     writeFile(dir / "notes.txt", "not source\n");
 
-    check(!file::exists(dir / "ed1.json"), "there is no project file to begin with");
+    check(!file::exists(dir / "RStudio.json"), "there is no project file to begin with");
 
     Screen made = drive(ed1, "--project \"" + dir.string() + "\"", ctrl('q'), dir);
-    check(file::exists(dir / "ed1.json"), "opening there writes one");
+    check(file::exists(dir / "RStudio.json"), "opening there writes one");
     check(wasShown(made, "so one was made"), "and says that is what it did");
     check(onScreen(made, "one.c"), "the source it found is in the pane");
     check(!onScreen(made, "notes.txt"), "and what is not source is not");

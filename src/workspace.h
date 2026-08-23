@@ -46,7 +46,7 @@ Outcome beginProject(Project& project, const std::string& directory,
 Outcome saveProject(Project& project);
 
 // A project made out of what is already in a directory, for when there is no
-// ed1.json to read. Named after the directory, and holding the source it can
+// RStudio.json to read. Named after the directory, and holding the source it can
 // find there and one level under it - which is where this project keeps its
 // own, and most others do too.
 //

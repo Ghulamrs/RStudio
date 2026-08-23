@@ -50,9 +50,23 @@ void Tree::showProject(const Project& project) {
 
         if (!head.open) continue;
 
+        // **The file's own name, not its path.** A project's list is written
+        // relative to the root - `src/first.c` - and the pane used to show it
+        // that way, so a project of any size read as a column of repeated
+        // directory names with the one distinguishing word at the end of each.
+        // Worse, it says something untrue about where the file is: `src/` in
+        // the pane looks like a directory of whatever tree you are standing
+        // in, and the user's reading of it was that the file lived inside
+        // RStudio's own source.
+        //
+        // The grouping is what a project has instead of directories - that is
+        // the whole idea of a group - so the path adds nothing the pane was
+        // already saying. Where the file really is stays one keystroke away:
+        // `path` here is the absolute one, and the status bar names it in full
+        // the moment the file is opened.
         for (size_t j = 0; j < group.files.size(); ++j) {
             TreeEntry file;
-            file.name = group.files[j];
+            file.name = path::filename(group.files[j]);
             file.path = project.absolute(group.files[j]);
             file.depth = 1;
             entries_.push_back(file);

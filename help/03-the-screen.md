@@ -45,9 +45,16 @@ reads `C` for a `.c` file whether that came from its name or from your picking
 them — the project's own arrangement, not the directory's. `Ctrl-P` shows and
 hides it, enter opens the file under the cursor.
 
+Each file is shown **by its own name**, not by the path the project file writes:
+`RStudio.json` says `src/first.c` and the pane says `first.c`. The grouping is
+what a project has instead of directories, so the prefix said nothing the pane
+was not already saying — and repeated down a column it read as though the files
+lived somewhere they do not. The full path is on the status bar the moment the
+file is opened.
+
 With no project it shows the files you have open instead, in the order you
 opened them, and nothing at all when none are. `Project ▸ Close project` is what
-puts it in that state: it closes the *view* of the project, leaving `ed1.json`
+puts it in that state: it closes the *view* of the project, leaving `RStudio.json`
 exactly as it was and every open file open.
 
 **Questions are asked in a box** of their own, in the middle of the text — not
@@ -89,7 +96,7 @@ status bar's last field says where it is.
 
 **The `*` on the compiler is the useful one.** Without it, somebody named that
 compiler by hand — with `Ctrl-K`, the Tools menu, `--toolchain`, or a group in
-`ed1.json` — and the file's own language is not deciding.
+`RStudio.json` — and the file's own language is not deciding.
 
 ## The message line
 

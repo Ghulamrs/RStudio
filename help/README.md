@@ -18,7 +18,7 @@ difference in full.
 | [3. The screen](03-the-screen.md) | panes, tabs, the status bar, what is where |
 | [4. Editing](04-editing.md) | indenting, UTF-8, undo, selection, the clipboard |
 | [5. Finding](05-finding.md) | find, find again, replace, and what counts as a match |
-| [6. The project](06-the-project.md) | `ed1.json`, groups, and a compiler per group |
+| [6. The project](06-the-project.md) | `RStudio.json`, groups, and a compiler per group |
 | [7. Building](07-building.md) | the file or the project, targets, debug and release |
 | [8. Debugging](08-debugging.md) | breakpoints, stepping, variables, the call stack |
 | [9. The panel](09-the-panel.md) | Console, Debug, Assembly, and enter on a line |

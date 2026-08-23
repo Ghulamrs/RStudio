@@ -160,7 +160,7 @@ int ed1_project_loaded(Ed1Project* project);
 const char* ed1_project_root(Ed1Project* project);
 void ed1_project_set_root(Ed1Project* project, const char* path);
 
-/* Puts the project away: nothing loaded, and ed1.json left exactly as it was.
+/* Puts the project away: nothing loaded, and RStudio.json left exactly as it was.
    Closing a project is a change to what is being looked at and not to what the
    project is, so nothing is written and nothing is removed from it. */
 void ed1_project_close(Ed1Project* project);
@@ -177,7 +177,7 @@ int ed1_delete_file(Ed1Project* project, const char* absolute);
 int ed1_move_to_group(Ed1Project* project, const char* absolute, const char* group);
 int ed1_add_existing(Ed1Project* project, const char* absolute, const char* group);
 /* A project made out of what is already in a directory, for when there is no
-   ed1.json to read - and the two things that decide where the editor opens
+   RStudio.json to read - and the two things that decide where the editor opens
    when it is given nothing: the project it was last in, and the small one made
    in your own files the first time there is no answer to that.
 
