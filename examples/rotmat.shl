@@ -1,4 +1,4 @@
-// rotmat.shm
+// rotmat.shl
 // The three axis rotations and the
 // composite RotMat = Rz Ry Rx. Each
 // builder fills a caller's 3x3: an
@@ -6,8 +6,9 @@
 //
 // Right-handed - the -sin sits in
 // the row above the row holding the
-// 1.0, counting round. rotations.shm
-// writes the same three as literals.
+// 1.0, counting round. The app's own
+// rotations.shm writes the same three
+// as literals.
 fun <> = ROX(angle: real, R[][]: real) {
   real c : cos(angle)
   real s : sin(angle)

@@ -429,7 +429,7 @@ and cl's own listing is MASM, which the assembly tab already colours.
 | --- | --- | --- | --- | --- |
 | C | `.c` `.h` | [cc1](../Compiler-C) | three | DWARF, on two of them |
 | C++ | `.cpp` `.hpp` … | `cl` | its own host | CodeView, always |
-| Shalimar | `.shl` `.shm` | [shc](../Compiler-S) | three | none, by decision |
+| Shalimar | `.shl` | [shc](../Compiler-S) | three | none, by decision |
 
 **The suffix decides, and the Language menu overrides it.** That is for the
 file whose name says the wrong thing or nothing at all - a `.txt` holding a
@@ -437,10 +437,13 @@ program, a header with C++ in it, a Shalimar program the phone app saved as
 `.shm`. Choosing a language sets the colouring, the layout rules and, through
 Tools ▸ By language, the compiler: one choice rather than three.
 
-**Shalimar answers to two suffixes on purpose.** The app writes `.shm` and
-every program it ships is one; `.shl` is what the language is called on the
-desktop and what a new file here is given. Refusing either would mean a file
-that opens in one place and not the other.
+**Shalimar is `.shl`, and only `.shl`.** It answered to `.shm` as well until
+2026-08-23 - that is what the phone app writes, and every program it ships is
+one - and the second suffix was dropped because `.shm` is not accepted
+everywhere a Shalimar file has to go. One name that travels beats two that do
+not. An app-written `.shm` opens as plain text; the Language menu reads it as
+Shalimar without renaming it, and renaming it to `.shl` is the permanent
+answer.
 
 ### Shalimar is not C with fewer rules
 
@@ -507,7 +510,9 @@ neither can drift into saying something else.
 ## The project
 
 A project is one file, `ed1.json`, and there does not have to be one - without
-it the pane on the left shows the directory, as it always did.
+it the pane on the left shows the files you have open, and nothing at all when
+none are. It used to list the directory instead, which looked the same as a
+project and left a closed file's name sitting in it.
 
 ```json
 {

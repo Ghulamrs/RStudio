@@ -34,6 +34,15 @@ public:
     // directory and nothing on disk matches it, which is the point: it is the
     // project's own arrangement of the same files.
     void showProject(const Project& project);
+
+    // The files that are open, which is what the pane shows when there is no
+    // project to show instead. Paths, in the order they were opened; a
+    // document that has never been saved has no path and is not one of them.
+    void showOpenFiles(const std::vector<std::string>& paths);
+
+    // Nothing at all, and nothing read from the disk to fill the gap.
+    void clear();
+
     const std::string& root() const { return root_; }
     const std::string& error() const { return error_; }
 
@@ -50,7 +59,18 @@ public:
 
 private:
     void gather(const std::string& dir, int depth);
-    bool showingProject_;
+
+    // What the pane is a view of. This was a bool - the project, or the
+    // directory - and the two states it has grown are both things closing a
+    // project needs. A pane with no project used to fall back to listing
+    // whichever directory it was standing in, which is a different answer to
+    // "what am I working on" than the honest one, which is "nothing".
+    //
+    // reread() is the reason this is not worked out from the other fields: it
+    // re-reads the disk, and it must not do that over a view the disk did not
+    // produce.
+    enum Showing { ShowingDirectory, ShowingProject, ShowingOpenFiles, ShowingNothing };
+    Showing showing_;
 
     std::string root_;
     std::string error_;

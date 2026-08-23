@@ -193,6 +193,13 @@ public:
     // limited.
     std::vector<std::string> directories() const;
 
+    // Puts the project away. Nothing loaded, nothing named, and ed1.json on
+    // disk untouched - closing a project is a change to what you are looking
+    // at, not to what the project is. The editor's own settings are left
+    // alone too: the indent and the compiler you are working with should not
+    // change under you because a pane was emptied.
+    void close();
+
     void addGroup(const std::string& group);
     bool addFile(const std::string& relative, const std::string& group);
     bool removeFile(const std::string& relative);   // from the list, not the disk

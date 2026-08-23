@@ -19,17 +19,17 @@ bool skip(const std::string& name) {
 
 }  // namespace
 
-Tree::Tree() : showingProject_(false) {}
+Tree::Tree() : showing_(ShowingDirectory) {}
 
 void Tree::setRoot(const std::string& where) {
     root_ = path::absolute(where);
-    showingProject_ = false;
+    showing_ = ShowingDirectory;
     opened_.clear();
     reread();
 }
 
 void Tree::showProject(const Project& project) {
-    showingProject_ = true;
+    showing_ = ShowingProject;
     root_ = project.root();
     error_.clear();
     entries_.clear();
@@ -60,8 +60,34 @@ void Tree::showProject(const Project& project) {
     }
 }
 
+// One flat list, in the order they were opened. No groups: there is no project
+// to have grouped them, and inventing a heading would be the pane claiming an
+// arrangement that nothing on disk agrees with.
+void Tree::showOpenFiles(const std::vector<std::string>& paths) {
+    showing_ = ShowingOpenFiles;
+    error_.clear();
+    entries_.clear();
+
+    for (size_t i = 0; i < paths.size(); ++i) {
+        TreeEntry file;
+        file.path = paths[i];
+        file.name = path::filename(paths[i]);
+        file.depth = 0;
+        entries_.push_back(file);
+    }
+}
+
+void Tree::clear() {
+    showing_ = ShowingNothing;
+    error_.clear();
+    entries_.clear();
+}
+
 void Tree::reread() {
-    if (showingProject_) return;   // the project decides what is shown, not the disk
+    // Only a directory view is re-read from the disk. Every other view was
+    // built from something else - the project file, or the list of open
+    // documents - and re-reading would quietly replace it with a listing.
+    if (showing_ != ShowingDirectory) return;
     entries_.clear();
     error_.clear();
     if (root_.empty()) return;

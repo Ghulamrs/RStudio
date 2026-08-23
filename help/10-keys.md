@@ -33,8 +33,9 @@ Find next in a Windows application and pretending otherwise would be worse.
 **Edit** — Undo, Redo, Cut, Copy, Paste, Select all, Find, Find next, Find
 previous, Replace, Re-indent, Project pane, Bottom panel, Line numbers, Plain
 frame.
-**Project** — New project, Save project, Add this file, New file, Rename, Move
-to group, Delete.
+**Project** — New project, Open project, Save project, Close project, then Add
+this file, New file, Rename, Move to group, Delete. The four above the rule are
+the project itself; the five below are files in it.
 **Build** — Compile file, Run file, Build project, Run project, Debug, Release,
 Console, Debug, Assembly.
 **Debug** — Start / continue, Debug project, Toggle breakpoint, Step over, Step

@@ -8,6 +8,7 @@
 #include "path.h"
 #include "settings.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <system_error>
@@ -245,7 +246,8 @@ Editor::Editor()
       quitConfirm_(0), running_(true),
       screenRows_(24), screenCols_(80),
       bodyRows_(14), panelRows_(kPanelRows),
-      treeCols_(kTreeWidth), sourceCols_(80), gutterCols_(4), paintedCols_(0) {
+      treeCols_(kTreeWidth), sourceCols_(80), gutterCols_(4), paintedCols_(0),
+      askChoice_(0) {
     frame_ = &kBoxFrame;
     // The host's own architecture first, since that is the one cc1 will carry
     // past -S on this machine - and so the only one Run can do anything with.
@@ -391,6 +393,11 @@ void Editor::closeDocument() {
     if (docs_.empty()) docs_.push_back(Document());
     if (doc_ >= docs_.size()) doc_ = docs_.size() - 1;
     restore();
+
+    // The same reason as in open(): with no project the pane is showing what
+    // is open, and one of them has just stopped being. With a project it is
+    // showing the project, which closing a file does not change.
+    if (!project_.loaded()) refreshTree();
     say("closed");
 }
 
@@ -421,6 +428,12 @@ void Editor::open(const std::string& path) {
     }
     cx_ = cy_ = rowoff_ = coloff_ = 0;
     applyLanguage();
+
+    // With no project the pane is the list of open files, so it has just
+    // changed. With one, it is the project's own list and opening a file is
+    // not an event in it - the file is either already named there or is not
+    // part of it.
+    if (!project_.loaded()) refreshTree();
 
     size_t at = tree_.find(path);
     if (at < tree_.size()) treeSel_ = at;
@@ -459,13 +472,52 @@ void Editor::openFirstFile() {
         }
 }
 
+// What the pane is a view of, decided in one place because three commands now
+// change the answer: opening a project, closing it, and opening or closing a
+// file while there is none.
+//
+// With a project, the project - which is its groups, and says nothing about
+// what you happen to have open. Without one, the files you have open, down to
+// an empty pane when that is none of them. It used to read the directory
+// instead, and that is the behaviour this replaces: a pane that had fallen
+// back to listing whatever folder the editor was standing in looked exactly
+// like a project, and closing a file left its name sitting in it.
 void Editor::refreshTree() {
     if (project_.loaded()) {
         tree_.showProject(project_);
     } else {
-        tree_.reread();
+        std::vector<std::string> open = openPaths();
+        if (open.empty()) tree_.clear(); else tree_.showOpenFiles(open);
     }
     if (treeSel_ >= tree_.size()) treeSel_ = tree_.size() ? tree_.size() - 1 : 0;
+}
+
+std::vector<std::string> Editor::openPaths() const {
+    std::vector<std::string> paths;
+    for (size_t i = 0; i < docs_.size(); ++i) {
+        // The current document's buffer is the editor's own, not the one in
+        // the list - stash() is what puts it back - so it has to be read from
+        // the right place or the file you are looking at is the one missing.
+        const Buffer& b = (i == doc_) ? buf_ : docs_[i].buf;
+        if (!b.path().empty()) paths.push_back(b.path());
+    }
+    return paths;
+}
+
+// Closing the project is closing the *view* of it. Nothing is written, nothing
+// is removed from ed1.json, and the files stay open - what goes is the pane's
+// claim to be showing a project, which is the thing that was wrong: there was
+// no way to stop looking at one, so a project opened at startup was a project
+// you were in until you quit.
+void Editor::closeProject() {
+    if (!project_.loaded()) { say("there is no project open"); return; }
+
+    std::string was = project_.name();
+    project_.close();
+    refreshTree();
+    treeSel_ = 0;
+    treeOff_ = 0;
+    say(was + " closed - the files it held are still open");
 }
 
 void Editor::openProject(const std::string& path) {
@@ -1112,20 +1164,38 @@ void Editor::drawDropdown(std::string& out, std::vector<size_t>& covered) const 
 // asked on the message line, which is also where the editor answers back - so
 // the question and the answer to the last one shared a row and neither looked
 // like it was waiting for anything.
-void Editor::drawDialog(std::string& out, std::vector<size_t>& covered) const {
-    if (askTitle_.empty()) return;
-
-    int wide = static_cast<int>(askTitle_.size());
+void Editor::dialogBox(int& at, int& top, int& wide) const {
+    wide = static_cast<int>(askTitle_.size());
     int answer = static_cast<int>(utf8::columns(askAnswer_, askAnswer_.size()));
     if (answer + 2 > wide) wide = answer + 2;
+
+    // Wide enough for the longest thing on offer, so that a list of filenames
+    // is read rather than guessed at. Still bounded by the screen below.
+    for (size_t i = 0; i < askShown_.size(); ++i) {
+        int len = static_cast<int>(utf8::columns(askShown_[i], askShown_[i].size()));
+        if (len + 4 > wide) wide = len + 4;
+    }
+
     if (wide < 40) wide = 40;
     if (wide > screenCols_ - 6) wide = screenCols_ - 6;
     if (wide < 8) wide = 8;
 
-    int at = (screenCols_ - wide - 2) / 2;
+    at = (screenCols_ - wide - 2) / 2;
     if (at < 0) at = 0;
-    int top = 3 + bodyRows_ / 3;
+    top = 3 + bodyRows_ / 3;
     if (top < 3) top = 3;
+
+    // A list pushes the box up rather than off the bottom of the screen.
+    int rows = 3 + static_cast<int>(askShown_.size());
+    if (top + rows > bodyRows_ + 3) top = bodyRows_ + 3 - rows;
+    if (top < 3) top = 3;
+}
+
+void Editor::drawDialog(std::string& out, std::vector<size_t>& covered) const {
+    if (askTitle_.empty()) return;
+
+    int at = 0, top = 0, wide = 0;
+    dialogBox(at, top, wide);
 
     // The title sits in the top line of the box, as the tabs sit in the line
     // above the text: a name in a line, not a row given up to a name.
@@ -1155,13 +1225,41 @@ void Editor::drawDialog(std::string& out, std::vector<size_t>& covered) const {
     foot += repeated(frame_->across, wide);
     foot += frame_->footRight;
 
-    const std::string* rows[3] = {&head, &middle, &foot};
-    for (int i = 0; i < 3; ++i) {
-        out += "\x1b[" + number(static_cast<size_t>(top + i)) + ";" +
+    // The list, between the line being typed into and the bottom of the box -
+    // attached to the question rather than floating somewhere else, because
+    // what it holds is the answer to that question and nothing else.
+    //
+    // The picked row is drawn in reverse video, which is what the menu and the
+    // project pane already use for "this is the one you are on".
+    std::vector<std::string> rows;
+    rows.push_back(head);
+    rows.push_back(middle);
+    for (size_t i = 0; i < askShown_.size(); ++i) {
+        std::string text = askShown_[i];
+        while (static_cast<int>(utf8::columns(text, text.size())) > wide - 2)
+            text.resize(utf8::startOf(text, text.size() - 1));
+
+        // wide - 1 - len, and not wide - 2: the space before the text is the
+        // other column. Getting this wrong drew every list row one character
+        // short of the box's own sides, which is visible the moment there is
+        // more than one row.
+        std::string pad(static_cast<size_t>(
+                            wide - 1 - static_cast<int>(utf8::columns(text, text.size()))),
+                        ' ');
+        std::string row = frame_->down;
+        if (i == askChoice_) row += "\x1b[7m " + text + pad + "\x1b[m";
+        else                 row += " " + text + pad;
+        row += frame_->down;
+        rows.push_back(row);
+    }
+    rows.push_back(foot);
+
+    for (size_t i = 0; i < rows.size(); ++i) {
+        out += "\x1b[" + number(static_cast<size_t>(top) + i) + ";" +
                number(static_cast<size_t>(at + 1)) + "H";
         out += "\x1b[m";
-        out += *rows[i];
-        covered.push_back(static_cast<size_t>(top + i - 1));
+        out += rows[i];
+        covered.push_back(static_cast<size_t>(top) + i - 1);
     }
 }
 
@@ -1169,17 +1267,12 @@ void Editor::placeCursor(std::string& out) const {
     size_t row = 1, col = 1;
     if (!askTitle_.empty()) {
         // In the box, after what has been typed into it - which is the only
-        // place a caret means anything while a question is being asked.
-        int wide = static_cast<int>(askTitle_.size());
+        // place a caret means anything while a question is being asked. It
+        // stays on the typed line even when the list below has a row picked:
+        // the list is walked with the arrows and typing still goes here.
+        int at = 0, top = 0, wide = 0;
+        dialogBox(at, top, wide);
         int answer = static_cast<int>(utf8::columns(askAnswer_, askAnswer_.size()));
-        if (answer + 2 > wide) wide = answer + 2;
-        if (wide < 40) wide = 40;
-        if (wide > screenCols_ - 6) wide = screenCols_ - 6;
-        if (wide < 8) wide = 8;
-        int at = (screenCols_ - wide - 2) / 2;
-        if (at < 0) at = 0;
-        int top = 3 + bodyRows_ / 3;
-        if (top < 3) top = 3;
         if (answer > wide - 2) answer = wide - 2;
         row = static_cast<size_t>(top + 1);
         col = static_cast<size_t>(at + 3 + answer);
@@ -1683,11 +1776,129 @@ void Editor::saveAs() {
     save();
 }
 
+// What is worth offering when the question is "which file". The languages this
+// editor compiles, the headers that go with them, and assembly - the same set
+// the project scanner puts in a project made without being told, which is the
+// right list for the same reason.
+//
+// Directories come too, with a '/' on the end. Without them the list stops at
+// the top of the project and the sources are usually one level down - the demo
+// project's own file is src/first.c - so a picker that could not go into a
+// directory would be a picker you could not use on a real project.
+std::vector<std::string> Editor::whatIsIn(const std::string& directory) const {
+    std::vector<std::string> found;
+    std::vector<path::Entry> here = path::entries(directory);
+
+    for (size_t i = 0; i < here.size(); ++i) {
+        if (here[i].name.empty() || here[i].name[0] == '.') continue;
+        if (here[i].directory) {
+            // The same ones the pane refuses to show: build output and version
+            // control, which would bury what anybody is looking for.
+            if (here[i].name == "obj" || here[i].name == "build" ||
+                here[i].name == "x64" || here[i].name == "Debug" ||
+                here[i].name == "Release" || here[i].name == "node_modules")
+                continue;
+            found.push_back(here[i].name + "/");
+            continue;
+        }
+
+        const char* const kinds[8] = {".c", ".h", ".cpp", ".hpp", ".cc",
+                                      ".s", ".shl", ".json"};
+        for (size_t k = 0; k < 8; ++k) {
+            const std::string suffix = kinds[k];
+            if (here[i].name.size() < suffix.size()) continue;
+            if (here[i].name.compare(here[i].name.size() - suffix.size(),
+                                     suffix.size(), suffix) != 0) continue;
+            found.push_back(here[i].name);
+            break;
+        }
+    }
+
+    std::sort(found.begin(), found.end());
+    return found;
+}
+
+// **There is no project file extension.** A project is a directory with an
+// ed1.json in it - that is the whole of what being one consists of - so this
+// looks for the file rather than for a name. ".  (this directory)" is offered
+// first when the directory being looked at is itself a project, since that is
+// usually the one meant.
+std::vector<std::string> Editor::projectsIn(const std::string& directory) const {
+    std::vector<std::string> found;
+
+    if (path::exists(path::join(directory, Project::fileName())))
+        found.push_back("./");
+
+    std::vector<path::Entry> here = path::entries(directory);
+    for (size_t i = 0; i < here.size(); ++i) {
+        if (!here[i].directory) continue;
+        if (here[i].name.empty() || here[i].name[0] == '.') continue;
+        found.push_back(here[i].name + "/");
+    }
+
+    std::sort(found.begin() + (found.empty() ? 0 : 1), found.end());
+    return found;
+}
+
+// Asking which file, with what is there listed under the question.
+//
+// It loops because picking a directory is not an answer: the list becomes what
+// is inside it and the question is asked again, with the path built up so far
+// still in the line. Typing a name that is not on the list is still allowed
+// and still opens - or makes - that file, which is what it always did.
 void Editor::openPrompt() {
-    bool cancelled = false;
-    std::string name = prompt("open: ", cancelled);
-    if (cancelled || name.empty()) { say("not opened"); return; }
-    open(name);
+    std::string where = project_.loaded() ? project_.root() : path::absolute(".");
+    std::string prefix;
+
+    for (;;) {
+        bool cancelled = false;
+        std::string name = prompt("open" + (prefix.empty() ? std::string() : " " + prefix) + ": ",
+                                  cancelled, whatIsIn(where));
+        if (cancelled || name.empty()) { say("not opened"); return; }
+
+        if (name[name.size() - 1] == '/') {
+            std::string leaf = name.substr(0, name.size() - 1);
+            where = path::join(where, leaf);
+            prefix += leaf + "/";
+            continue;
+        }
+
+        open(path::join(where, name));
+        return;
+    }
+}
+
+// The same, for a project - which the terminal front end could not open at all
+// until now. It could be given one on the command line and it could remember
+// the last, and that was the whole of it; the window has had a folder picker
+// for as long as it has existed.
+void Editor::openProjectPrompt() {
+    std::string where = project_.loaded() ? project_.root() : path::absolute(".");
+
+    for (;;) {
+        bool cancelled = false;
+        std::string name = prompt("open project in: ", cancelled, projectsIn(where));
+        if (cancelled || name.empty()) { say("no project opened"); return; }
+
+        if (name == "./") { openProject(where); return; }
+
+        if (name[name.size() - 1] == '/') {
+            std::string into = path::join(where, name.substr(0, name.size() - 1));
+            // A directory holding an ed1.json is the one being asked for. One
+            // that does not is a step on the way to it, so the list becomes
+            // what is inside it rather than a project being made there by
+            // somebody who was only looking.
+            if (path::exists(path::join(into, Project::fileName()))) {
+                openProject(into);
+                return;
+            }
+            where = into;
+            continue;
+        }
+
+        openProject(path::join(where, name));
+        return;
+    }
 }
 
 void Editor::newFile() {
@@ -2873,7 +3084,9 @@ void Editor::perform(Action action) {
         case ActionQuit:         if (mayLeave()) running_ = false; break;
         case ActionCloseFile:    closeDocument(); break;
         case ActionProjectNew:   newProject(); break;
+        case ActionProjectOpen:  openProjectPrompt(); break;
         case ActionProjectSave:  saveProject(); break;
+        case ActionProjectClose: closeProject(); break;
         case ActionProjectAdd:   addToProject(); break;
         case ActionFileCreate:   createFile(); break;
         case ActionFileRename:   renameFile(); break;
@@ -3023,6 +3236,35 @@ void Editor::applyLanguage() {
 }
 
 std::string Editor::prompt(const std::string& text, bool& cancelled) {
+    return prompt(text, cancelled, std::vector<std::string>());
+}
+
+namespace {
+
+// Case-insensitive, because a person reading their own filenames does not
+// think in case, and matched anywhere in the name rather than only at the
+// front: the file you want is often "gcd.shl" when what you remember typing
+// is "shl".
+bool holds(const std::string& name, const std::string& typed) {
+    if (typed.empty()) return true;
+    if (typed.size() > name.size()) return false;
+    for (size_t i = 0; i + typed.size() <= name.size(); ++i) {
+        size_t j = 0;
+        for (; j < typed.size(); ++j) {
+            char a = name[i + j], b = typed[j];
+            if (a >= 'A' && a <= 'Z') a = static_cast<char>(a - 'A' + 'a');
+            if (b >= 'A' && b <= 'Z') b = static_cast<char>(b - 'A' + 'a');
+            if (a != b) break;
+        }
+        if (j == typed.size()) return true;
+    }
+    return false;
+}
+
+}  // namespace
+
+std::string Editor::prompt(const std::string& text, bool& cancelled,
+                           const std::vector<std::string>& choices) {
     std::string answer;
     cancelled = false;
 
@@ -3036,8 +3278,21 @@ std::string Editor::prompt(const std::string& text, bool& cancelled) {
     // message line they used to be asked on and are left as they are there.
     if (title[0] >= 'a' && title[0] <= 'z') title[0] = static_cast<char>(title[0] - 'a' + 'A');
 
+    // At most this many rows of list. More than a screenful of names is not a
+    // help, and the box has to leave the text behind it visible enough to
+    // remember what the question was about.
+    const size_t kMostShown = 12;
+
     bool done = false;
     for (; !done;) {
+        // Narrowed to what has been typed, every time round, so the list is
+        // never out of step with the line above it.
+        askShown_.clear();
+        for (size_t i = 0; i < choices.size() && askShown_.size() < kMostShown; ++i)
+            if (holds(choices[i], answer)) askShown_.push_back(choices[i]);
+        if (askChoice_ >= askShown_.size())
+            askChoice_ = askShown_.empty() ? static_cast<size_t>(-1) : 0;
+
         askTitle_ = title;
         askAnswer_ = answer;
         refresh();
@@ -3050,12 +3305,31 @@ std::string Editor::prompt(const std::string& text, bool& cancelled) {
         } else if (key == '\x1b') {
             cancelled = true;
             done = true;
+        } else if (key == KEY_ARROW_DOWN) {
+            if (!askShown_.empty() && askChoice_ + 1 < askShown_.size()) ++askChoice_;
+        } else if (key == KEY_ARROW_UP) {
+            if (!askShown_.empty() && askChoice_ > 0 && askChoice_ != static_cast<size_t>(-1))
+                --askChoice_;
+        } else if (key == '\t') {
+            // Fills the line with what is picked, rather than answering. This
+            // is what gets you into a directory: pick it, tab, and the list
+            // below is what is inside it.
+            if (askChoice_ < askShown_.size()) {
+                answer = askShown_[askChoice_];
+                askChoice_ = 0;
+            }
         } else if (key == '\r' || key == '\n') {
+            // The picked row when there is one, and what was typed when there
+            // is not - so a name that does not exist yet can still be given,
+            // which is what Save as and New file need.
+            if (askChoice_ < askShown_.size()) answer = askShown_[askChoice_];
             done = true;
         } else if (key == KEY_BACKSPACE || key == ctrl('h')) {
             if (!answer.empty()) answer.resize(utf8::startOf(answer, answer.size() - 1));
+            askChoice_ = 0;
         } else if (key >= 32 && key < 127) {
             answer += static_cast<char>(key);
+            askChoice_ = 0;
         }
     }
 
@@ -3063,6 +3337,8 @@ std::string Editor::prompt(const std::string& text, bool& cancelled) {
     // over comes back on the next refresh.
     askTitle_.clear();
     askAnswer_.clear();
+    askShown_.clear();
+    askChoice_ = 0;
     return cancelled ? std::string() : answer;
 }
 

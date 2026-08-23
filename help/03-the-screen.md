@@ -45,6 +45,20 @@ reads `C` for a `.c` file whether that came from its name or from your picking
 them — the project's own arrangement, not the directory's. `Ctrl-P` shows and
 hides it, enter opens the file under the cursor.
 
+With no project it shows the files you have open instead, in the order you
+opened them, and nothing at all when none are. `Project ▸ Close project` is what
+puts it in that state: it closes the *view* of the project, leaving `ed1.json`
+exactly as it was and every open file open.
+
+**Questions are asked in a box** of their own, in the middle of the text — not
+on the message line, which is where the editor answers back. When the question
+is *which file*, what is in the directory is listed under the line you type
+into: typing narrows the list, up and down walk it, tab fills the line with
+what is picked, and enter takes it. A directory is offered with a `/` on the
+end, and picking one lists what is inside it instead of opening it. A name that
+matches nothing on the list is still taken as typed, which is how a file that
+does not exist yet gets its name.
+
 **The edit view**, in the middle. Its tab strip names the open files; the
 current one is highlighted. `F3` and `F2` move to the next and previous file.
 

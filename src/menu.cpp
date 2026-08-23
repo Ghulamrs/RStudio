@@ -42,7 +42,14 @@ Menu::Menu() : active_(false), dropped_(false), column_(0), item_(0) {
     MenuColumn project;
     project.title = "Project";
     project.items.push_back({"New project", "", ActionProjectNew});
+    project.items.push_back({"Open project...", "", ActionProjectOpen});
     project.items.push_back({"Save project", "", ActionProjectSave});
+    project.items.push_back({"Close project", "", ActionProjectClose});
+    // The three above are the project itself; the five below are files in it.
+    // A rule costs nothing to walk past - stepTo skips whatever is not
+    // selectable - so this separates them without moving any of them further
+    // from the keyboard.
+    project.items.push_back(separator());
     project.items.push_back({"Add this file", "", ActionProjectAdd});
     project.items.push_back({"New file...", "", ActionFileCreate});
     project.items.push_back({"Rename...", "", ActionFileRename});
@@ -90,8 +97,10 @@ Menu::Menu() : active_(false), dropped_(false), column_(0), item_(0) {
 
     // What the file is read as. Normally the suffix answers this and nobody
     // has to; the menu is for the file whose suffix is wrong, missing, or
-    // borrowed - a .txt holding a program, a header with C++ in it, a
-    // Shalimar program saved as .shm by the app rather than as .shl.
+    // borrowed - a .txt holding a program, a header with C++ in it, or a
+    // Shalimar program the phone app saved as .shm, which this editor stopped
+    // reading as Shalimar on 2026-08-23 and which this menu is now the way to
+    // read without renaming it first.
     //
     // It sets the highlighting, the layout rules and, through 'By language',
     // the compiler - so it is one choice rather than three.

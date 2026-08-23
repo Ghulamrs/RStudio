@@ -253,7 +253,7 @@ void markShalimar(const std::string& line, std::vector<unsigned char>& kind) {
 }  // namespace
 
 Language languageFor(const std::string& path) {
-    if (endsWith(path, ".shl") || endsWith(path, ".shm")) return LangShalimar;
+    if (endsWith(path, ".shl")) return LangShalimar;
     if (endsWith(path, ".c")) return LangC;
     if (endsWith(path, ".h")) return LangC;
     if (endsWith(path, ".cpp") || endsWith(path, ".cc") || endsWith(path, ".cxx") ||

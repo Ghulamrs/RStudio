@@ -86,20 +86,32 @@ bool endsWith(const std::string& name, const std::string& suffix) {
     return name.compare(name.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
-// The suffixes worth putting in a project made without being told. Anything
-// else in the directory is left out rather than guessed at.
-bool worthAdding(const std::string& name) {
-    const char* const kinds[6] = {".c", ".h", ".cpp", ".hpp", ".cc", ".s"};
-    for (size_t i = 0; i < 6; ++i)
-        if (endsWith(name, kinds[i])) return true;
-    return false;
-}
-
-// Which of the two groups it belongs in. What you declare and what you write
-// are different things to look at, and a project made without being told
+// The suffixes worth putting in a project made without being told, and which
+// group each one belongs in. Anything else in the directory is left out rather
+// than guessed at, and an empty answer here is what "left out" means.
+//
+// What you declare and what you write are different things to look at, which
+// is why Headers is separate from Sources - a project made without being told
 // should still put them in different places.
-bool isHeader(const std::string& name) {
-    return endsWith(name, ".h") || endsWith(name, ".hpp");
+//
+// **Shalimar gets a group of its own, and that is not a matter of taste.**
+// project.cpp refuses a group holding Shalimar and C or C++ together, because
+// shc reads Shalimar and nothing else while cc1 and cl read neither. Dropping
+// a .shl into Sources beside a .c would therefore write a project that cannot
+// build - a refusal earned by the editor rather than by whoever owns the
+// directory.
+std::string groupFor(const std::string& name) {
+    if (endsWith(name, ".h") || endsWith(name, ".hpp")) return "Headers";
+
+    // One suffix. .shm - what the phone app writes - was recognised here too
+    // until 2026-08-23 and is not any more; see syntax.h for why.
+    if (endsWith(name, ".shl")) return "Shalimar";
+
+    const char* const sources[4] = {".c", ".cpp", ".cc", ".s"};
+    for (size_t i = 0; i < 4; ++i)
+        if (endsWith(name, sources[i])) return "Sources";
+
+    return std::string();
 }
 
 // The same directories the pane on the left refuses to show: build output and
@@ -127,8 +139,9 @@ Outcome beginFromWhatIsThere(Project& project, const std::string& directory) {
     std::vector<path::Entry> here = path::entries(root);
     for (size_t i = 0; i < here.size(); ++i) {
         if (!here[i].directory) {
-            if (!worthAdding(here[i].name)) continue;
-            project.addFile(here[i].name, isHeader(here[i].name) ? "Headers" : "Sources");
+            std::string group = groupFor(here[i].name);
+            if (group.empty()) continue;
+            project.addFile(here[i].name, group);
             ++found;
             continue;
         }
@@ -136,9 +149,10 @@ Outcome beginFromWhatIsThere(Project& project, const std::string& directory) {
 
         std::vector<path::Entry> under = path::entries(path::join(root, here[i].name));
         for (size_t j = 0; j < under.size(); ++j) {
-            if (under[j].directory || !worthAdding(under[j].name)) continue;
-            project.addFile(here[i].name + "/" + under[j].name,
-                            isHeader(under[j].name) ? "Headers" : "Sources");
+            if (under[j].directory) continue;
+            std::string group = groupFor(under[j].name);
+            if (group.empty()) continue;
+            project.addFile(here[i].name + "/" + under[j].name, group);
             ++found;
         }
     }

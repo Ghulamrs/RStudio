@@ -3303,8 +3303,13 @@ void theThirdLanguage() {
     std::printf("Shalimar, as a language the editor knows\n");
 
     check(editor::languageFor("a.shl") == editor::LangShalimar, ".shl is Shalimar");
-    check(editor::languageFor("a.shm") == editor::LangShalimar,
-          "and so is .shm, which is what the app writes");
+
+    // .shm was Shalimar here until 2026-08-23. The phone app writes that
+    // suffix, but it is not accepted everywhere a Shalimar file has to go, so
+    // the editor knows one name for the language and the Language menu is what
+    // opens an app-written file without renaming it first.
+    check(editor::languageFor("a.shm") == editor::LangPlain,
+          ".shm is not, since the editor knows one suffix for Shalimar");
     check(editor::languageFor("a.SHL") == editor::LangShalimar, "whatever the case");
     check(editor::languageFor("a.sh") == editor::LangPlain,
           "a shell script is not, however close the name looks");

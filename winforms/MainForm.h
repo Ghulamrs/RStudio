@@ -469,6 +469,8 @@ private:
                                     gcnew EventHandler(this, &MainForm::OnNewProject));
         project->DropDownItems->Add("Save project", nullptr,
                                     gcnew EventHandler(this, &MainForm::OnSaveProject));
+        project->DropDownItems->Add("Close project", nullptr,
+                                    gcnew EventHandler(this, &MainForm::OnCloseProject));
         project->DropDownItems->Add("Add this file...", nullptr,
                                     gcnew EventHandler(this, &MainForm::OnAddThisFile));
         project->DropDownItems->Add(gcnew ToolStripSeparator());
@@ -629,9 +631,11 @@ private:
 
         // What the file is read as. The suffix answers it normally; this is
         // for the file whose suffix is wrong, missing, or borrowed - a .txt
-        // holding a program, a Shalimar program the app saved as .shm. It
-        // sets the colouring, the layout rules and, through 'By language',
-        // the compiler, so it is one choice rather than three.
+        // holding a program, or a Shalimar program the phone app saved as
+        // .shm, which is no longer read as Shalimar by its name and which this
+        // menu is the way to read without renaming it. It sets the colouring,
+        // the layout rules and, through 'By language', the compiler, so it is
+        // one choice rather than three.
         ToolStripMenuItem^ language = gcnew ToolStripMenuItem("Lan&guage");
         langAutoItem_ = gcnew ToolStripMenuItem(
             "By extension", nullptr, gcnew EventHandler(this, &MainForm::OnLangAuto));
@@ -2410,6 +2414,29 @@ private:
     }
 
     void OnSaveProject(Object^, EventArgs^) { Did(ed1_save_project(project_)); }
+
+    // Closing the project is closing the *view* of it: ed1.json is not touched,
+    // nothing is taken out of it, and every open tab stays open. What goes is
+    // the pane's claim to be showing a project.
+    //
+    // FillTree is deliberately not called. It would empty the pane correctly -
+    // a closed project has no groups - and then go on to read the indent, the
+    // compiler, the configuration and the target back off a project that is no
+    // longer there, and to write "ready - , 0 groups" on the status line.
+    //
+    // projectDirectory_ is left alone on purpose: it is what the folder dialogs
+    // open on, and the last place you were looking is still the best guess for
+    // the next one.
+    void OnCloseProject(Object^, EventArgs^) {
+        if (ed1_project_loaded(project_) == 0) {
+            what_->Text = "there is no project open";
+            return;
+        }
+        String^ was = FromUtf8(ed1_project_name(project_));
+        ed1_project_close(project_);
+        tree_->Nodes->Clear();
+        what_->Text = was + " closed - the files it held are still open";
+    }
 
     void OnTreeOpen(Object^, TreeNodeMouseClickEventArgs^ e) {
         if (e->Node == nullptr || e->Node->Tag == nullptr) return;

@@ -1,7 +1,19 @@
 # 6. The project
 
 A project is one file, `ed1.json`, and there does not have to be one — without
-it the pane on the left shows the directory, as it always did.
+it the pane on the left shows the files you have open, and nothing at all when
+none are.
+
+`Project ▸ Close project` is how you get there from a project. It closes the
+view and not the project: `ed1.json` is left exactly as it was, nothing is
+taken out of it, and every file you have open stays open.
+
+**There is no project file extension.** A project is a directory with an
+`ed1.json` in it, and that is the whole of what being one consists of — there
+is nothing to look for called `.proj`. `Project ▸ Open project...` lists the
+directories under the one you are in and opens the one you pick; a directory
+that holds an `ed1.json` is opened, and one that does not is stepped into, so
+you can walk down to where the project actually is.
 
 ```json
 {
@@ -52,7 +64,7 @@ looking the way its author left it.
 
 It also **sets the order**: groups are compiled in the order this list names
 them, and that is the order the objects reach the linker. For Shalimar it
-additionally **picks the program**, since every `.shm` has a `main()` and
+additionally **picks the program**, since every `.shl` has a `main()` and
 nothing inside a file can say it is the one being built.
 
 Saying nothing is not an error. It means the project builds nothing, and

@@ -159,6 +159,11 @@ int ed1_project_allows(const char* relative, char* why, int whySize);
 int ed1_project_loaded(Ed1Project* project);
 const char* ed1_project_root(Ed1Project* project);
 void ed1_project_set_root(Ed1Project* project, const char* path);
+
+/* Puts the project away: nothing loaded, and ed1.json left exactly as it was.
+   Closing a project is a change to what is being looked at and not to what the
+   project is, so nothing is written and nothing is removed from it. */
+void ed1_project_close(Ed1Project* project);
 const char* ed1_project_relative(Ed1Project* project, const char* path);
 const char* ed1_project_file_name(void);
 

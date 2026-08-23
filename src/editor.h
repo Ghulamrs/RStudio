@@ -68,6 +68,12 @@ public:
 
     void open(const std::string& path);
     void closeDocument();
+    void closeProject();
+
+    // The paths of the documents that are open, in the order they were opened,
+    // skipping any that have never been saved. What the pane shows when there
+    // is no project.
+    std::vector<std::string> openPaths() const;
     void switchTo(size_t index);
     void nextDocument(int by);
     void openProject(const std::string& path);
@@ -240,6 +246,30 @@ private:
     size_t findDocument(const std::string& path) const;
 
     std::string prompt(const std::string& text, bool& cancelled);
+
+    // The same question with a list of answers under it. Typing narrows the
+    // list, up and down walk it, tab fills the line with what is picked, and
+    // enter takes the picked one - or what was typed, when nothing matches it,
+    // so that a name that is not there yet can still be given.
+    std::string prompt(const std::string& text, bool& cancelled,
+                       const std::vector<std::string>& choices);
+
+    // What is in a directory and worth opening: the source files this editor
+    // knows, and the subdirectories, which are named with a trailing '/' so
+    // that picking one goes into it rather than trying to open it.
+    std::vector<std::string> whatIsIn(const std::string& directory) const;
+
+    // The directories under this one that hold an ed1.json, which is what
+    // being a project consists of - there is no project file extension to
+    // look for. "." is included when this directory is itself one.
+    std::vector<std::string> projectsIn(const std::string& directory) const;
+
+    void openProjectPrompt();
+
+    // The dialog's box, worked out once. drawDialog and placeCursor both need
+    // it and both used to compute it, which is two copies of eight lines that
+    // have to agree about where a caret goes.
+    void dialogBox(int& at, int& top, int& wide) const;
     void say(const std::string& text) { message_ = text; }
     // Said after "ready", so it is the last thing on the line and not buried
     // under it: the settings are back to their defaults and the old file is
@@ -352,6 +382,12 @@ private:
     // line where it used to be. Empty title means nothing is being asked.
     std::string askTitle_;
     std::string askAnswer_;
+
+    // The list under the question, already narrowed to what has been typed,
+    // and which of them is picked. Empty when the question is a plain one -
+    // "type yes" wants no list of answers to choose from.
+    std::vector<std::string> askShown_;
+    size_t askChoice_;
 };
 
 }  // namespace editor

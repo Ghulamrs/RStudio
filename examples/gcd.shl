@@ -1,4 +1,4 @@
-// gcd.shm
+// gcd.shl
 fun <> = main() {
   a : 48
   b : 18

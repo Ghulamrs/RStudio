@@ -33,9 +33,11 @@ enum Language {
 // editor began as a C compiler's, and the C++ keywords it would add are the
 // ones you least want highlighted in a C header.
 //
-// Shalimar answers to two suffixes. The app writes .shm and every program it
-// ships is one; .shl is what the language is called on the desktop. Refusing
-// either would mean a file that opens in one place and not the other.
+// Shalimar is .shl and only .shl. It answered to .shm as well until
+// 2026-08-23 - the phone app writes that one - and the second suffix was
+// dropped because .shm is not accepted everywhere a Shalimar file has to go.
+// One name travels; two do not. A .shm from the app opens as plain text now,
+// and renaming it is the whole of what it needs.
 Language languageFor(const std::string& path);
 const char* languageName(Language lang);
 

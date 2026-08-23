@@ -81,6 +81,7 @@ const std::string kF4 = "\x1bOS";
 const std::string kF10 = "\x1b[21~";
 const std::string kDown = "\x1b[B";
 const std::string kRight = "\x1b[C";
+const std::string kLeft = "\x1b[D";
 const std::string kEnter = "\r";
 // Shift with an arrow is the arrow's own sequence with a modifier in it.
 const std::string kShiftRight = "\x1b[1;2C";
@@ -298,11 +299,15 @@ void fileCommands(const std::string& ed1) {
     file::path dir = freshProject("files");
     std::string project = " --project \"" + dir.string() + "\"";
 
-    // Project menu: right twice from File, then down to the item wanted.
+    // Project menu: right twice from File, then down to the item wanted. The
+    // counts below skip nothing for the rule under Close project - stepTo
+    // walks past whatever is not selectable - but they did all move down one
+    // when Close project was added above them, which is what this comment is
+    // here to make findable the next time an item is added.
     const std::string toProject = kF10 + times(kRight, 2);
 
     // New file...
-    drive(ed1, project, toProject + times(kDown, 3) + kEnter + "src/made.c" + kEnter + ctrl('q'),
+    drive(ed1, project, toProject + times(kDown, 5) + kEnter + "src/made.c" + kEnter + ctrl('q'),
           dir);
     check(file::exists(dir / "src" / "made.c"), "New file makes the file");
     check(readFile(dir / "ed1.json").find("src/made.c") != std::string::npos,
@@ -310,14 +315,14 @@ void fileCommands(const std::string& ed1) {
 
     // A path two directories deep is refused, and nothing is written.
     Screen deep = drive(ed1, project,
-                        toProject + times(kDown, 3) + kEnter + "a/b/deep.c" + kEnter + ctrl('q'),
+                        toProject + times(kDown, 5) + kEnter + "a/b/deep.c" + kEnter + ctrl('q'),
                         dir);
     check(!file::exists(dir / "a"), "a file two directories deep is not made");
     check(onScreen(deep, "two levels at most"), "and the rule says so on screen");
 
     // Rename... acts on the file being edited.
     drive(ed1, "\"" + (dir / "src" / "made.c").string() + "\"" + project,
-          toProject + times(kDown, 4) + kEnter + "src/moved.c" + kEnter + ctrl('q'), dir);
+          toProject + times(kDown, 6) + kEnter + "src/moved.c" + kEnter + ctrl('q'), dir);
     check(!file::exists(dir / "src" / "made.c"), "Rename takes the old name away");
     check(file::exists(dir / "src" / "moved.c"), "and puts the new one there");
     check(readFile(dir / "ed1.json").find("src/moved.c") != std::string::npos,
@@ -325,18 +330,18 @@ void fileCommands(const std::string& ed1) {
 
     // Move to group... changes the project and nothing on disk.
     drive(ed1, "\"" + (dir / "src" / "moved.c").string() + "\"" + project,
-          toProject + times(kDown, 5) + kEnter + "Extras" + kEnter + ctrl('q'), dir);
+          toProject + times(kDown, 7) + kEnter + "Extras" + kEnter + ctrl('q'), dir);
     std::string written = readFile(dir / "ed1.json");
     check(written.find("Extras") != std::string::npos, "regrouping makes the group");
     check(file::exists(dir / "src" / "moved.c"), "and leaves the file where it was");
 
     // Delete... only when the answer is yes.
     drive(ed1, "\"" + (dir / "src" / "moved.c").string() + "\"" + project,
-          toProject + times(kDown, 6) + kEnter + "no" + kEnter + ctrl('q'), dir);
+          toProject + times(kDown, 8) + kEnter + "no" + kEnter + ctrl('q'), dir);
     check(file::exists(dir / "src" / "moved.c"), "Delete answered with no keeps the file");
 
     drive(ed1, "\"" + (dir / "src" / "moved.c").string() + "\"" + project,
-          toProject + times(kDown, 6) + kEnter + "yes" + kEnter + ctrl('q'), dir);
+          toProject + times(kDown, 8) + kEnter + "yes" + kEnter + ctrl('q'), dir);
     check(!file::exists(dir / "src" / "moved.c"), "and answered with yes deletes it");
     check(readFile(dir / "ed1.json").find("src/moved.c") == std::string::npos,
           "and takes it out of the project too");
@@ -632,6 +637,136 @@ void findingAndReplacing(const std::string& ed1) {
     checkEqual(readFile(file), text, "and quitting without saving leaves the file alone");
 
     file::remove_all(dir);
+}
+
+// Closing a project, and what the pane is when there is none.
+//
+// The pane used to have two states and now has three, and the third is the
+// one this is about: with no project it shows the files you have open, and
+// when none are open it shows nothing. It used to fall back to listing
+// whichever directory the editor was standing in, which looked exactly like a
+// project that had not been closed at all.
+void closingTheProject(const std::string& ed1) {
+    std::printf("closing the project, and the pane with no project\n");
+
+    file::path dir = freshProject("closing");
+    writeFile(dir / "src" / "one.c", "int one(void) { return 1; }\n");
+    writeFile(dir / "src" / "two.c", "int two(void) { return 2; }\n");
+    writeFile(dir / "ed1.json",
+              "{\n  \"name\": \"Closes\",\n"
+              "  \"groups\": { \"First\": [\"src/one.c\", \"src/two.c\"] }\n}\n");
+
+    std::string project = " --project \"" + dir.string() + "\"";
+    std::string opened = "\"" + (dir / "src" / "one.c").string() + "\"" + project;
+
+    // Project menu, third item.
+    const std::string closeProject = kF10 + times(kRight, 2) + times(kDown, 3) + kEnter;
+
+    Screen before = drive(ed1, opened, ctrl('q'), dir);
+    check(onScreen(before, "- First"), "the group is shown while the project is open");
+    check(onScreen(before, "src/two.c"), "and so is a file that is not the one being edited");
+
+    Screen after = drive(ed1, opened, closeProject + ctrl('q'), dir);
+    check(!onScreen(after, "- First"), "closing the project takes the group off the pane");
+    check(!onScreen(after, "src/two.c"), "and the files it held that were not open");
+    check(onScreen(after, "one.c"), "the file that is open is still shown");
+    check(onScreen(after, "closed"), "and the line says so");
+
+    // The file on disk is not touched. Closing a project is a change to what
+    // is being looked at, and this is the check that keeps it that way.
+    check(readFile(dir / "ed1.json").find("src/two.c") != std::string::npos,
+          "and ed1.json still says everything it said before");
+
+    // File menu, fifth item - Close. No kRight: the menu reopens on the column
+    // it was left on, so walking right again would land somewhere else.
+    const std::string closeFile = kF10 + times(kLeft, 2) + times(kDown, 4) + kEnter;
+
+    Screen empty = drive(ed1, opened, closeProject + closeFile + ctrl('q'), dir);
+    check(!onScreen(empty, "one.c"), "closing the last open file empties the pane");
+    check(!onScreen(empty, "- First"), "and nothing of the project has come back");
+    check(!onScreen(empty, "src"), "and no directory listing has taken its place");
+
+    file::remove_all(dir);
+}
+
+// Opening by picking from a list, rather than typing a name blind.
+//
+// The question used to be a bare line: you typed a filename and found out
+// afterwards whether it was there. What is under it now is what is actually in
+// the directory, narrowed by whatever has been typed.
+void thePicker(const std::string& ed1) {
+    std::printf("picking a file, and picking a project\n");
+
+    file::path dir = freshProject("picking");
+    writeFile(dir / "src" / "alpha.c", "int a(void) { return 1; }\n");
+    writeFile(dir / "src" / "beta.cpp", "int b(void) { return 2; }\n");
+    writeFile(dir / "src" / "gcd.shl", "fun <> = main() {\n  ? \"hi\"\n}\n");
+    writeFile(dir / "src" / "notes.txt", "not a source file\n");
+
+    std::string project = " --project \"" + dir.string() + "\"";
+
+    // File ▸ Open is the second item.
+    const std::string toOpen = kF10 + kDown + kEnter;
+
+    Screen listed = drive(ed1, project, toOpen + ctrl('q'), dir);
+    check(onScreen(listed, "Open"), "the question is asked in its own box");
+    check(onScreen(listed, "src/"), "and a directory is offered, with a slash");
+
+    // Into src/ - past ed1.json, which sorts first - and what is inside is
+    // what the list becomes.
+    const std::string intoSrc = toOpen + kDown + kEnter;
+    Screen inside = drive(ed1, project, intoSrc + ctrl('q'), dir);
+    check(onScreen(inside, "alpha.c"), "picking a directory lists what is in it");
+    check(onScreen(inside, "beta.cpp"), "C++ as well as C");
+    check(onScreen(inside, "gcd.shl"), "and Shalimar");
+    check(!onScreen(inside, "notes.txt"), "and nothing that is not a source file");
+    check(onScreen(inside, "Open src/"), "the question says where it is looking");
+
+    // Typing narrows it, and enter takes the one row left.
+    Screen opened = drive(ed1, project, intoSrc + "gcd" + kEnter + ctrl('q'), dir);
+    check(onScreen(opened, "gcd.shl"), "typing narrows the list and enter opens what is left");
+    check(onScreen(opened, "Shalimar"), "and the file's language is picked up");
+
+    // A name that matches nothing is still the answer, so a file that is not
+    // there yet can be named - which is what Save as and New file need.
+    Screen made = drive(ed1, project, intoSrc + "brand-new.c" + kEnter + ctrl('q'), dir);
+    check(onScreen(made, "brand-new.c"), "a name that matches nothing is taken as typed");
+
+    file::remove_all(dir);
+}
+
+// Opening a project by picking one, which the terminal front end could not do
+// at all before: it took one on the command line or remembered the last.
+void pickingAProject(const std::string& ed1) {
+    std::printf("opening a project from the list\n");
+
+    file::path parent = freshProject("many");
+    file::create_directories(parent / "alpha");
+    file::create_directories(parent / "beta");
+    file::create_directories(parent / "plain");
+    writeFile(parent / "alpha" / "a.c", "int a(void) { return 1; }\n");
+    writeFile(parent / "alpha" / "ed1.json",
+              "{\n  \"name\": \"Alpha\",\n  \"groups\": { \"Sources\": [\"a.c\"] }\n}\n");
+    writeFile(parent / "beta" / "b.c", "int b(void) { return 2; }\n");
+    writeFile(parent / "beta" / "ed1.json",
+              "{\n  \"name\": \"Beta\",\n  \"groups\": { \"Sources\": [\"b.c\"] }\n}\n");
+
+    std::string here = " --project \"" + parent.string() + "\"";
+
+    // Project ▸ Open project... is the second item.
+    const std::string toOpenProject = kF10 + times(kRight, 2) + kDown + kEnter;
+
+    Screen listed = drive(ed1, here, toOpenProject + ctrl('q'), parent);
+    check(onScreen(listed, "Open project in"), "the project question has its own box");
+    check(onScreen(listed, "alpha/"), "and the directories are offered");
+    check(onScreen(listed, "beta/"), "all of them");
+
+    // Down twice from "./" is beta/, and it holds an ed1.json, so picking it
+    // opens it rather than looking inside it.
+    Screen went = drive(ed1, here, toOpenProject + times(kDown, 2) + kEnter + ctrl('q'), parent);
+    check(onScreen(went, "Beta"), "picking a directory that is a project opens it");
+
+    file::remove_all(parent);
 }
 
 void projectPane(const std::string& ed1) {
@@ -1193,7 +1328,7 @@ void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
         std::string there = "\"" + was.string() + "\" --project \"" + renaming.string() + "\"";
 
         // Project menu, then down to Rename..., as fileCommands drives it.
-        const std::string toRename = kF10 + times(kRight, 2) + times(kDown, 4) + kEnter;
+        const std::string toRename = kF10 + times(kRight, 2) + times(kDown, 6) + kEnter;
         Screen followed = drive(ed1, there,
                                 toLoopBody + kF9 + toRename + "src/moved.c" + kEnter + ctrl('q'),
                                 renaming);
@@ -1216,12 +1351,12 @@ void stoppingAndStepping(const std::string& ed1, const std::string& cc1) {
 
         const std::string toProject = kF10 + times(kRight, 2);
         const std::string deleteIt =
-            toProject + times(kDown, 6) + kEnter + "yes" + kEnter;
+            toProject + times(kDown, 8) + kEnter + "yes" + kEnter;
         // No kRight this time: the menu reopens on the column it was left on,
         // so a second F10 is already on Project. Walking right again lands on
         // some other menu's first item and quietly does something else.
         const std::string makeItAgain =
-            kF10 + times(kDown, 3) + kEnter + "src/stepped.c" + kEnter;
+            kF10 + times(kDown, 5) + kEnter + "src/stepped.c" + kEnter;
 
         // Twelve lines in the new file, so that line 11 is there to be marked.
         Screen reborn = drive(ed1, there,
@@ -2056,6 +2191,9 @@ int main(int argc, char** argv) {
     colouring(ed1);
     fileCommands(ed1);
     projectPane(ed1);
+    thePicker(ed1);
+    pickingAProject(ed1);
+    closingTheProject(ed1);
     findingAndReplacing(ed1);
     leavingWithChanges(ed1);
     reindenting(ed1);

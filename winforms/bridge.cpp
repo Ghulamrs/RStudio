@@ -508,6 +508,8 @@ void ed1_project_set_root(Ed1Project* project, const char* path) {
     project->project.setRoot(path ? path : ".");
 }
 
+void ed1_project_close(Ed1Project* project) { project->project.close(); }
+
 const char* ed1_project_relative(Ed1Project* project, const char* path) {
     project->answer = project->project.relative(path ? path : "");
     return project->answer.c_str();

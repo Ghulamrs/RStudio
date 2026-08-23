@@ -6,14 +6,19 @@ compiled by **shc**. The full specification is
 
 | | |
 | --- | --- |
-| suffix | `.shl` and `.shm` — both are Shalimar |
+| suffix | `.shl` |
 | compiler | `shc` |
 | targets | `x86_64-windows`, `x86_64-linux`, `arm64-darwin` |
 | debug | `--debug` — links a runtime that can stop, changes no code |
 | release | nothing |
 
-`.shm` is what the phone app writes and what every program it ships is; `.shl`
-is the desktop name and what a new file gets. The editor treats them the same.
+`.shl` is the only suffix this editor reads as Shalimar. The phone app writes
+`.shm` and every program it ships is one, and that suffix was read here too
+until 2026-08-23 — it was dropped because `.shm` is not accepted everywhere a
+Shalimar file has to go, and one name that travels is worth more than two that
+do not. An app-written `.shm` opens as plain text; `Language ▸ Shalimar` reads
+it as Shalimar without renaming it, and renaming it to `.shl` is the permanent
+answer.
 
 ## Laying it out is not the C rules
 
@@ -43,8 +48,8 @@ line, shc looks beside it; given a project, the editor hands it the group, with
 the program first. A directory knows what is next to it and a project knows
 what is its own.
 
-Since every `.shm` has a `main()` and nothing inside a file can say it is the
-program, **`"target"` in `ed1.json` picks which one it is**. A target named
+Since every Shalimar file has a `main()` and nothing inside a file can say it
+is the program, **`"target"` in `ed1.json` picks which one it is**. A target named
 after none of them is refused rather than guessed at.
 
 ## A program that stops itself

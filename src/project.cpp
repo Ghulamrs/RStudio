@@ -48,7 +48,7 @@ Language languageOf(const std::string& relative) {
     std::string suffix = relative.substr(dot);
     if (suffix == ".c") return LangC;
     if (suffix == ".cpp" || suffix == ".cc" || suffix == ".cxx") return LangCpp;
-    if (suffix == ".shl" || suffix == ".shm") return LangShalimar;
+    if (suffix == ".shl") return LangShalimar;
     return LangPlain;
 }
 
@@ -308,6 +308,15 @@ std::vector<std::string> Project::directories() const {
         }
     }
     return found;
+}
+
+void Project::close() {
+    loaded_ = false;
+    root_.clear();
+    file_.clear();
+    name_.clear();
+    groups_.clear();
+    target_ = Target();
 }
 
 void Project::addGroup(const std::string& group) {
