@@ -33,6 +33,10 @@
   <PropertyGroup>
     <TargetName>RStudioConsole</TargetName>
   </PropertyGroup>
+  <!-- OutDir is left to the C++ default on purpose: this project's
+       own x64\$(Configuration)\ when built alone, and the solution's
+       output directory when built from one - which is what puts the
+       editor and the compilers it drives in one place. -->
   <ItemDefinitionGroup>
     <ClCompile>
       <LanguageStandard>stdcpp14</LanguageStandard>

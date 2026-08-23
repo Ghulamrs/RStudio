@@ -8,7 +8,7 @@ Three machines, three shapes, one idea: open one thing and get all three
 programs, with the editor built after the two compilers it drives.
 
     macOS    RStudio.xcworkspace          RStudio.exe, cc1.exe, shc.exe
-    Windows  RStudio.sln                  RStudioConsole, cc1, shc
+    Windows  RStudio.sln                  RStudioConsole, RStudioGui, cc1, shc
     Linux    workspace.mk                 make -f workspace.mk
 
 Was make-xcodeproj.py while Xcode was all it wrote.
@@ -460,7 +460,61 @@ def guid(product):
     return "{%s-%s-%s-%s-%s}" % (d[:8], d[8:12], d[12:16], d[16:20], d[20:32])
 
 
-def vcxproj_text(product, sources, defines):
+# **shc is not one file.** It links a runtime archive that it looks for beside
+# its own binary - lib/ next to it, then ../lib - so a project that builds
+# shc.exe and nothing else produces a compiler that compiles, writes correct
+# assembly, and then dies at the link with
+#
+#   LINK : fatal error LNK1181: cannot open input file
+#          '...\x64\Release\lib\shmrt-x86_64-windows-debug.lib'
+#
+# which reads as a broken compiler rather than an incomplete directory. That is
+# what RStudio.sln produced until 2026-08-23, and no build and no suite could
+# see it: -S needs no runtime, so only pressing Run on a Shalimar file said so.
+#
+# Twice from the same sources, as Compiler-S/build.bat does it: the release
+# archive holds no debugger code at all, and the debug one is the same program
+# plus a session dormant until SHM_DEBUG arms it. Both are named because a
+# debug build links the second, and shipping one would leave exactly the half
+# about to be used missing.
+#
+# Two things here are not typos. cl will not create the directory /Fo names -
+# it says so three files later as "Cannot open compiler generated file", which
+# reads as a disk problem - so the object directories are made first. And the
+# doubled backslash in /Fo is required: a single one before a closing quote
+# escapes the quote, and cl then answers "D8003: missing source filename".
+SHC_RUNTIME_SOURCES = ("Shortest", "Failure", "Numbers", "Array", "Console", "Runtime")
+
+def shc_runtime_step():
+    """The PostBuildEvent that puts shc's runtime in lib/ beside shc.exe."""
+    def compiled(names, into):
+        return " ".join('"$(ProjectDir)runtime\%s.cpp"' % n for n in names), \
+               " ".join('"$(IntDir)%s\%s.obj"' % (into, n) for n in names)
+
+    release_src, release_obj = compiled(SHC_RUNTIME_SOURCES, "rt")
+    debug_src, debug_obj = compiled(SHC_RUNTIME_SOURCES + ("Debug",), "rtd")
+    flags = ("/nologo /std:c++14 /W4 /WX /EHsc /permissive- /O2 "
+             "/D_CRT_SECURE_NO_WARNINGS")
+
+    return (
+        '    <PostBuildEvent>\n'
+        '      <Message>building the Shalimar runtime beside shc.exe</Message>\n'
+        '      <Command>if not exist "$(OutDir)lib" mkdir "$(OutDir)lib"\n'
+        'if not exist "$(IntDir)rt" mkdir "$(IntDir)rt"\n'
+        'if not exist "$(IntDir)rtd" mkdir "$(IntDir)rtd"\n'
+        'cl %s /Fo"$(IntDir)rt\\\\" /c %s\n'
+        'if errorlevel 1 exit /b 1\n'
+        'lib /nologo /out:"$(OutDir)lib\shmrt-x86_64-windows.lib" %s\n'
+        'if errorlevel 1 exit /b 1\n'
+        'cl %s /DSHM_DEBUG=1 /Fo"$(IntDir)rtd\\\\" /c %s\n'
+        'if errorlevel 1 exit /b 1\n'
+        'lib /nologo /out:"$(OutDir)lib\shmrt-x86_64-windows-debug.lib" %s\n'
+        'if errorlevel 1 exit /b 1</Command>\n'
+        '    </PostBuildEvent>\n'
+        % (flags, release_src, release_obj, flags, debug_src, debug_obj))
+
+
+def vcxproj_text(product, sources, defines, extra=""):
     """A command line tool for MSVC, held to the same flags build.bat uses.
 
     /std:c++14 /W4 /WX /EHsc /permissive- - the same four this project has
@@ -505,6 +559,17 @@ def vcxproj_text(product, sources, defines):
         '  <PropertyGroup>\n'
         '    <TargetName>%s</TargetName>\n'
         '  </PropertyGroup>\n'
+        # OutDir is deliberately not set. The C++ default is already the rule
+        # these projects want, and is the msbuild spelling of the Makefile's
+        # BINDIR: built alone the program lands in this project's own
+        # x64\\$(Configuration)\\, and built from a solution it lands in the
+        # solution's output directory, beside the editor that drives it.
+        # Compiler-C/msvc/cc1.vcxproj is hand-kept and had to override that
+        # default; it now undoes the override for this same reason.
+        '  <!-- OutDir is left to the C++ default on purpose: this project\'s\n'
+        '       own x64\\$(Configuration)\\ when built alone, and the solution\'s\n'
+        '       output directory when built from one - which is what puts the\n'
+        '       editor and the compilers it drives in one place. -->\n'
         '  <ItemDefinitionGroup>\n'
         '    <ClCompile>\n'
         '      <LanguageStandard>stdcpp14</LanguageStandard>\n'
@@ -517,12 +582,13 @@ def vcxproj_text(product, sources, defines):
         '    <Link>\n'
         '      <SubSystem>Console</SubSystem>\n'
         '    </Link>\n'
+        '%s'
         '  </ItemDefinitionGroup>\n'
         '  <ItemGroup>\n%s  </ItemGroup>\n'
         '  <Import Project="$(VCTargetsPath)\\Microsoft.Cpp.targets" />\n'
         '</Project>\n'
         % (configurations, guid(product), product, per_config, product,
-           definitions, compiled))
+           definitions, extra, compiled))
 
 
 SOLUTION_FOLDER = "{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}"
@@ -535,9 +601,21 @@ def cc1_guid():
     the solution has to name the GUID it actually uses. Reading it is the only
     way the two cannot drift apart.
     """
-    where = os.path.join(SIBLINGS, "Compiler-C", "msvc", "cc1.vcxproj")
+    return guid_in(os.path.join(SIBLINGS, "Compiler-C", "msvc", "cc1.vcxproj"),
+                   "cc1's own project")
+
+
+def guid_in(where, what):
+    """The ProjectGuid a hand-kept .vcxproj already has.
+
+    Two of the four projects in the solution are not written here - cc1's,
+    which belongs to another repository, and the window's, which is C++/CLI and
+    whose settings were arrived at the hard way. The solution has to name the
+    GUID each of them actually uses, and reading it is the only way the two
+    cannot drift apart.
+    """
     if not os.path.exists(where):
-        sys.exit("no %s - the solution needs cc1's own project" % where)
+        sys.exit("no %s - the solution needs %s" % (where, what))
     match = re.search(r"<ProjectGuid>(\{[0-9A-Fa-f-]+\})</ProjectGuid>", open(where).read())
     if not match:
         sys.exit("no ProjectGuid in %s" % where)
@@ -545,6 +623,8 @@ def cc1_guid():
 
 
 CC1_GUID = cc1_guid()
+GUI_GUID = guid_in(os.path.join(HERE, "winforms", "RStudioGui.vcxproj"),
+                   "the window's own project")
 
 
 def solution_text(entries):
@@ -618,20 +698,52 @@ def workspace_mk_text():
 CC1_DIR ?= ../Compiler-C
 SHC_DIR ?= ../Compiler-S
 
-.PHONY: all cc1 shc editor bin check clean
+# ---- one directory, named once and given to all three -----------------------
+#
+# Each of the three Makefiles takes a BINDIR saying where its finished program
+# goes, and each defaults to its own repository - so building any one of them
+# alone is exactly what it always was. This is the only place that overrides
+# the three at once, because this is the only build that knows all three exist.
+#
+# The default is RStudio's own root, which is where RStudio.exe is built and
+# therefore the directory the editor searches first: it finds the compilers it
+# drives with path::besideProgram, before PATH, so that a compiler shipped with
+# this copy is the one this copy runs.
+#
+# **Built into, not collected into.** The rule this replaces built the three in
+# three places and copied them here afterwards, and a copy step is a step that
+# can be incomplete - shc.exe arrived without the runtime archives it links,
+# which no build and no suite could see and only pressing Run revealed.
+# Nothing is copied now; the three are simply told where to write.
+#
+# Absolute, because each sub-make runs in its own directory and a relative path
+# would mean three different places.
+BINDIR ?= $(CURDIR)
+OUT := $(abspath $(BINDIR))
 
-all: editor
+.PHONY: all cc1 shc editor confirm bin check clean
+
+# `confirm` and not `editor`, so that the last thing a workspace build does is
+# check that what the editor drives is actually beside it.
+all: confirm
 
 cc1:
-	$(MAKE) -C $(CC1_DIR)
+	$(MAKE) -C $(CC1_DIR) BINDIR=$(OUT)
 
 shc:
-	$(MAKE) -C $(SHC_DIR)
+	$(MAKE) -C $(SHC_DIR) BINDIR=$(OUT)
 
 # The dependency, said the same way it is said in the other two: the editor is
 # built after the compilers it drives. Nothing of them ends up inside it.
 editor: cc1 shc
-	$(MAKE)
+	$(MAKE) BINDIR=$(OUT)
+
+# Asked of RStudio rather than answered here. The editor is the thing that
+# knows what it drives - the list is in its own Makefile, beside the code that
+# goes looking for them - and this only calls it once all three have been
+# built into one place.
+confirm: editor
+	$(MAKE) BINDIR=$(OUT) confirm
 
 # Each suite is that project's own, called by the name that project uses -
 # both compilers say `test` and only the editor says `check`. Calling `check`
@@ -645,7 +757,7 @@ editor: cc1 shc
 # ignore a failure and lose the real ones with it.
 HOST := $(shell uname -s)
 
-check: editor
+check: confirm
 ifeq ($(HOST),Darwin)
 	cd $(CC1_DIR) && ./tests/arm64.sh
 	cd $(CC1_DIR) && ./tests/fingerprint.sh
@@ -653,35 +765,39 @@ else
 	$(MAKE) -C $(CC1_DIR) test
 endif
 	$(MAKE) -C $(SHC_DIR) test
-# cc1.exe and shc.exe, which is what those two build. Naming the old ones did
-# not fail - the editor's suite skips the cases that need a compiler and says
-# so quietly - so the count fell from 792 and 232 to 686 and 115 and everything
-# still read as green. A suite that skips is not a suite that passes.
-	$(MAKE) check CC1=$(abspath $(CC1_DIR))/cc1.exe SHC=$(abspath $(SHC_DIR))/shc.exe
+# The two just built into $(OUT), and not the copies in the compilers' own
+# trees. Those are usually the same file and occasionally are not, and the
+# occasion is exactly the one worth catching: this build wrote its compilers
+# somewhere, and this is the suite that says whether what it wrote works.
+#
+# Naming the wrong ones does not fail - the editor's suite skips the cases that
+# need a compiler and says so quietly - so the count fell from 792 and 232 to
+# 686 and 115 and everything still read as green. A suite that skips is not a
+# suite that passes.
+	$(MAKE) BINDIR=$(OUT) check CC1=$(OUT)/cc1.exe SHC=$(OUT)/shc.exe
 
-# One directory holding what you would actually run: the editor and the two
-# compilers it drives, side by side. They are built where they belong - each
-# repository keeps its own build - and copied here afterwards, so that no
-# compiler's Makefile has to know the editor exists. The dependency runs one
-# way and this keeps it that way.
+# The alternative destination, for anyone who would rather the checkout root
+# stayed as it was. Nothing is copied into it - see the `bin` rule below.
 BIN := bin
 
 # Emptied first. A binary that was renamed leaves its old self here otherwise,
 # and a directory holding both cc1 and cc1.exe is one where nobody can say
 # which was run.
-bin: editor
-	rm -rf $(BIN)
-	@mkdir -p $(BIN)
-	cp $(CC1_DIR)/cc1.exe $(BIN)/
-	cp $(SHC_DIR)/shc.exe $(BIN)/
-	cp RStudio.exe $(BIN)/
-	@echo "RStudio.exe, cc1.exe and shc.exe are in $(BIN)/"
+# The same build, into bin/ instead of into the root - for anyone who would
+# rather the checkout stayed clean. It is one line now because the three
+# already take a BINDIR: this names a different one and gets out of the way.
+#
+# It used to be a second collector with a second destination, which is what
+# made it possible for it to collect the wrong set. There is nothing here to
+# get wrong any more.
+bin:
+	$(MAKE) -f workspace.mk BINDIR=$(CURDIR)/$(BIN)
 
 clean:
 	rm -rf $(BIN)
-	$(MAKE) -C $(CC1_DIR) clean
-	$(MAKE) -C $(SHC_DIR) clean
-	$(MAKE) clean
+	$(MAKE) -C $(CC1_DIR) BINDIR=$(OUT) clean
+	$(MAKE) -C $(SHC_DIR) BINDIR=$(OUT) clean
+	$(MAKE) BINDIR=$(OUT) clean
 """
 
 
@@ -825,7 +941,8 @@ def main():
                                 ["_CRT_SECURE_NO_WARNINGS"]),
                    "RStudioConsole.vcxproj"))
     wanted.append((os.path.join(SIBLINGS, "Compiler-S", "shc.vcxproj"),
-                   vcxproj_text("shc", specs[2]["sources"], ["_CRT_SECURE_NO_WARNINGS"]),
+                   vcxproj_text("shc", specs[2]["sources"], ["_CRT_SECURE_NO_WARNINGS"],
+                                shc_runtime_step()),
                    "shc.vcxproj"))
 
     entries = [
@@ -834,6 +951,16 @@ def main():
         # the editor after both, which is the dependency this whole thing is
         # for - said in a .sln the way the workspace says it in a .xcodeproj.
         ("RStudioConsole", "RStudioConsole.vcxproj", guid("RStudioConsole"), [CC1_GUID, guid("shc")]),
+        # The window, on the same footing as the console half. It is in the
+        # solution for two reasons: so that one build makes all four, and
+        # because being in a solution is what moves its output into the
+        # solution's directory beside the rest - the C++ default does that on
+        # its own, so the project file itself needs no OutDir. That matters
+        # here: winforms/RStudioGui.vcxproj carries a warning that an earlier
+        # version of it set OutDir, IntDir, BasicRuntimeChecks and a platform
+        # version, and the binary died at startup with heap corruption before
+        # main. Nothing in that file is touched to get this.
+        ("RStudioGui", "winforms/RStudioGui.vcxproj", GUI_GUID, [CC1_GUID, guid("shc")]),
     ]
     wanted.append((os.path.join(HERE, "RStudio.sln"), solution_text(entries),
                    "RStudio.sln"))
@@ -883,7 +1010,7 @@ def main():
               % (spec["product"], len(spec["sources"]), len(spec["headers"]),
                  os.path.relpath(spec["out"], SIBLINGS)))
     print("RStudio.xcworkspace  opens all three on a Mac")
-    print("RStudio.sln          the same three for Visual Studio 2022")
+    print("RStudio.sln          all four for Visual Studio 2022")
     print("workspace.mk         and for make on the Linux box")
     return 0
 

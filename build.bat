@@ -27,6 +27,11 @@ rem defines it: getenv and strerror are standard C++17, and MSVC's objection to
 rem them is house policy rather than a defect to go and fix.
 setlocal
 
+rem Before anything is built, because this one only looks at files. It needs no
+rem compiler and no Visual Studio environment, and a check that rebuilds the
+rem editor before answering is a check nobody runs.
+if "%1"=="confirm" goto :confirm
+
 if not "%VSCMD_ARG_TGT_ARCH%"=="x64" call :findvcvars
 if errorlevel 1 goto :fail
 
@@ -62,9 +67,18 @@ echo built RStudio.exe (the window)
 exit /b 0
 
 :solution
-rem The three programs as one solution: cc1, shc, and this editor's console
-rem half, with the editor depending on both compilers so a change to one and
-rem the change to the editor that goes with it are a single build.
+rem **All four programs into one directory.** cc1, shc, this editor's console
+rem half and the window, with both editors depending on both compilers so a
+rem change to one and the change to the editor that goes with it are a single
+rem build. This is what workspace.mk is on Unix.
+rem
+rem They land in x64\Release\ together, which is the whole point: the editor
+rem finds the compilers it drives beside itself before it looks at PATH, so a
+rem build that scatters them is a build you cannot run from. Two of the four
+rem always landed there; cc1 did not, because cc1.vcxproj set OutDir to its own
+rem project directory, and the window did not, because it was not in the
+rem solution at all. Both fixed at the source rather than by copying afterwards
+rem - see the comments in cc1.vcxproj and shc.vcxproj.
 rem
 rem Run from here rather than by calling msbuild directly, because msbuild is
 rem on PATH only after vcvars64.bat - which the top of this file has already
@@ -75,6 +89,35 @@ rem be checked out beside each other on this machine.
 msbuild RStudio.sln /p:Configuration=Release /p:Platform=x64 /v:minimal /m
 if errorlevel 1 goto :fail
 echo built the solution
+goto :confirm
+
+:confirm
+rem What the editor drives, and the check that it is actually there.
+rem
+rem The editor links against none of it. It *runs* these, and finds them beside
+rem itself, so "built" and "usable" are two different states and nothing
+rem checked the second until now. A shc.exe standing without its runtime
+rem compiles, writes correct assembly and then dies at the link - which no
+rem build and no suite could see, because -S needs no runtime. It waited for
+rem somebody to press Run on a Shalimar file, and then read as a broken
+rem compiler rather than an incomplete directory.
+rem
+rem Both runtime archives are named. Debug is the editor's default
+rem configuration and links the other one, so checking a single archive would
+rem confirm exactly the half that was not about to be used.
+if "%BINDIR%"=="" set BINDIR=x64\Release
+set MISSING=0
+for %%f in (cc1.exe shc.exe lib\shmrt-x86_64-windows.lib lib\shmrt-x86_64-windows-debug.lib) do (
+   if exist "%BINDIR%\%%f" (echo   ok       %%f) else (echo   MISSING  %%f& set MISSING=1)
+)
+if "%MISSING%"=="1" (
+   echo.
+   echo RStudio is in %BINDIR% without what it drives. Build the solution with
+   echo "build.bat solution", or name them with %%CC1%% and %%SHC%%.
+   goto :fail
+)
+echo.
+echo RStudio and everything it drives are in %BINDIR%
 exit /b 0
 
 :product
@@ -87,6 +130,23 @@ if not exist "%PRODUCT%\bin" mkdir "%PRODUCT%\bin"
 if not exist "%PRODUCT%\examples" mkdir "%PRODUCT%\examples"
 copy /y RStudioConsole.exe "%PRODUCT%\bin\" >nul
 if exist winforms\x64\Release\RStudio.exe copy /y winforms\x64\Release\RStudio.exe "%PRODUCT%\bin\" >nul
+
+rem And what the editor drives, from wherever the solution built it. This used
+rem to ship the editor alone, so the cc1.exe sitting in that bin\ was whatever
+rem somebody had copied there by hand - on this machine a build from four days
+rem earlier that nothing refreshed. An editor without its compilers is not a
+rem product; it is half of one that fails at the first Ctrl-B.
+rem
+rem shc's runtime goes too, and into bin\lib\ rather than anywhere tidier,
+rem because that is where shc looks: beside its own binary.
+if "%BINDIR%"=="" set BINDIR=x64\Release
+if exist "%BINDIR%\cc1.exe" copy /y "%BINDIR%\cc1.exe" "%PRODUCT%\bin\" >nul
+if exist "%BINDIR%\shc.exe" copy /y "%BINDIR%\shc.exe" "%PRODUCT%\bin\" >nul
+if exist "%BINDIR%\RStudio.exe" copy /y "%BINDIR%\RStudio.exe" "%PRODUCT%\bin\" >nul
+if exist "%BINDIR%\lib\*.lib" (
+   if not exist "%PRODUCT%\bin\lib" mkdir "%PRODUCT%\bin\lib"
+   copy /y "%BINDIR%\lib\*.lib" "%PRODUCT%\bin\lib\" >nul
+)
 copy /y README.md "%PRODUCT%\" >nul
 copy /y examples\*.c "%PRODUCT%\examples\" >nul
 copy /y examples\*.cpp "%PRODUCT%\examples\" >nul

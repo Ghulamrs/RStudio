@@ -16,6 +16,7 @@ tests/session.exe
 *.o.tmp
 .DS_Store
 *.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
 *.xcodeproj/project.xcworkspace/
 DerivedData/
 winforms/x64/
