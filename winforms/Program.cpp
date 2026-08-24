@@ -6,6 +6,8 @@
 
 #include <cstdio>
 
+#include <windows.h>
+
 #include "MainForm.h"
 
 #include "symbols.h"
@@ -29,12 +31,47 @@ static void OnUnhandled(Object^, UnhandledExceptionEventArgs^ e) {
     Note("unhandled: " + e->ExceptionObject->ToString());
 }
 
+// One console for the window, made once and never shown.
+//
+// The window is /SUBSYSTEM:WINDOWS and so has no console. Every compiler and
+// every program it runs goes through cmd, which is a console program, so
+// Windows made one for each of them - and that is the black rectangle that
+// blinked on the desktop at every build and every run.
+//
+// It cannot be fixed where the child is started. CREATE_NO_WINDOW asks for a
+// console with no window and STARTF_USESHOWWINDOW/SW_HIDE says it again, and
+// on Windows 11 neither holds: the default-terminal handoff gives the console
+// to Windows Terminal and a window appears anyway, class
+// CASCADIA_HOSTING_WINDOW_CLASS. DETACHED_PROCESS does remove the window, and
+// removes some of the output with it - 22 checks, "a build that fails says so"
+// among them - because what writes those goes to the console rather than to
+// the handle it was given.
+//
+// So the child is left exactly as it was, and this gives it something to
+// inherit. A process that already has a console hands it to its children and
+// no new one is made, so there is nothing to hand off and nothing to draw.
+// Hidden immediately, and the handles pointed at NUL so that nothing the
+// editor or a library prints ever goes anywhere surprising.
+static void QuietConsoleForChildren() {
+    if (GetConsoleWindow() != NULL) return;   // started from a terminal; use that one
+    if (!AllocConsole()) return;              // no console to be had; the blink stays
+
+    HWND console = GetConsoleWindow();
+    if (console != NULL) ShowWindow(console, SW_HIDE);
+
+    FILE* ignored = NULL;
+    freopen_s(&ignored, "NUL", "r", stdin);
+    freopen_s(&ignored, "NUL", "w", stdout);
+    freopen_s(&ignored, "NUL", "w", stderr);
+}
+
 [STAThreadAttribute]
 int main(array<String^>^ arguments) {
     // Its own debugger, since the machine has none.
     // Its own debugger. There is none installed on the machine this is built
     // for, and a crash with no stack is a crash you cannot fix.
     rstudio_watch_for_faults("RStudioGui-fault.log");
+    QuietConsoleForChildren();
     AppDomain::CurrentDomain->UnhandledException +=
         gcnew UnhandledExceptionEventHandler(OnUnhandled);
 
