@@ -126,6 +126,15 @@ rem actually run, away from the project space it was compiled in. Both Windows
 rem variants land here side by side - the console one and the window - and
 rem is copied when msbuild has made it and passed over when it has not.
 set PRODUCT=%USERPROFILE%\cc1-studio
+rem Emptied first, the same as the Makefile's rule and for the same reason: a
+rem binary that was renamed leaves its old self here, and a directory holding
+rem two names is one where nobody can say which was run.
+rem
+rem The two directories this fills, and not %PRODUCT% itself - see the Makefile,
+rem where PRODUCT is the caller's to set and a wholesale delete is a foot-gun.
+rem Here it is fixed, but the two rules are kept the same shape on purpose.
+if exist "%PRODUCT%\bin" rmdir /s /q "%PRODUCT%\bin"
+if exist "%PRODUCT%\examples" rmdir /s /q "%PRODUCT%\examples"
 if not exist "%PRODUCT%\bin" mkdir "%PRODUCT%\bin"
 if not exist "%PRODUCT%\examples" mkdir "%PRODUCT%\examples"
 copy /y RStudioConsole.exe "%PRODUCT%\bin\" >nul

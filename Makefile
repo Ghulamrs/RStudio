@@ -206,6 +206,17 @@ PRODUCT ?= $(HOME)/cc1-studio
 # the same list that guards the build guards the product, and a missing
 # compiler stops this rather than being discovered by the person reviewing it.
 product: confirm
+# Emptied first, for the reason workspace.mk's `bin` rule gives: a binary that
+# was renamed leaves its old self here otherwise, and a directory holding both
+# RStudio.exe and the name before it is one where nobody can say which was run.
+# It cost a stray quad.shl sitting in bin/ from 2026-08-18 to notice this rule
+# never had what that one does.
+#
+# The two directories this rule fills, and not $(PRODUCT) itself. PRODUCT is
+# whatever the caller says, so `make product PRODUCT=$$HOME` would turn a
+# wholesale rm -rf into deleting a home directory. Nothing here needs that risk
+# to do its job.
+	rm -rf "$(PRODUCT)/bin" "$(PRODUCT)/examples"
 	mkdir -p "$(PRODUCT)/bin/lib" "$(PRODUCT)/examples"
 	cp $(EDITOR) "$(PRODUCT)/bin/"
 	cp $(BINDIR)/cc1.exe $(BINDIR)/shc.exe "$(PRODUCT)/bin/"
