@@ -38,11 +38,17 @@ static void OnUnhandled(Object^, UnhandledExceptionEventArgs^ e) {
 // Windows made one for each of them - and that is the black rectangle that
 // blinked on the desktop at every build and every run.
 //
-// It cannot be fixed where the child is started. CREATE_NO_WINDOW asks for a
-// console with no window and STARTF_USESHOWWINDOW/SW_HIDE says it again, and
-// on Windows 11 neither holds: the default-terminal handoff gives the console
-// to Windows Terminal and a window appears anyway, class
-// CASCADIA_HOSTING_WINDOW_CLASS. DETACHED_PROCESS does remove the window, and
+// It was not fixable where *this* editor starts its child, and the reason is
+// narrower than it first looked. CREATE_NO_WINDOW asks for a console with no
+// window, STARTF_USESHOWWINDOW/SW_HIDE says it again, and with cmd.exe as the
+// child neither holds on Windows 11: the default-terminal handoff gives the
+// console to Windows Terminal and a window appears anyway, class
+// CASCADIA_HOSTING_WINDOW_CLASS - the watcher read that title off the window.
+//
+// Measured with cmd and only with cmd. A compiler started *directly*, with no
+// shell in between, may well be silenced by CREATE_NO_WINDOW alone; that is
+// the usual recipe and it is not tested here, because runCaptured cannot drop
+// cmd - see below. DETACHED_PROCESS does remove the window, and
 // removes some of the output with it - 22 checks, "a build that fails says so"
 // among them - because what writes those goes to the console rather than to
 // the handle it was given.
