@@ -281,6 +281,18 @@ Outcome addExisting(Project& project, const std::string& absolute,
     return andSave(project, relative + " added to " + group, absolute);
 }
 
+// The pair to addExisting, and deliberately not the pair to deleteFile: this
+// takes the file out of the project's list and leaves it on the disk exactly
+// where it was. Whoever asked for "Remove File" asked about the project.
+Outcome removeExisting(Project& project, const std::string& absolute) {
+    std::string relative = project.relative(absolute);
+
+    if (!project.removeFile(relative)) return no(relative + " is not in the project");
+
+    return andSave(project, relative + " removed from the project - the file is still there",
+                   std::string());
+}
+
 Outcome beginProject(Project& project, const std::string& directory,
                      const std::string& name, const std::string& firstFile) {
     project.begin(directory, name);

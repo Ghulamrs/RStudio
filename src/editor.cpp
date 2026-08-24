@@ -2138,6 +2138,15 @@ void Editor::addToProject() {
     if (done.ok) refreshTree();
 }
 
+void Editor::removeFromProject() {
+    if (!project_.loaded()) { say("there is no project open"); return; }
+    if (buf_.path().empty()) { say("this buffer has no name to look for"); return; }
+
+    Outcome done = editor::removeExisting(project_, buf_.path());
+    say(done.message);
+    if (done.ok) refreshTree();
+}
+
 void Editor::newProject() {
     bool cancelled = false;
     std::string name = prompt("project name: ", cancelled);
@@ -3205,6 +3214,7 @@ void Editor::perform(Action action) {
         case ActionProjectSaveAs: saveProjectAs(); break;
         case ActionProjectClose: closeProject(); break;
         case ActionProjectAdd:   addToProject(); break;
+        case ActionProjectRemove: removeFromProject(); break;
         case ActionFileCreate:   createFile(); break;
         case ActionFileRename:   renameFile(); break;
         case ActionFileDelete:   deleteFile(); break;

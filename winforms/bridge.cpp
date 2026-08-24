@@ -577,6 +577,13 @@ int rstudio_add_existing(RStudioProject* project, const char* absolute, const ch
     return project->last.ok ? 1 : 0;
 }
 
+// Out of the project's list, and not off the disk - which is rstudio_delete_file.
+// The two are one keystroke apart in the menu, so the names are kept far apart.
+int rstudio_remove_from_project(RStudioProject* project, const char* absolute) {
+    project->last = editor::removeExisting(project->project, absolute ? absolute : "");
+    return project->last.ok ? 1 : 0;
+}
+
 int rstudio_begin_project(RStudioProject* project, const char* directory, const char* name,
                       const char* firstFile) {
     project->last = editor::beginProject(project->project, directory ? directory : ".",

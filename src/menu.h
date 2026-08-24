@@ -42,7 +42,11 @@ enum Action {
     ActionProjectSaveAs,
     ActionProjectClose,
     ActionProjectAdd,
+    // Out of the project's list, not off the disk - the pair to ActionProjectAdd.
+    ActionProjectRemove,
     ActionFileCreate,
+    // The three below have no menu item since 2026-08-24; see menu.cpp. They are
+    // kept because the editor still does all three and a menu item is one line.
     ActionFileRename,
     ActionFileDelete,
     ActionFileRegroup,

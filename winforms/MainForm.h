@@ -410,14 +410,13 @@ private:
         ToolStripMenuItem^ file = gcnew ToolStripMenuItem("&File");
         file->DropDownItems->Add("New", nullptr,
                                  gcnew EventHandler(this, &MainForm::OnNewBuffer));
-        file->DropDownItems->Add(
-            Item("New file...", Keys::Control | Keys::N,
-                 gcnew EventHandler(this, &MainForm::OnNewFile)));
-        file->DropDownItems->Add("New project...", nullptr,
-                                 gcnew EventHandler(this, &MainForm::OnNewProject));
+        // New file..., New project... and Open project... stood here until
+        // 2026-08-24. Taken out on the user's instruction: nothing about a
+        // project belongs on the File menu, and the two project ones were the
+        // same handlers the Project menu already offers. The terminal front end
+        // never carried them, so this is the two halves agreeing rather than
+        // the window losing something.
         file->DropDownItems->Add(gcnew ToolStripSeparator());
-        file->DropDownItems->Add("Open project...", nullptr,
-                                 gcnew EventHandler(this, &MainForm::OnOpenProject));
         file->DropDownItems->Add("Open file...", nullptr,
                                  gcnew EventHandler(this, &MainForm::OnOpenFile));
         ToolStripMenuItem^ save = gcnew ToolStripMenuItem(
@@ -478,19 +477,32 @@ private:
                                     gcnew EventHandler(this, &MainForm::OnSaveProjectAs));
         project->DropDownItems->Add("Close project", nullptr,
                                     gcnew EventHandler(this, &MainForm::OnCloseProject));
-        project->DropDownItems->Add("Add this file...", nullptr,
-                                    gcnew EventHandler(this, &MainForm::OnAddThisFile));
+        // The five above are the project itself; the two below are its list of
+        // files. Nothing here touches the disk - Add File and Remove File both
+        // only say what the project contains.
+        //
+        // New File makes one and puts it in; Add File takes one that is already
+        // on the disk; Remove File takes it back out and leaves it there.
+        //
+        // New File carries Ctrl+N for real now, rather than the display string
+        // it used to have. The working binding was on the File menu's copy, and
+        // that copy went on 2026-08-24 - so without this the shortcut would have
+        // gone with it, a shortcut being a property of the item that holds it.
+        //
+        // Rename..., Move to group... and Delete... stood below this rule until
+        // the same day and were taken out on the user's instruction, the
+        // terminal half losing the same three. OnRenameFile, OnMoveToGroup and
+        // OnDeleteFile all still work, so any of them is one line away from
+        // coming back - but note Rename lost F2 with its item, for the reason
+        // just given about Ctrl+N.
         project->DropDownItems->Add(gcnew ToolStripSeparator());
-        ToolStripMenuItem^ another = gcnew ToolStripMenuItem(
-            "New file...", nullptr, gcnew EventHandler(this, &MainForm::OnNewFile));
-        another->ShortcutKeyDisplayString = "Ctrl+N";
-        project->DropDownItems->Add(another);
-        project->DropDownItems->Add(Item("Rename...", Keys::F2,
-                                         gcnew EventHandler(this, &MainForm::OnRenameFile)));
-        project->DropDownItems->Add("Move to group...", nullptr,
-                                    gcnew EventHandler(this, &MainForm::OnMoveToGroup));
-        project->DropDownItems->Add("Delete...", nullptr,
-                                    gcnew EventHandler(this, &MainForm::OnDeleteFile));
+        project->DropDownItems->Add(
+            Item("New File", Keys::Control | Keys::N,
+                 gcnew EventHandler(this, &MainForm::OnNewFile)));
+        project->DropDownItems->Add("Add File", nullptr,
+                                    gcnew EventHandler(this, &MainForm::OnAddThisFile));
+        project->DropDownItems->Add("Remove File", nullptr,
+                                    gcnew EventHandler(this, &MainForm::OnRemoveFromProject));
         bar->Items->Add(project);
 
         ToolStripMenuItem^ build = gcnew ToolStripMenuItem("&Build");
@@ -2445,6 +2457,23 @@ private:
 
         if (Did(rstudio_add_existing(project_, reinterpret_cast<const char*>(pathPin),
                                  reinterpret_cast<const char*>(intoPin))))
+            FillTree();
+    }
+
+    // The pair to OnAddThisFile. It asks nothing, because there is nothing to
+    // ask: a file is in the project or it is not. Nothing on the disk moves -
+    // that is OnDeleteFile, which asks before it does anything, and which this
+    // is deliberately not spelled like.
+    void OnRemoveFromProject(Object^, EventArgs^) {
+        if (path_ == nullptr) {
+            what_->Text = "this buffer has no name to look for";
+            return;
+        }
+
+        array<Byte>^ path = Utf8Of(path_);
+        pin_ptr<Byte> pathPin = &path[0];
+
+        if (Did(rstudio_remove_from_project(project_, reinterpret_cast<const char*>(pathPin))))
             FillTree();
     }
 

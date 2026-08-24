@@ -234,6 +234,7 @@ private:
     void deleteFile();
     void regroupFile();
     void addToProject();
+    void removeFromProject();
     void newProject();
     void saveProject();
     void resetDebug();

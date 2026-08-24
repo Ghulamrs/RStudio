@@ -358,58 +358,62 @@ void colouring(const std::string& rstudio) {
     file::remove_all(dir);
 }
 
-void fileCommands(const std::string& rstudio) {
-    std::printf("making, renaming, regrouping and deleting\n");
+void addAndRemoveFile(const std::string& rstudio) {
+    std::printf("making a file in the project, adding one, and taking one out\n");
 
     file::path dir = freshProject("files");
     std::string project = " --project \"" + dir.string() + "\"";
 
-    // Project menu: right twice from File, then down to the item wanted. The
-    // counts below skip nothing for the rule under Close project - stepTo
-    // walks past whatever is not selectable - but they did all move down one
-    // when Close project was added above them, which is what this comment is
-    // here to make findable the next time an item is added.
-    const std::string toProject = kF10 + times(kRight, 2);
+    // A file on the disk that the project does not list. That is the state
+    // Add File exists for, and it is not the state freshProject leaves.
+    file::path loose = dir / "src" / "loose.c";
+    writeFile(loose, "int main(void) { return 0; }\n");
+    check(readFile(dir / "RStudio.json").find("src/loose.c") == std::string::npos,
+          "the file starts outside the project");
 
-    // New file...
-    drive(rstudio, project, toProject + times(kDown, 6) + kEnter + "src/made.c" + kEnter + ctrl('q'),
-          dir);
-    check(file::exists(dir / "src" / "made.c"), "New file makes the file");
+    // Project menu: right twice from File, then down to the item wanted. New
+    // File is the sixth selectable item, Add File the seventh and Remove File
+    // the eighth - the rule above them costs nothing to walk past, stepTo
+    // skipping whatever is not selectable. These counts moved twice on
+    // 2026-08-24, when Rename..., Move to group... and Delete... came off this
+    // menu and when New File was put back at the head of the three, which is
+    // what this comment is here to make findable the next time one moves.
+    const std::string toProject = kF10 + times(kRight, 2);
+    const std::string newFile = toProject + times(kDown, 5) + kEnter;
+    const std::string addFile = toProject + times(kDown, 6) + kEnter;
+    const std::string removeFile = toProject + times(kDown, 7) + kEnter;
+
+    // New File makes one and puts it in the project in the same breath, which
+    // is the difference between it and Add File below.
+    drive(rstudio, project, newFile + "src/made.c" + kEnter + ctrl('q'), dir);
+    check(file::exists(dir / "src" / "made.c"), "New File makes the file");
     check(readFile(dir / "RStudio.json").find("src/made.c") != std::string::npos,
           "and puts it in the project");
 
     // A path two directories deep is refused, and nothing is written.
-    Screen deep = drive(rstudio, project,
-                        toProject + times(kDown, 6) + kEnter + "a/b/deep.c" + kEnter + ctrl('q'),
-                        dir);
+    Screen deep = drive(rstudio, project, newFile + "a/b/deep.c" + kEnter + ctrl('q'), dir);
     check(!file::exists(dir / "a"), "a file two directories deep is not made");
     check(onScreen(deep, "two levels at most"), "and the rule says so on screen");
 
-    // Rename... acts on the file being edited.
-    drive(rstudio, "\"" + (dir / "src" / "made.c").string() + "\"" + project,
-          toProject + times(kDown, 7) + kEnter + "src/moved.c" + kEnter + ctrl('q'), dir);
-    check(!file::exists(dir / "src" / "made.c"), "Rename takes the old name away");
-    check(file::exists(dir / "src" / "moved.c"), "and puts the new one there");
-    check(readFile(dir / "RStudio.json").find("src/moved.c") != std::string::npos,
-          "and the project follows it");
+    // Add File asks which group, and offers one; the empty answer takes it.
+    Screen added = drive(rstudio, "\"" + loose.string() + "\"" + project,
+                         addFile + kEnter + ctrl('q'), dir);
+    check(readFile(dir / "RStudio.json").find("src/loose.c") != std::string::npos,
+          "Add File puts the open file in the project");
+    check(onScreen(added, "added"), "and the line says so");
 
-    // Move to group... changes the project and nothing on disk.
-    drive(rstudio, "\"" + (dir / "src" / "moved.c").string() + "\"" + project,
-          toProject + times(kDown, 8) + kEnter + "Extras" + kEnter + ctrl('q'), dir);
-    std::string written = readFile(dir / "RStudio.json");
-    check(written.find("Extras") != std::string::npos, "regrouping makes the group");
-    check(file::exists(dir / "src" / "moved.c"), "and leaves the file where it was");
+    // Remove File asks nothing - a file is in the project or it is not.
+    Screen removed = drive(rstudio, "\"" + loose.string() + "\"" + project,
+                           removeFile + ctrl('q'), dir);
+    check(readFile(dir / "RStudio.json").find("src/loose.c") == std::string::npos,
+          "Remove File takes it out of the project");
+    check(file::exists(loose), "and leaves the file on the disk, which is the whole point");
 
-    // Delete... only when the answer is yes.
-    drive(rstudio, "\"" + (dir / "src" / "moved.c").string() + "\"" + project,
-          toProject + times(kDown, 9) + kEnter + "no" + kEnter + ctrl('q'), dir);
-    check(file::exists(dir / "src" / "moved.c"), "Delete answered with no keeps the file");
-
-    drive(rstudio, "\"" + (dir / "src" / "moved.c").string() + "\"" + project,
-          toProject + times(kDown, 9) + kEnter + "yes" + kEnter + ctrl('q'), dir);
-    check(!file::exists(dir / "src" / "moved.c"), "and answered with yes deletes it");
-    check(readFile(dir / "RStudio.json").find("src/moved.c") == std::string::npos,
-          "and takes it out of the project too");
+    // Asking twice is not an error worth hiding: the second time says so.
+    Screen again = drive(rstudio, "\"" + loose.string() + "\"" + project,
+                         removeFile + ctrl('q'), dir);
+    check(onScreen(again, "not in the project"),
+          "removing a file that is already out says so");
 
     file::remove_all(dir);
 }
@@ -1461,58 +1465,17 @@ void stoppingAndStepping(const std::string& rstudio, const std::string& cc1) {
     check(wasShown(unmarked, "breakpoint off line 11"), "and F9 again takes it away");
     check(!onScreen(unmarked, "*11"), "leaving the gutter as it was");
 
-    // A breakpoint is filed under the file's name, so renaming the file has to
-    // carry it across. It did not: the mark left the gutter, and a debugger
-    // started afterwards was told to stop in a file that was no longer there.
-    // In a project of its own, since it leaves the file under another name.
-    {
-        file::path renaming = freshProject("renamed-under-a-breakpoint");
-        file::path was = renaming / "src" / "stepped.c";
-        writeFile(was, kWorthStoppingIn);
-        std::string there = "\"" + was.string() + "\" --project \"" + renaming.string() + "\"";
-
-        // Project menu, then down to Rename..., as fileCommands drives it.
-        const std::string toRename = kF10 + times(kRight, 2) + times(kDown, 7) + kEnter;
-        Screen followed = drive(rstudio, there,
-                                toLoopBody + kF9 + toRename + "src/moved.c" + kEnter + ctrl('q'),
-                                renaming);
-        check(file::exists(renaming / "src" / "moved.c"),
-              "a file with a breakpoint in it can be renamed");
-        check(onScreen(followed, "*11"),
-              "and the breakpoint is still on the line under the new name");
-        file::remove_all(renaming);
-    }
-
-    // Deleting a file takes its breakpoints with it. Nothing shows that at the
-    // time - the tab loses its name whether they went or not - but a name can
-    // come back, and a file written under it used to arrive with somebody
-    // else's lines already marked.
-    {
-        file::path deleting = freshProject("deleted-with-a-breakpoint");
-        file::path was = deleting / "src" / "stepped.c";
-        writeFile(was, kWorthStoppingIn);
-        std::string there = "\"" + was.string() + "\" --project \"" + deleting.string() + "\"";
-
-        const std::string toProject = kF10 + times(kRight, 2);
-        const std::string deleteIt =
-            toProject + times(kDown, 9) + kEnter + "yes" + kEnter;
-        // No kRight this time: the menu reopens on the column it was left on,
-        // so a second F10 is already on Project. Walking right again lands on
-        // some other menu's first item and quietly does something else.
-        const std::string makeItAgain =
-            kF10 + times(kDown, 6) + kEnter + "src/stepped.c" + kEnter;
-
-        // Twelve lines in the new file, so that line 11 is there to be marked.
-        Screen reborn = drive(rstudio, there,
-                              toLoopBody + kF9 + deleteIt + makeItAgain +
-                                  times(kEnter, 12) + ctrl('s') + ctrl('q'),
-                              deleting);
-        check(file::exists(deleting / "src" / "stepped.c"),
-              "a deleted file's name can be used again");
-        check(!onScreen(reborn, "*11"),
-              "and the new file under it has none of the old one's breakpoints");
-        file::remove_all(deleting);
-    }
+    // Two blocks stood here until 2026-08-24: a breakpoint following its file
+    // through Rename..., and a deleted file's breakpoints not coming back when
+    // the name is used again. Both were driven through the Project menu, and
+    // Rename... and Delete... were taken off it that day - so there is no
+    // longer a way to ask the editor to do either, and nothing left to drive.
+    //
+    // Editor::renameFile and deleteFile still carry the breakpoints across, and
+    // breaks_/breakNames_ are still keyed the way those two blocks proved. What
+    // is gone is the check, not the behaviour. If either command is ever given
+    // a menu item again, both blocks are in this file's history at the commit
+    // that removed them, and should come back with it.
 
 #ifdef _WIN32
     // cc1 generates MASM for this machine's own target, which carries no line
@@ -2337,7 +2300,7 @@ int main(int argc, char** argv) {
     editingAndLayout(rstudio);
     aDirectoryWithNoProject(rstudio);
     colouring(rstudio);
-    fileCommands(rstudio);
+    addAndRemoveFile(rstudio);
     projectPane(rstudio);
     whichProjectAFileBelongsTo(rstudio);
     thePaneFollowsWhatIsOpen(rstudio);

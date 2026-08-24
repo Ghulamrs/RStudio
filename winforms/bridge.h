@@ -199,6 +199,8 @@ int rstudio_rename_file(RStudioProject* project, const char* fromAbsolute, const
 int rstudio_delete_file(RStudioProject* project, const char* absolute);
 int rstudio_move_to_group(RStudioProject* project, const char* absolute, const char* group);
 int rstudio_add_existing(RStudioProject* project, const char* absolute, const char* group);
+// Out of the project's list; the file stays on the disk.
+int rstudio_remove_from_project(RStudioProject* project, const char* absolute);
 /* A project made out of what is already in a directory, for when there is no
    RStudio.json to read - and the two things that decide where the editor opens
    when it is given nothing: the project it was last in, and the small one made

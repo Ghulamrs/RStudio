@@ -52,6 +52,9 @@ std::string groupForFile(const std::string& name);
 Outcome addExisting(Project& project, const std::string& absolute,
                     const std::string& group);
 
+// Out of the project's list; the file itself is not touched.
+Outcome removeExisting(Project& project, const std::string& absolute);
+
 Outcome beginProject(Project& project, const std::string& directory,
                      const std::string& name, const std::string& firstFile);
 Outcome saveProject(Project& project);

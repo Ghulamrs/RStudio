@@ -46,16 +46,24 @@ Menu::Menu() : active_(false), dropped_(false), column_(0), item_(0) {
     project.items.push_back({"Save project", "", ActionProjectSave});
     project.items.push_back({"Save as project file...", "", ActionProjectSaveAs});
     project.items.push_back({"Close project", "", ActionProjectClose});
-    // The three above are the project itself; the five below are files in it.
+    // The five above are the project itself; the two below are its list of
+    // files - what is in the project, and nothing about what is on the disk.
     // A rule costs nothing to walk past - stepTo skips whatever is not
     // selectable - so this separates them without moving any of them further
     // from the keyboard.
+    //
+    // New File makes one and puts it in; Add File takes one that is already on
+    // the disk; Remove File takes it back out and leaves it there.
+    //
+    // Rename..., Move to group... and Delete... stood here until 2026-08-24 and
+    // were taken out on the user's instruction: this menu is the project, and
+    // those three are things done to a file rather than to the list.
+    // Editor::renameFile, regroupFile and deleteFile are all still here, so
+    // putting any of them back is one line.
     project.items.push_back(separator());
-    project.items.push_back({"Add this file", "", ActionProjectAdd});
-    project.items.push_back({"New file...", "", ActionFileCreate});
-    project.items.push_back({"Rename...", "", ActionFileRename});
-    project.items.push_back({"Move to group...", "", ActionFileRegroup});
-    project.items.push_back({"Delete...", "", ActionFileDelete});
+    project.items.push_back({"New File", "", ActionFileCreate});
+    project.items.push_back({"Add File", "", ActionProjectAdd});
+    project.items.push_back({"Remove File", "", ActionProjectRemove});
     columns_.push_back(project);
 
     MenuColumn build;
