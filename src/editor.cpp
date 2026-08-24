@@ -541,7 +541,7 @@ void Editor::openProject(const std::string& path) {
         // editor that chose and an editor that appears not to have noticed.
         size_t named = Project::projectFilesIn(project_.root()).size();
         if (named > 1)
-            said += " - " + number(named) + " projects here, Project > Open project chooses";
+            said += " - " + number(named) + " projects here, Project > Open chooses";
         say(said);
         sayIfSettingsWereBad();
     } else if (error.empty()) {

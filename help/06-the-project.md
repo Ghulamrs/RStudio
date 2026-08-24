@@ -29,10 +29,10 @@ key left in a project file is read by nothing.
 
 **A directory may hold several.** `prime.pro` and `sums.pro` side by side is
 the case the naming is for: opening the directory takes the first by name and
-says so, and `Project ▸ Open project` lists them to choose from. Whichever you
+says so, and `Project ▸ Open` lists them to choose from. Whichever you
 opened is the one reopened next time.
 
-**`Project ▸ Save as project file...`** writes one out under a name of its own.
+**`Project ▸ Save as...`** writes one out under a name of its own.
 That is the only thing that converts a project — see below.
 
 ## What was here before
@@ -40,12 +40,12 @@ That is the only thing that converts a project — see below.
 It was one `RStudio.json` per directory, and `ed1.json` before that. Both are
 still read, and a project opened under either is **saved back to it** — nothing
 is converted behind your back, and a directory never quietly ends up with two
-project files. Convert one when you mean to, with Save as project file.
+project files. Convert one when you mean to, with Project ▸ Save as.
 
 With no project at all, the pane on the left shows the files you have open, and
 nothing at all when none are.
 
-`Project ▸ Close project` is how you get there from a project. It closes the
+`Project ▸ Close` is how you get there from a project. It closes the
 view and not the project: the project file is left exactly as it was, nothing is
 taken out of it, and every file you have open stays open.
 
@@ -65,7 +65,7 @@ the sources. Type a different group name over the one offered and that wins.
 
 **There is no project file extension.** A project is a directory with an
 a `.pro` in it, and that is the whole of what being one consists of — there
-is nothing to look for called `.proj`. `Project ▸ Open project...` lists the
+is nothing to look for called `.proj`. `Project ▸ Open...` lists the
 directories under the one you are in and opens the one you pick; a directory
 that holds a project file is opened, and one that does not is stepped into, so
 you can walk down to where the project actually is.

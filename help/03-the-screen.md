@@ -60,7 +60,7 @@ lived somewhere they do not. The full path is on the status bar the moment the
 file is opened.
 
 With no project it shows the files you have open instead, in the order you
-opened them, and nothing at all when none are. `Project ▸ Close project` is what
+opened them, and nothing at all when none are. `Project ▸ Close` is what
 puts it in that state: it closes the *view* of the project, leaving the project file
 exactly as it was and every open file open.
 

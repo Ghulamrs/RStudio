@@ -467,15 +467,19 @@ private:
         // work, keeps the list in step and writes the project back - the same
         // code the terminal front end calls.
         ToolStripMenuItem^ project = gcnew ToolStripMenuItem("&Project");
-        project->DropDownItems->Add("New project...", nullptr,
+        // No item here says "project" - the column already does, and an item
+        // repeating it is the menu saying the word twice. The dialog titles
+        // below still say it, deliberately: once a file picker is open there is
+        // no menu on screen to say which kind of file it wants.
+        project->DropDownItems->Add("New...", nullptr,
                                     gcnew EventHandler(this, &MainForm::OnNewProject));
-        project->DropDownItems->Add("Open project file...", nullptr,
+        project->DropDownItems->Add("Open...", nullptr,
                                     gcnew EventHandler(this, &MainForm::OnOpenProjectFile));
-        project->DropDownItems->Add("Save project", nullptr,
+        project->DropDownItems->Add("Save", nullptr,
                                     gcnew EventHandler(this, &MainForm::OnSaveProject));
-        project->DropDownItems->Add("Save as project file...", nullptr,
+        project->DropDownItems->Add("Save as...", nullptr,
                                     gcnew EventHandler(this, &MainForm::OnSaveProjectAs));
-        project->DropDownItems->Add("Close project", nullptr,
+        project->DropDownItems->Add("Close", nullptr,
                                     gcnew EventHandler(this, &MainForm::OnCloseProject));
         // The five above are the project itself; the two below are its list of
         // files. Nothing here touches the disk - Add File and Remove File both

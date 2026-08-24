@@ -41,11 +41,16 @@ Menu::Menu() : active_(false), dropped_(false), column_(0), item_(0) {
     // being edited when it is not.
     MenuColumn project;
     project.title = "Project";
-    project.items.push_back({"New project", "", ActionProjectNew});
-    project.items.push_back({"Open project...", "", ActionProjectOpen});
-    project.items.push_back({"Save project", "", ActionProjectSave});
-    project.items.push_back({"Save as project file...", "", ActionProjectSaveAs});
-    project.items.push_back({"Close project", "", ActionProjectClose});
+    // No item here says "project". The column is called Project, and an item
+    // under it repeating the word is the menu saying it twice - "Project >
+    // Save as project file" for what is plainly Project > Save as. The File
+    // menu carries the same five words for files, and which is meant is said
+    // by which column it was opened from.
+    project.items.push_back({"New", "", ActionProjectNew});
+    project.items.push_back({"Open...", "", ActionProjectOpen});
+    project.items.push_back({"Save", "", ActionProjectSave});
+    project.items.push_back({"Save as...", "", ActionProjectSaveAs});
+    project.items.push_back({"Close", "", ActionProjectClose});
     // The five above are the project itself; the two below are its list of
     // files - what is in the project, and nothing about what is on the disk.
     // A rule costs nothing to walk past - stepTo skips whatever is not

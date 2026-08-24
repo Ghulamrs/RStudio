@@ -145,7 +145,7 @@ std::string Project::relative(const std::string& file) const {
 // A project made here is a named one: prime.pro, not RStudio.json. The older
 // whole-directory names are still read - every project written before this has
 // one - and a project loaded under one is saved back to it, so nothing is
-// converted behind anybody's back. Project > Save as project file is how a
+// converted behind anybody's back. Project > Save as is how a
 // person converts one when they mean to.
 void Project::begin(const std::string& dir, const std::string& name) {
     root_ = path::absolute(dir);

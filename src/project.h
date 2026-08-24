@@ -132,7 +132,7 @@ public:
     bool save(std::string& error);
 
     // Write it out under a different name and keep saving there. What
-    // Project > Save as project file does: it is how a project written under
+    // Project > Save as does: it is how a project written under
     // one of the older whole-directory names becomes a named .pro, and the
     // only thing that converts one - nothing does it behind your back.
     bool saveAs(const std::string& file, std::string& error);
@@ -206,7 +206,7 @@ public:
     void setArch(const std::string& arch) { arch_ = arch; }
 
     // A project made up from a directory, with one group holding what is
-    // already there. What "New project" writes.
+    // already there. What Project > New writes.
     void begin(const std::string& dir, const std::string& name);
 
     // The shape a path may have: the root, or one directory under it, and no
