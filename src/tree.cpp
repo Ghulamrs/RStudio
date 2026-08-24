@@ -28,34 +28,21 @@ void Tree::setRoot(const std::string& where) {
     reread();
 }
 
-void Tree::showProject(const Project& project, const std::vector<std::string>& open) {
+void Tree::showProject(const Project& project) {
     showing_ = ShowingProject;
     root_ = project.root();
     error_.clear();
     entries_.clear();
 
-    // What is open, first, and only when something is. An empty heading would
-    // be a row spent saying nothing.
-    if (!open.empty()) {
-        TreeEntry head;
-        head.name = "Open files";
-        head.path = "open:";      // no path can collide with it
-        head.directory = true;
-        head.group = true;
-        head.session = true;
-        head.depth = 0;
-        head.open = true;         // never folded: it is the part that moves
-        entries_.push_back(head);
-
-        for (size_t i = 0; i < open.size(); ++i) {
-            TreeEntry file;
-            file.name = path::filename(open[i]);
-            file.path = open[i];
-            file.session = true;
-            file.depth = 1;
-            entries_.push_back(file);
-        }
-    }
+    // No "Open files" section. It listed what was open above the project's own
+    // groups, so a file that was both - which is the ordinary case - appeared
+    // twice, once under each heading, and the pane read as though it had lost
+    // track of itself. A loaded project shows the project: Sources, Headers,
+    // and whatever else it names. What is open is shown by the tabs, and by
+    // the mark on the row you are standing in.
+    //
+    // The flat list of open files has not gone; it is what showOpenFiles below
+    // draws, and Editor::refreshTree chooses between the two. See PaneMode.
 
     for (size_t i = 0; i < project.groups().size(); ++i) {
         const Group& group = project.groups()[i];
@@ -108,7 +95,11 @@ void Tree::showOpenFiles(const std::vector<std::string>& paths) {
     for (size_t i = 0; i < paths.size(); ++i) {
         TreeEntry file;
         file.path = paths[i];
-        file.name = path::filename(paths[i]);
+        // A buffer that has never been saved has no name to show, and leaving
+        // it out entirely is worse than saying so: File > New would then put
+        // nothing in the pane at all, which reads as the pane being broken
+        // rather than as the file being new.
+        file.name = paths[i].empty() ? std::string("untitled") : path::filename(paths[i]);
         file.depth = 0;
         entries_.push_back(file);
     }

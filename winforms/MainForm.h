@@ -46,6 +46,7 @@ public ref class MainForm : public Form {
 public:
     MainForm() { Start(nullptr, nullptr); }
     MainForm(String^ projectDirectory, array<String^>^ files) {
+        paneMode_ = PaneMode::PaneProject;
         Start(projectDirectory, files);
     }
 
@@ -2035,6 +2036,8 @@ private:
     // the same pair Project::load takes, and for the same reason: a directory
     // may hold several .pro files and one of them has to be nameable.
     void LoadProject(String^ where) {
+        // A project just opened is a project to look at.
+        paneMode_ = PaneMode::PaneProject;
         bool named = System::IO::File::Exists(where);
 
         // The pane, the dialogs and begin-from-what-is-there all want the
@@ -2124,31 +2127,41 @@ private:
         // reach here with no project yet, and asking a null one whether it is
         // loaded is not a question with an answer.
         if (project_ == nullptr || tree_ == nullptr) return;
-        if (rstudio_project_loaded(project_) != 0) FillTree();
+        // Unconditionally now. This used to refresh only when a project was
+        // loaded, which was right while the pane could draw nothing else; it
+        // draws a flat list of open files too since the two modes landed, and
+        // that list is exactly the one nobody was refreshing.
+        FillTree();
     }
 
     void FillTree() {
         tree_->Nodes->Clear();
 
-        // What is open, above the project, and only when something is.
+        // Two views, and the pane draws one of them.
         //
-        // The project says what the work is and does not move when a file is
-        // opened - correct, and also why the pane read as stuck: a file closed
-        // from the File menu left its name there and a file opened did not
-        // appear. Neither is a thing a project's list can do. This is, and it
-        // is the same section the terminal front end grew for the same report.
-        if (sheets_->Count > 0) {
-            TreeNode^ open = gcnew TreeNode("Open files");
+        // In file mode it is a flat list of what is open, with no headings at
+        // all - the terminal half's showOpenFiles, said in TreeNodes. In
+        // project mode it is the project's own groups, their files indented
+        // under them as children, and nothing else.
+        //
+        // There used to be an "Open files" heading above the groups in both
+        // modes, which meant a file that was open *and* in the project - the
+        // ordinary case - appeared twice, once under each heading. That is
+        // what made the pane read as though it had lost track of itself.
+        if (paneMode_ == PaneMode::PaneFiles || rstudio_project_loaded(project_) == 0) {
             for (int i = 0; i < sheets_->Count; ++i) {
                 String^ full = sheets_[i]->path;
+                // Never saved and so nothing to name it by. Said rather than
+                // skipped: File > New would otherwise put nothing in the pane,
+                // which reads as a broken pane and not as a new file.
                 String^ shown = (full == nullptr || full->Length == 0)
-                                    ? "[no name]"
+                                    ? "untitled"
                                     : System::IO::Path::GetFileName(full);
                 TreeNode^ leaf = gcnew TreeNode(shown);
                 leaf->Tag = full;      // nullptr for one never saved, which Open checks
-                open->Nodes->Add(leaf);
+                tree_->Nodes->Add(leaf);
             }
-            tree_->Nodes->Add(open);
+            return;
         }
 
         int groups = rstudio_project_groups(project_);
@@ -2311,6 +2324,9 @@ private:
     }
 
     void OnNewBuffer(Object^, EventArgs^) {
+        // Out of the project view: a new file has no name yet and so is in no
+        // group. The project stays loaded and stays what Ctrl-B builds.
+        paneMode_ = PaneMode::PaneFiles;
         MakeSheet(nullptr, "");
         what_->Text = "new file - Ctrl+S names it";
     }
@@ -2468,6 +2484,16 @@ private:
     // ask: a file is in the project or it is not. Nothing on the disk moves -
     // that is OnDeleteFile, which asks before it does anything, and which this
     // is deliberately not spelled like.
+    // Which of the two views the pane draws; the terminal half's PaneMode,
+    // kept the same way for the same reason. File > New and File > Open leave
+    // the project view even while the project stays loaded and stays what
+    // Ctrl-B builds; opening a file from the pane does not.
+    // enum class, not a plain enum: C++/CLI will not define an unmanaged
+    // enum inside a managed ref class (C3277). The terminal half's is plain,
+    // which is why the two are spelled differently for once.
+    enum class PaneMode { PaneProject, PaneFiles };
+    PaneMode paneMode_;
+
     void OnRemoveFromProject(Object^, EventArgs^) {
         if (path_ == nullptr) {
             what_->Text = "this buffer has no name to look for";
@@ -2598,7 +2624,11 @@ private:
         }
         String^ was = FromUtf8(rstudio_project_name(project_));
         rstudio_project_close(project_);
-        tree_->Nodes->Clear();
+        // The groups go with the project - there is no project for them to be
+        // the groups of - and the pane falls back to what is open.
+        paneMode_ = PaneMode::PaneFiles;
+        FillTree();
+        console_->Text = "";
         what_->Text = was + " closed - the files it held are still open";
     }
 
@@ -2640,6 +2670,10 @@ private:
     }
 
     void OnOpenFile(Object^, EventArgs^) {
+        // Asking the File menu for a file is asking about files. Opening one
+        // from the pane is not, and leaves the project showing. Nothing here
+        // looks at the suffix: a .pro opened this way is its own JSON text.
+        paneMode_ = PaneMode::PaneFiles;
         OpenFileDialog^ pick = gcnew OpenFileDialog();
         pick->Filter = "C and C++|*.c;*.h;*.cpp;*.hpp|All files|*.*";
         if (pick->ShowDialog() != System::Windows::Forms::DialogResult::OK) {
@@ -2716,6 +2750,9 @@ private:
             OnSheetChanged(nullptr, nullptr);
         }
         PaneFollowsTabs();
+        // The panel said something about the file that has just gone. Left
+        // there it reads as the output of whatever is in front of you now.
+        console_->Text = "";
         what_->Text = "closed";
     }
 

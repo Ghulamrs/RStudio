@@ -237,7 +237,7 @@ void consoleSink(void* context, const std::string& line) {
 Editor::Editor()
     : docs_(1), doc_(0),
       cx_(0), cy_(0), rx_(0), rowoff_(0), coloff_(0),
-      treeSel_(0), treeOff_(0), treeOpen_(true),
+      treeSel_(0), treeOff_(0), treeOpen_(true), paneMode_(PaneProject),
       panelOff_(0), panelOpen_(true), tab_(TabConsole),
       focus_(FocusText), lang_(LangPlain), config_(ConfigDebug), arch_(0), numbers_(true), needsDraw_(true), debugTemporary_(true),
       stopLine_(0),
@@ -398,6 +398,10 @@ void Editor::closeDocument() {
     // stopped being open, and the pane lists them whether or not a project is
     // loaded underneath.
     refreshTree();
+    // And what is underneath said something about the file that has gone. A
+    // build's output outlives the file it was about otherwise, which reads as
+    // the output of the file now in front of you.
+    console_.clear();
     say("closed");
 }
 
@@ -429,9 +433,14 @@ void Editor::open(const std::string& path) {
     cx_ = cy_ = rowoff_ = coloff_ = 0;
     applyLanguage();
 
-    // Always. The pane carries the open files above the project's groups now,
-    // so opening one is an event in it whether there is a project or not -
-    // which is the whole of what "the pane never changes" was about.
+    // Always. In file mode the pane is the list of what is open, so this is
+    // the event that changes it; in project mode it is the row that gets
+    // marked. Either way the pane has something to say about a file arriving.
+    //
+    // Nothing here looks at the suffix, and that is deliberate: a .pro opened
+    // as a file is a file. It is JSON, the editor knows JSON, and what you get
+    // is the project file's text. Opening one *as a project* is the Project
+    // menu's job and goes through Project::load instead.
     refreshTree();
 
     size_t at = tree_.find(path);
@@ -482,8 +491,8 @@ void Editor::openFirstFile() {
 // like a project, and closing a file left its name sitting in it.
 void Editor::refreshTree() {
     std::vector<std::string> open = openPaths();
-    if (project_.loaded()) {
-        tree_.showProject(project_, open);
+    if (project_.loaded() && paneMode_ == PaneProject) {
+        tree_.showProject(project_);
     } else {
         if (open.empty()) tree_.clear(); else tree_.showOpenFiles(open);
     }
@@ -497,7 +506,10 @@ std::vector<std::string> Editor::openPaths() const {
         // the list - stash() is what puts it back - so it has to be read from
         // the right place or the file you are looking at is the one missing.
         const Buffer& b = (i == doc_) ? buf_ : docs_[i].buf;
-        if (!b.path().empty()) paths.push_back(b.path());
+        // The unnamed ones too, as an empty string. showOpenFiles draws those
+        // as "untitled"; dropping them here is what used to make File > New
+        // put nothing in the pane.
+        paths.push_back(b.path());
     }
     return paths;
 }
@@ -512,9 +524,13 @@ void Editor::closeProject() {
 
     std::string was = project_.name();
     project_.close();
+    // The groups go with the project - there is no project for them to be the
+    // groups of - and the pane falls back to what is open.
+    paneMode_ = PaneFiles;
     refreshTree();
     treeSel_ = 0;
     treeOff_ = 0;
+    console_.clear();
     say(was + " closed - the files it held are still open");
 }
 
@@ -524,6 +540,8 @@ void Editor::openProject(const std::string& path) {
     std::string error;
     if (project_.load(path, error)) {
         applyProject();
+        // A project just opened is a project to look at.
+        paneMode_ = PaneProject;
         refreshTree();
         // Remembered so that the next run opens here without being told. It is
         // the editor's own configuration and not the project's - see
@@ -1883,6 +1901,11 @@ std::vector<std::string> Editor::projectsIn(const std::string& directory) const 
 // still in the line. Typing a name that is not on the list is still allowed
 // and still opens - or makes - that file, which is what it always did.
 void Editor::openPrompt() {
+    // Out of the project view, as File > New is. Asking the File menu for a
+    // file is asking about files; the pane says which ones are open rather
+    // than which groups the project has. Opening one *from the pane* is the
+    // other thing entirely and leaves the project showing - see openSelected.
+    paneMode_ = PaneFiles;
     std::string where = project_.loaded() ? project_.root() : path::absolute(".");
     std::string prefix;
 
@@ -1975,6 +1998,12 @@ void Editor::newFile() {
     doc_ = docs_.size() - 1;
     restore();
     lang_ = LangPlain;
+    // Out of the project view. A new file is not in the project - it has no
+    // name yet to be in one by - so the pane shows what is open rather than
+    // groups this file is not in. The project itself stays loaded, and Ctrl-B
+    // still builds it.
+    paneMode_ = PaneFiles;
+    refreshTree();
     say("new file - Ctrl-S names it");
 }
 

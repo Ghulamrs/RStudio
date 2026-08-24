@@ -235,6 +235,17 @@ private:
     void regroupFile();
     void addToProject();
     void removeFromProject();
+
+    // Which of the two the pane is drawing. A loaded project draws the
+    // project - its own groups and nothing else - and everything else draws a
+    // flat list of what is open, with no headings at all.
+    //
+    // A mode rather than a question asked of project_.loaded(), because File >
+    // New and File > Open are meant to leave the project view even while the
+    // project is still loaded and still what Ctrl-B builds. Opening a file
+    // *from the pane* does not, which is the distinction a flag can keep and a
+    // derived answer cannot.
+    enum PaneMode { PaneProject, PaneFiles };
     void newProject();
     void saveProject();
     void resetDebug();
@@ -305,6 +316,7 @@ private:
 
     size_t treeSel_, treeOff_;
     bool treeOpen_;
+    PaneMode paneMode_;
 
     std::vector<std::string> console_;   // the command, its output, its errors
     std::vector<std::string> debug_;     // variables, once there are any to show

@@ -44,7 +44,9 @@ public:
     // only one of them is the pane people report as broken: the project says
     // what the work *is* and does not move when you open a file, and the open
     // list says what you are *doing* and is the only part that can.
-    void showProject(const Project& project, const std::vector<std::string>& open);
+    // The project's own groups and nothing else. What is open is not shown
+    // here any more - see the note in tree.cpp - so this no longer takes it.
+    void showProject(const Project& project);
 
     // The files that are open, which is what the pane shows when there is no
     // project to show instead. Paths, in the order they were opened; a

@@ -875,15 +875,20 @@ void whichProjectAFileBelongsTo(const std::string& rstudio) {
 // on its own.
 //
 // A project says what the work *is* and does not move when a file is opened;
-// that is correct, and it is also why the pane read as broken - a file closed
-// from the File menu left its name sitting there, and a file opened did not
-// appear. Both are true of the project's list and neither is true of the
-// "Open files" section above it.
+// The pane draws one of two things, and which one is the whole of this.
 //
-// Driven with a file the project does not list, so its name on the screen can
-// only have come from the open list.
-void thePaneFollowsWhatIsOpen(const std::string& rstudio) {
-    std::printf("the pane follows what is open\n");
+// A loaded project draws the project: its own groups and nothing else. There
+// was an "Open files" heading above them until 2026-08-24, which meant a file
+// that was open *and* in the project - the ordinary case - was listed twice,
+// once under each heading, and the pane read as though it had lost track of
+// itself. What is open is said by the tabs.
+//
+// File > New and File > Open leave that view: they are questions about files,
+// so the pane answers with a flat list of what is open and no headings at all.
+// Opening a file *from the pane* is not such a question and leaves the project
+// showing, which is the distinction the mode keeps.
+void thePaneDrawsOneOfTwoThings(const std::string& rstudio) {
+    std::printf("the pane: a project, or what is open\n");
 
     file::path dir = freshProject("following");
     writeFile(dir / "src" / "one.c", "int one(void) { return 1; }\n");
@@ -895,19 +900,64 @@ void thePaneFollowsWhatIsOpen(const std::string& rstudio) {
     std::string project = " --project \"" + dir.string() + "\"";
     std::string outside = "\"" + (dir / "outside.c").string() + "\"" + project;
 
-    Screen opened = drive(rstudio, outside, ctrl('q'), dir);
-    check(onScreen(opened, "Open files"), "what is open has a heading of its own");
-    check(onScreen(opened, "outside.c"),
-          "and a file the project does not list is still shown while it is open");
-    check(onScreen(opened, "one.c"), "with the project's own files under it as before");
+    // Started on a project, so the project is what is drawn.
+    Screen shown = drive(rstudio, outside, ctrl('q'), dir);
+    check(onScreen(shown, "Sources"), "a loaded project shows its groups");
+    check(onScreen(shown, "one.c"), "with the files they name");
+    check(!onScreen(shown, "Open files"),
+          "and no heading for what is open, which listed the same file twice");
 
-    // File menu, fifth item.
-    const std::string closeFile = kF10 + times(kDown, 4) + kEnter;
-    Screen closed = drive(rstudio, outside, closeFile + ctrl('q'), dir);
-    check(!onScreen(closed, "outside.c"), "closing it takes the name off the pane");
-    check(onScreen(closed, "one.c"), "and leaves the project where it was");
-    check(!onScreen(closed, "Open files"),
-          "the heading goes too when nothing is open, rather than standing empty");
+    // File > New is the first item on the File menu.
+    const std::string newFile = kF10 + kEnter;
+    Screen made = drive(rstudio, outside, newFile + ctrl('q'), dir);
+    check(!onScreen(made, "Sources"), "File > New takes the groups off the pane");
+    check(onScreen(made, "untitled"),
+          "and names the buffer that has none, rather than showing nothing at all");
+    check(onScreen(made, "outside.c"), "the file already open is listed beside it");
+
+    // Project > Close is the fifth item on the Project menu.
+    const std::string closeProject = kF10 + times(kRight, 2) + times(kDown, 4) + kEnter;
+    Screen closed = drive(rstudio, outside, closeProject + ctrl('q'), dir);
+    check(!onScreen(closed, "Sources"), "closing the project takes its groups with it");
+    check(onScreen(closed, "outside.c"), "and leaves what is open on the pane");
+
+    file::remove_all(dir);
+}
+
+// The same .pro, opened two ways, and it has to be two different things.
+//
+// From the Project menu it is a project: its groups appear on the pane. From
+// the File menu it is a file: its text appears in the editor and the pane goes
+// to the flat list, because asking the File menu for something is asking about
+// files. Nothing in Editor::open looks at the suffix, which is what makes this
+// true - and this is the check that keeps anyone from adding such a look.
+void aProjectFileOpenedTwoWays(const std::string& rstudio) {
+    std::printf("a .pro is a project from one menu and a file from the other\n");
+
+    file::path dir = freshProject("twoways");
+    writeFile(dir / "src" / "only.c", "int only(void) { return 1; }\n");
+    writeFile(dir / "named.pro",
+              "{\n  \"name\": \"Named\",\n"
+              "  \"groups\": { \"Sources\": [\"src/only.c\"] }\n}\n");
+    std::string here = " --project \"" + dir.string() + "\"";
+
+    // Project > Open... is the second item, and takes a name typed at it.
+    const std::string asProject =
+        kF10 + times(kRight, 2) + kDown + kEnter + "named.pro" + kEnter;
+    Screen project = drive(rstudio, here, asProject + ctrl('q'), dir);
+    check(onScreen(project, "Sources"), "opened from the Project menu it is a project");
+    check(onScreen(project, "only.c"), "and the pane lists what it names");
+
+    // File > Open... is the second item there.
+    const std::string asFile = kF10 + kDown + kEnter + "named.pro" + kEnter;
+    Screen file = drive(rstudio, here, asFile + ctrl('q'), dir);
+    check(onScreen(file, "\"name\""), "opened from the File menu it is its own text");
+    check(onScreen(file, "JSON"), "read as JSON, which the editor knows");
+    // "- Sources" and not "Sources": the file's own text says Sources too, so
+    // the bare word is on the screen either way and proves nothing. The fold
+    // marker in front of it is drawn by the pane and by nothing else.
+    check(!onScreen(file, "- Sources"),
+          "and the pane is the list of open files, not a project's groups");
 
     file::remove_all(dir);
 }
@@ -2303,7 +2353,8 @@ int main(int argc, char** argv) {
     addAndRemoveFile(rstudio);
     projectPane(rstudio);
     whichProjectAFileBelongsTo(rstudio);
-    thePaneFollowsWhatIsOpen(rstudio);
+    thePaneDrawsOneOfTwoThings(rstudio);
+    aProjectFileOpenedTwoWays(rstudio);
     thePicker(rstudio);
     pickingAProject(rstudio);
     closingTheProject(rstudio);
