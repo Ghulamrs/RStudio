@@ -148,8 +148,17 @@ if exist "%BINDIR%\lib\*.lib" (
    copy /y "%BINDIR%\lib\*.lib" "%PRODUCT%\bin\lib\" >nul
 )
 copy /y README.md "%PRODUCT%\" >nul
+rem All three languages, and the headers. This copied only *.c and *.cpp until
+rem 2026-08-24, which shipped table.cpp and vector3.cpp without the headers they
+rem include - neither compiles on arrival - and left out gcd.shl, primes.shl and
+rem rotmat.shl altogether, which is every Shalimar program here, in the product
+rem whose third language is Shalimar. example.pro goes too, so that there is a
+rem project to open rather than only loose files.
 copy /y examples\*.c "%PRODUCT%\examples\" >nul
+copy /y examples\*.h "%PRODUCT%\examples\" >nul
 copy /y examples\*.cpp "%PRODUCT%\examples\" >nul
+copy /y examples\*.shl "%PRODUCT%\examples\" >nul
+copy /y examples\*.pro "%PRODUCT%\examples\" >nul
 echo RStudio is in %PRODUCT%
 goto :done
 

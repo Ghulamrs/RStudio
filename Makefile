@@ -198,11 +198,30 @@ xcodeproj:
 # PRODUCT names it, so a different one can be asked for without editing this.
 PRODUCT ?= $(HOME)/cc1-studio
 
-product: $(EDITOR)
-	mkdir -p "$(PRODUCT)/bin" "$(PRODUCT)/examples"
+# `confirm` and not `$(EDITOR)`, for the reason build.bat gives on its own
+# product rule: an editor without its compilers is not a product, it is half of
+# one that fails at the first Ctrl-B. This rule shipped the editor alone until
+# 2026-08-24 while the Windows one had already been fixed, so a Mac or Linux
+# product could not build anything it was given. Depending on `confirm` means
+# the same list that guards the build guards the product, and a missing
+# compiler stops this rather than being discovered by the person reviewing it.
+product: confirm
+	mkdir -p "$(PRODUCT)/bin/lib" "$(PRODUCT)/examples"
 	cp $(EDITOR) "$(PRODUCT)/bin/"
+	cp $(BINDIR)/cc1.exe $(BINDIR)/shc.exe "$(PRODUCT)/bin/"
+# Into bin/lib/ rather than anywhere tidier, because that is where shc looks:
+# beside its own binary. Both archives, debug included - see DEPENDENCIES.
+	cp $(BINDIR)/lib/shmrt-$(SHM_TARGET).a \
+	   $(BINDIR)/lib/shmrt-$(SHM_TARGET)-debug.a "$(PRODUCT)/bin/lib/"
 	cp README.md "$(PRODUCT)/"
-	cp examples/*.c examples/*.cpp "$(PRODUCT)/examples/"
+# All three languages, and the headers. Copying only *.c and *.cpp shipped
+# table.cpp and vector3.cpp without the headers they include, so neither would
+# compile on arrival, and left out gcd.shl, primes.shl and rotmat.shl
+# altogether - which is every Shalimar program there is here, in the product
+# whose third language is Shalimar. example.pro goes too, so that there is a
+# project to open rather than only loose files.
+	cp examples/*.c examples/*.h examples/*.cpp examples/*.shl examples/*.pro \
+	   "$(PRODUCT)/examples/"
 	@echo "RStudio is in $(PRODUCT)"
 
 clean:
