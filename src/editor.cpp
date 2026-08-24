@@ -3640,6 +3640,12 @@ void Editor::run() {
         int key = term_.readKey();
         if (key != KEY_NONE) {
             processKey(key);
+            // That key may have built something, run something, or stepped a
+            // debugger, and on Windows every one of those shares this console
+            // and gives it back in its own mode. Asked for here rather than at
+            // each of those places because a child can only start in answer to
+            // a key, so this is the one spot that cannot be forgotten.
+            term_.reclaim();
             needsDraw_ = true;
         }
         if (term_.eof()) break;

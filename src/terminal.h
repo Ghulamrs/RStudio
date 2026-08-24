@@ -89,6 +89,21 @@ public:
     // decoding them twice would only be two things to keep in step.
     int readKey() const;
 
+    // Puts the terminal back into the mode the constructor put it in.
+    //
+    // A child process shares this console on Windows, and cmd - which the
+    // compiler is run through - sets the input mode to suit itself and leaves
+    // it that way. The one that matters is ENABLE_VIRTUAL_TERMINAL_INPUT:
+    // without it F10 and F4 arrive as the console's own key records rather
+    // than as escape sequences, readKey does not recognise them, and the bytes
+    // are typed into the file instead. The symptom is a menu that opens once,
+    // before anything has been built, and never again.
+    //
+    // Called after each key the editor has acted on, because a child can only
+    // be started in answer to one. A no-op when this is not a terminal, and on
+    // Unix, where a tty is not taken from under the program this way.
+    void reclaim();
+
     static void write(const std::string& s);
 
     // True once input has run out. Only ever true when the editor is being
@@ -101,6 +116,11 @@ private:
     bool readByte(char& c) const;
 
 #ifdef _WIN32
+    // The mode switch itself, so that the constructor and reclaim() cannot
+    // come to disagree about what raw mode is. False when the console refuses,
+    // which is what a Windows before 10 does.
+    bool applyModes();
+
     // HANDLE and DWORD, spelled so that windows.h stays out of this header.
     void* in_;
     void* out_;

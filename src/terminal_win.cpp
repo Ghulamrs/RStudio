@@ -37,22 +37,47 @@ Terminal::Terminal()
     inMode_ = inMode;
     outMode_ = outMode;
 
-    DWORD wantOut = outMode | ENABLE_VIRTUAL_TERMINAL_PROCESSING | ENABLE_PROCESSED_OUTPUT;
-    if (!SetConsoleMode(hOut, wantOut)) return;  // before Windows 10, and rightly refused
+    if (!applyModes()) return;   // before Windows 10, and rightly refused
+
+    raw_ = true;
+}
+
+// Written once and called twice - by the constructor, and by reclaim() after
+// every key the editor has acted on. Two copies of this would be two things to
+// keep in step, and the bug reclaim() exists for is precisely a console left in
+// a mode nobody meant.
+bool Terminal::applyModes() {
+    HANDLE hIn = (HANDLE)in_;
+    HANDLE hOut = (HANDLE)out_;
+
+    DWORD wantOut = outMode_ | ENABLE_VIRTUAL_TERMINAL_PROCESSING | ENABLE_PROCESSED_OUTPUT;
+    if (!SetConsoleMode(hOut, wantOut)) return false;
 
     // Off: echo, waiting for a whole line, Ctrl-C as a signal, and quick-edit -
     // which would otherwise let a stray click freeze the screen mid-build.
     // EXTENDED_FLAGS has to be set for QUICK_EDIT to be cleared at all.
-    DWORD wantIn = inMode;
+    DWORD wantIn = inMode_;
     wantIn &= ~(DWORD)(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT |
                        ENABLE_MOUSE_INPUT | ENABLE_QUICK_EDIT_MODE);
     wantIn |= ENABLE_EXTENDED_FLAGS | ENABLE_VIRTUAL_TERMINAL_INPUT;
     if (!SetConsoleMode(hIn, wantIn)) {
-        SetConsoleMode(hOut, outMode);
-        return;
+        SetConsoleMode(hOut, outMode_);
+        return false;
     }
+    return true;
+}
 
-    raw_ = true;
+// The console is shared with every child the editor starts, and cmd - which
+// the compiler runs through - hands it back in its own input mode rather than
+// the one it found. See the note in terminal.h for what that costs.
+//
+// The output code page goes with it, for the same reason it is set at all: the
+// pane borders are three UTF-8 bytes each, and a console back on the machine's
+// own page draws them as Latin-1 rubbish.
+void Terminal::reclaim() {
+    if (!raw_) return;
+    applyModes();
+    SetConsoleOutputCP(CP_UTF8);
 }
 
 Terminal::~Terminal() {

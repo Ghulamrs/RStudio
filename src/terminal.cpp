@@ -38,6 +38,14 @@ Terminal::~Terminal() {
     if (raw_) tcsetattr(STDIN_FILENO, TCSAFLUSH, &original_);
 }
 
+// Nothing to do here, and the emptiness is the point rather than an omission.
+// A tty is not taken from under the program the way a Windows console is: the
+// compilers this editor runs are handed a pipe and do not touch the terminal,
+// so the raw mode set above is still the raw mode when they are done. The
+// declaration is shared so that Editor::run does not have to know which
+// machine it is on.
+void Terminal::reclaim() {}
+
 void Terminal::size(int& rows, int& cols) const {
     struct winsize ws;
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
