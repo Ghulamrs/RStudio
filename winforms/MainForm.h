@@ -2340,6 +2340,7 @@ private:
             if (!SamePath(sheets_[i]->path, target)) continue;
             sheets_[i]->path = now;
             MarkTab(sheets_[i]);   // the new name, and the star if it still has one
+            PaneFollowsTabs();     // and the pane lists it by name too
         }
         if (SamePath(path_, target)) {
             path_ = now;
@@ -2645,6 +2646,12 @@ private:
             // star on the tab; it comes off with the flag.
             spare->box->Modified = false;
             sheet = spare;
+            // The pane lists what is open by name, and this sheet has just
+            // acquired one. MakeSheet refreshes for the other branch; reusing
+            // the spare sheet adds no tab, so nothing else would - which left
+            // "Open files" showing [no name] for a file plainly open in front
+            // of you. Seen in a photograph of the window, not in a test.
+            PaneFollowsTabs();
         } else {
             sheet = MakeSheet(path, contents);
         }
