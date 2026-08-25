@@ -4,11 +4,11 @@
     python3 tools/make-projects.py            write them
     python3 tools/make-projects.py --check    say whether they are current
 
-Three machines, three shapes, one idea: open one thing and get all three
-programs, with the editor built after the two compilers it drives.
+Three machines, three shapes, one idea: open one thing and get all four
+programs, with the editor built after the three it drives.
 
-    macOS    RStudio.xcworkspace          RStudio.exe, cc1.exe, shc.exe
-    Windows  RStudio.sln                  RStudioConsole, RStudioGui, cc1, shc
+    macOS    RStudio.xcworkspace          RStudio.exe, cc1.exe, shc.exe, c2s.exe
+    Windows  RStudio.sln                  RStudioConsole, RStudioGui, cc1, shc, c2s
     Linux    workspace.mk                 make -f workspace.mk
 
 Was make-xcodeproj.py while Xcode was all it wrote.
@@ -18,8 +18,15 @@ Three command line tools, built by clang++, from three separate repositories:
     RStudio  this editor         RStudio/Editor.xcodeproj
     cc1      the C compiler      ../Compiler-C/cc1.xcodeproj
     shc      the Shalimar one    ../Compiler-S/shc.xcodeproj
+    c2s      the converter       ../Converter-C2S/c2s.xcodeproj
 
-and RStudio.xcworkspace, which opens all three at once so that a change to a
+c2s is the odd one of the four: the editor runs it but does not compile with
+it. It converts C89 to Shalimar and back, and the editor's Language menu has
+two items that put it over the open file. It is in the group for the same
+reason the compilers are - the editor looks for what it drives beside itself,
+so all four have to be built into one place.
+
+and RStudio.xcworkspace, which opens all four at once so that a change to a
 compiler and the change to the editor that goes with it are one build and one
 issue list.
 
@@ -46,8 +53,8 @@ comparison is exact.
 
 A project is written into the repository it belongs to, so its paths are
 relative to that repository and mean something inside it. The workspace lives
-here and reaches the other two with ../ - which is the one thing in this that
-assumes all three are checked out side by side.
+here and reaches the other three with ../ - which is the one thing in this
+that assumes all four are checked out side by side.
 """
 
 import hashlib
@@ -160,9 +167,10 @@ def projects():
             "sources": rstudio_sources(),
             "headers": headers_under(HERE, ("src",)),
             "include": "$(SRCROOT)/src",
-            # The editor drives these two, so building it builds them first.
-            # Not a link dependency - all three are separate programs and
-            # nothing of cc1 or shc ends up inside ed1 - but a real ordering:
+            # The editor drives these three, so building it builds them
+            # first. Not a link dependency - all four are separate programs
+            # and nothing of cc1, shc or c2s ends up inside ed1 - but a real
+            # ordering:
             # a change to a compiler and the change to the editor that goes
             # with it are one build and one issue list, which is the whole
             # reason for a workspace rather than three windows.
@@ -173,7 +181,8 @@ def projects():
             # cc1 to cc1.exe stopped the workspace building the compilers
             # without anything saying so.
             "depends": [("cc1.exe", "../Compiler-C/cc1.xcodeproj"),
-                        ("shc.exe", "../Compiler-S/shc.xcodeproj")],
+                        ("shc.exe", "../Compiler-S/shc.xcodeproj"),
+                        ("c2s.exe", "../Converter-C2S/c2s.xcodeproj")],
         },
         {
             "product": "cc1.exe",
@@ -197,6 +206,21 @@ def projects():
             "headers": headers_under(os.path.join(SIBLINGS, "Compiler-S"),
                                      ("src", "runtime")),
             "include": "$(SRCROOT)/src $(SRCROOT)/runtime",
+        },
+        {
+            "product": "c2s.exe",
+            "root": os.path.join(SIBLINGS, "Converter-C2S"),
+            "out": os.path.join(SIBLINGS, "Converter-C2S", "c2s.xcodeproj"),
+            # Its Makefile is five wildcards over five directories, so the
+            # directories are the list - the same shape as cc1's. src/s/vendor
+            # is Compiler-S's front end, copied rather than linked, and it is
+            # compiled here like everything else.
+            "sources": by_glob(os.path.join(SIBLINGS, "Converter-C2S"),
+                               ("src", "src/c", "src/s", "src/s/vendor",
+                                "src/convert")),
+            "headers": headers_under(os.path.join(SIBLINGS, "Converter-C2S"),
+                                     ("src",)),
+            "include": "$(SRCROOT)/src",
         },
     ]
 
@@ -671,14 +695,14 @@ def workspace_mk_text():
     """The Linux answer, which is a Makefile because that is what Linux has.
 
     There is no workspace to open on that box and inventing one would be worse
-    than using what is already there: three Makefiles that work. This recurses
-    into all three and gives ed1 the same dependency it has in the other two,
-    so `make -f workspace.mk` builds the compilers and then the editor.
+    than using what is already there: four Makefiles that work. This recurses
+    into all four and gives ed1 the same dependency it has in the other two,
+    so `make -f workspace.mk` builds what the editor drives, then the editor.
     """
     return """# The three programs, built together. Generated by tools/make-projects.py.
 #
-#   make -f workspace.mk           the compilers, then the editor
-#   make -f workspace.mk bin       and all three binaries in bin/
+#   make -f workspace.mk           what the editor drives, then the editor
+#   make -f workspace.mk bin       and all four binaries in bin/
 #   make -f workspace.mk check     and run every suite
 #   make -f workspace.mk clean
 #
@@ -688,7 +712,7 @@ def workspace_mk_text():
 # the Makefile each repository already has, which is the only way this can stay
 # true when one of them changes.
 #
-# The three are expected side by side. That is the one assumption here, and it
+# The four are expected side by side. That is the one assumption here, and it
 # is the same one the workspace and the solution make.
 
 # Overridable, because they are not called this everywhere. On the Linux box
@@ -697,13 +721,14 @@ def workspace_mk_text():
 #   make -f workspace.mk CC1_DIR=$HOME/ansicc SHC_DIR=$HOME/shalimar
 CC1_DIR ?= ../Compiler-C
 SHC_DIR ?= ../Compiler-S
+C2S_DIR ?= ../Converter-C2S
 
-# ---- one directory, named once and given to all three -----------------------
+# ---- one directory, named once and given to all four ------------------------
 #
-# Each of the three Makefiles takes a BINDIR saying where its finished program
+# Each of the four Makefiles takes a BINDIR saying where its finished program
 # goes, and each defaults to its own repository - so building any one of them
 # alone is exactly what it always was. This is the only place that overrides
-# the three at once, because this is the only build that knows all three exist.
+# the four at once, because this is the only build that knows all four exist.
 #
 # The default is RStudio's own root, which is where RStudio.exe is built and
 # therefore the directory the editor searches first: it finds the compilers it
@@ -721,7 +746,7 @@ SHC_DIR ?= ../Compiler-S
 BINDIR ?= $(CURDIR)
 OUT := $(abspath $(BINDIR))
 
-.PHONY: all cc1 shc editor confirm bin check clean
+.PHONY: all cc1 shc c2s editor confirm bin check clean
 
 # `confirm` and not `editor`, so that the last thing a workspace build does is
 # check that what the editor drives is actually beside it.
@@ -733,14 +758,24 @@ cc1:
 shc:
 	$(MAKE) -C $(SHC_DIR) BINDIR=$(OUT)
 
+# The converter. Not a compiler and nothing links it - the editor runs it over
+# the open file from the Language menu - but it is found the same way the
+# compilers are, beside the editor, so it is built into the same place.
+#
+# OBJDIR as well as BINDIR, which the other two do not need: Converter-C2S
+# sets OBJDIR with := and its own objects would otherwise land in its tree
+# while its binary landed here.
+c2s:
+	$(MAKE) -C $(C2S_DIR) BINDIR=$(OUT) OBJDIR=$(OUT)/obj-c2s
+
 # The dependency, said the same way it is said in the other two: the editor is
-# built after the compilers it drives. Nothing of them ends up inside it.
-editor: cc1 shc
+# built after the things it drives. Nothing of them ends up inside it.
+editor: cc1 shc c2s
 	$(MAKE) BINDIR=$(OUT)
 
 # Asked of RStudio rather than answered here. The editor is the thing that
 # knows what it drives - the list is in its own Makefile, beside the code that
-# goes looking for them - and this only calls it once all three have been
+# goes looking for them - and this only calls it once all four have been
 # built into one place.
 confirm: editor
 	$(MAKE) BINDIR=$(OUT) confirm
@@ -765,6 +800,11 @@ else
 	$(MAKE) -C $(CC1_DIR) test
 endif
 	$(MAKE) -C $(SHC_DIR) test
+# The converter's suite is differential and needs both compilers as oracles.
+# It is given the two just built into $(OUT), for the same reason the editor's
+# is below: those are the ones this build produced, and they are the ones
+# whose behaviour the converter's output is being judged against.
+	$(MAKE) -C $(C2S_DIR) BINDIR=$(OUT) OBJDIR=$(OUT)/obj-c2s test CC1=$(OUT)/cc1.exe SHC=$(OUT)/shc.exe
 # The two just built into $(OUT), and not the copies in the compilers' own
 # trees. Those are usually the same file and occasionally are not, and the
 # occasion is exactly the one worth catching: this build wrote its compilers
@@ -797,6 +837,7 @@ clean:
 	rm -rf $(BIN)
 	$(MAKE) -C $(CC1_DIR) BINDIR=$(OUT) clean
 	$(MAKE) -C $(SHC_DIR) BINDIR=$(OUT) clean
+	$(MAKE) -C $(C2S_DIR) BINDIR=$(OUT) OBJDIR=$(OUT)/obj-c2s clean
 	$(MAKE) BINDIR=$(OUT) clean
 """
 
@@ -944,13 +985,25 @@ def main():
                    vcxproj_text("shc", specs[2]["sources"], ["_CRT_SECURE_NO_WARNINGS"],
                                 shc_runtime_step()),
                    "shc.vcxproj"))
+    # The converter's, which docs/ANALYSIS.md section 12 scheduled as part of
+    # milestone 0 and which was never written. It is generated here rather
+    # than by hand for the same reason the others are: its Makefile is five
+    # wildcards, and a hand-kept list of twenty-two files drifts.
+    wanted.append((os.path.join(SIBLINGS, "Converter-C2S", "c2s.vcxproj"),
+                   vcxproj_text("c2s", specs[3]["sources"],
+                                ["_CRT_SECURE_NO_WARNINGS"]),
+                   "c2s.vcxproj"))
 
     entries = [
         ("cc1", "../Compiler-C/msvc/cc1.vcxproj", CC1_GUID, []),
         ("shc", "../Compiler-S/shc.vcxproj", guid("shc"), []),
+        # c2s is built with them and not by them: the editor runs it over the
+        # open file from the Language menu, and finds it beside itself the
+        # same way it finds the compilers.
+        ("c2s", "../Converter-C2S/c2s.vcxproj", guid("c2s"), []),
         # the editor after both, which is the dependency this whole thing is
         # for - said in a .sln the way the workspace says it in a .xcodeproj.
-        ("RStudioConsole", "RStudioConsole.vcxproj", guid("RStudioConsole"), [CC1_GUID, guid("shc")]),
+        ("RStudioConsole", "RStudioConsole.vcxproj", guid("RStudioConsole"), [CC1_GUID, guid("shc"), guid("c2s")]),
         # The window, on the same footing as the console half. It is in the
         # solution for two reasons: so that one build makes all four, and
         # because being in a solution is what moves its output into the
@@ -960,7 +1013,7 @@ def main():
         # version of it set OutDir, IntDir, BasicRuntimeChecks and a platform
         # version, and the binary died at startup with heap corruption before
         # main. Nothing in that file is touched to get this.
-        ("RStudioGui", "winforms/RStudioGui.vcxproj", GUI_GUID, [CC1_GUID, guid("shc")]),
+        ("RStudioGui", "winforms/RStudioGui.vcxproj", GUI_GUID, [CC1_GUID, guid("shc"), guid("c2s")]),
     ]
     wanted.append((os.path.join(HERE, "RStudio.sln"), solution_text(entries),
                    "RStudio.sln"))
@@ -1001,7 +1054,7 @@ def main():
         return 1
 
     if checking:
-        print("all three projects and the workspace are what the Makefiles say,")
+        print("all four projects and the workspace are what the Makefiles say,")
         print("and so are the two kept by hand - the window's and cc1's")
         return 0
 
@@ -1009,8 +1062,8 @@ def main():
         print("%-4s %d sources, %d headers  ->  %s"
               % (spec["product"], len(spec["sources"]), len(spec["headers"]),
                  os.path.relpath(spec["out"], SIBLINGS)))
-    print("RStudio.xcworkspace  opens all three on a Mac")
-    print("RStudio.sln          all four for Visual Studio 2022")
+    print("RStudio.xcworkspace  opens all four on a Mac")
+    print("RStudio.sln          all five for Visual Studio 2022")
     print("workspace.mk         and for make on the Linux box")
     return 0
 

@@ -182,6 +182,11 @@ private:
     void compile();
     void buildAndRun();
 
+    // Runs c2s over the open file and opens what it wrote. Not a build: what
+    // comes out is source in the other language, to be read and finished, so
+    // it is neither a Toolchain nor anything the diagnostic pane knows about.
+    void convertFile(bool toShalimar);
+
     // The project's own build: the program it says it is, out of the sources
     // it says make it. Separate from everything above on purpose - compiling
     // the file in front of you never needed a project open, and a project

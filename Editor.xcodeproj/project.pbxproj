@@ -10,6 +10,7 @@
 		E015B69145109D09D312E377 /* src/about.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BFFADD88A65A7B11EDB80539 /* src/about.cpp */; };
 		80E57586DCB544227C1CABDF /* src/buffer.cpp in Sources */ = {isa = PBXBuildFile; fileRef = C86F6CC1055BDB790EAF9391 /* src/buffer.cpp */; };
 		0A43D8A08722C77B52F0B06D /* src/compile.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 21EAF0BF9D597F7DC1133386 /* src/compile.cpp */; };
+		E8972C1703D4A93D3D2CB807 /* src/convert.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4DD5847B36D4350051C6300A /* src/convert.cpp */; };
 		918F9C576EC8488A74A06534 /* src/debugger.cpp in Sources */ = {isa = PBXBuildFile; fileRef = DCA73A73779A1B6FFB39DF3B /* src/debugger.cpp */; };
 		912A42F0E9DE315EF91C24BE /* src/demangle_win.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4749BF97F0C198EDAA3420DB /* src/demangle_win.cpp */; };
 		AAB6E584544D1F0DE05BF405 /* src/editor.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 918B5AC2612C91600B3165FA /* src/editor.cpp */; };
@@ -39,6 +40,7 @@
 		BFFADD88A65A7B11EDB80539 /* src/about.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = src/about.cpp; sourceTree = "<group>"; };
 		C86F6CC1055BDB790EAF9391 /* src/buffer.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = src/buffer.cpp; sourceTree = "<group>"; };
 		21EAF0BF9D597F7DC1133386 /* src/compile.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = src/compile.cpp; sourceTree = "<group>"; };
+		4DD5847B36D4350051C6300A /* src/convert.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = src/convert.cpp; sourceTree = "<group>"; };
 		DCA73A73779A1B6FFB39DF3B /* src/debugger.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = src/debugger.cpp; sourceTree = "<group>"; };
 		4749BF97F0C198EDAA3420DB /* src/demangle_win.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = src/demangle_win.cpp; sourceTree = "<group>"; };
 		918B5AC2612C91600B3165FA /* src/editor.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = src/editor.cpp; sourceTree = "<group>"; };
@@ -65,6 +67,7 @@
 		E973B228DD3A846DEAE8E8D3 /* src/about.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = src/about.h; sourceTree = "<group>"; };
 		1B5EB44A741DFFD2525AE1C6 /* src/buffer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = src/buffer.h; sourceTree = "<group>"; };
 		650A4A41D1C1F489366CE5E2 /* src/compile.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = src/compile.h; sourceTree = "<group>"; };
+		87475EFCF12BD76F7011DE14 /* src/convert.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = src/convert.h; sourceTree = "<group>"; };
 		873BA592A41AA463A9B9E994 /* src/debugger.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = src/debugger.h; sourceTree = "<group>"; };
 		1435A6BCCF5E71153D9F9A8D /* src/editor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = src/editor.h; sourceTree = "<group>"; };
 		A57C76E9F2FFB1E22DDAC64C /* src/find.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = src/find.h; sourceTree = "<group>"; };
@@ -88,6 +91,7 @@
 		7D3DCDDC1F56CA3A8133A72F /* RStudio.exe */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = RStudio.exe; sourceTree = BUILT_PRODUCTS_DIR; };
 		CBF1505F8E434A970C8CCCBC /* cc1.exe.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = cc1.exe.xcodeproj; path = ../Compiler-C/cc1.xcodeproj; sourceTree = "<group>"; };
 		0CF12007761D2B13C30AA2B2 /* shc.exe.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = shc.exe.xcodeproj; path = ../Compiler-S/shc.xcodeproj; sourceTree = "<group>"; };
+		F37F914312A3544D790C94C4 /* c2s.exe.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = c2s.exe.xcodeproj; path = ../Converter-C2S/c2s.xcodeproj; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXContainerItemProxy section */
@@ -119,6 +123,20 @@
 			remoteGlobalIDString = 8628CA1ABA46EA37FDA0030B;
 			remoteInfo = shc.exe;
 		};
+		851837BF3743AD0E7555074F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F37F914312A3544D790C94C4 /* c2s.exe.xcodeproj */;
+			proxyType = 2;
+			remoteGlobalIDString = 470A5A64FA1A080FF5389DEF;
+			remoteInfo = c2s.exe;
+		};
+		EECD207F074CFE2C61F2CDCB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F37F914312A3544D790C94C4 /* c2s.exe.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = 60D0049A896606ADF3A4D294;
+			remoteInfo = c2s.exe;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -138,6 +156,7 @@
 				97FB948E4EAC59940BFC4C23 /* Sources */,
 				CBF1505F8E434A970C8CCCBC /* cc1.exe.xcodeproj */,
 				0CF12007761D2B13C30AA2B2 /* shc.exe.xcodeproj */,
+				F37F914312A3544D790C94C4 /* c2s.exe.xcodeproj */,
 				744890367C8084A94875E5BE /* Products */,
 			);
 			sourceTree = "<group>";
@@ -148,6 +167,7 @@
 				BFFADD88A65A7B11EDB80539 /* src/about.cpp */,
 				C86F6CC1055BDB790EAF9391 /* src/buffer.cpp */,
 				21EAF0BF9D597F7DC1133386 /* src/compile.cpp */,
+				4DD5847B36D4350051C6300A /* src/convert.cpp */,
 				DCA73A73779A1B6FFB39DF3B /* src/debugger.cpp */,
 				4749BF97F0C198EDAA3420DB /* src/demangle_win.cpp */,
 				918B5AC2612C91600B3165FA /* src/editor.cpp */,
@@ -174,6 +194,7 @@
 				E973B228DD3A846DEAE8E8D3 /* src/about.h */,
 				1B5EB44A741DFFD2525AE1C6 /* src/buffer.h */,
 				650A4A41D1C1F489366CE5E2 /* src/compile.h */,
+				87475EFCF12BD76F7011DE14 /* src/convert.h */,
 				873BA592A41AA463A9B9E994 /* src/debugger.h */,
 				1435A6BCCF5E71153D9F9A8D /* src/editor.h */,
 				A57C76E9F2FFB1E22DDAC64C /* src/find.h */,
@@ -222,6 +243,14 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		13BCBFE1ABD034C942830BA8 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E602C1079D2A115AAC962085 /* c2s.exe */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXReferenceProxy section */
@@ -239,6 +268,13 @@
 			remoteRef = 32C71739C1D5E1E64990D710 /* PBXContainerItemProxy */;
 			sourceTree = BUILT_PRODUCTS_DIR;
 		};
+		E602C1079D2A115AAC962085 /* c2s.exe */ = {
+			isa = PBXReferenceProxy;
+			fileType = "compiled.mach-o.executable";
+			path = c2s.exe;
+			remoteRef = 851837BF3743AD0E7555074F /* PBXContainerItemProxy */;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
 /* End PBXReferenceProxy section */
 
 /* Begin PBXNativeTarget section */
@@ -254,6 +290,7 @@
 			dependencies = (
 				2D94428F2DEC64F3AD33CDB5 /* PBXTargetDependency */,
 				F3E42DA26B9285E6C32D11A2 /* PBXTargetDependency */,
+				EF18CE9F2F4C0054317F0417 /* PBXTargetDependency */,
 			);
 			name = RStudio.exe;
 			productName = RStudio.exe;
@@ -272,6 +309,11 @@
 			isa = PBXTargetDependency;
 			name = shc.exe;
 			targetProxy = F8799391B181A46F891DD6B2 /* PBXContainerItemProxy */;
+		};
+		EF18CE9F2F4C0054317F0417 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = c2s.exe;
+			targetProxy = EECD207F074CFE2C61F2CDCB /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -301,6 +343,10 @@
 					ProductGroup = E23FF50175724F7BD162AEA1 /* Products */;
 					ProjectRef = 0CF12007761D2B13C30AA2B2 /* shc.exe.xcodeproj */;
 				},
+				{
+					ProductGroup = 13BCBFE1ABD034C942830BA8 /* Products */;
+					ProjectRef = F37F914312A3544D790C94C4 /* c2s.exe.xcodeproj */;
+				},
 			);
 			projectRoot = "";
 			targets = (
@@ -317,6 +363,7 @@
 				E015B69145109D09D312E377 /* src/about.cpp in Sources */,
 				80E57586DCB544227C1CABDF /* src/buffer.cpp in Sources */,
 				0A43D8A08722C77B52F0B06D /* src/compile.cpp in Sources */,
+				E8972C1703D4A93D3D2CB807 /* src/convert.cpp in Sources */,
 				918F9C576EC8488A74A06534 /* src/debugger.cpp in Sources */,
 				912A42F0E9DE315EF91C24BE /* src/demangle_win.cpp in Sources */,
 				AAB6E584544D1F0DE05BF405 /* src/editor.cpp in Sources */,

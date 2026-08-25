@@ -88,7 +88,13 @@ enum Action {
     ActionToolCxx,
     ActionHelpContents,
     ActionKeys,
-    ActionAbout
+    ActionAbout,
+    // Added at the end deliberately. ActionLangC..ActionLangText are indexed
+    // by their distance from ActionLangC in editor.cpp, so nothing may be
+    // inserted among them, and these two are not language choices anyway -
+    // they convert the file rather than change how it is read.
+    ActionConvertToShalimar,
+    ActionConvertToC
 };
 
 struct MenuItem {

@@ -1,6 +1,7 @@
 #include "editor.h"
 
 #include "about.h"
+#include "convert.h"
 #include "help.h"
 #include "utf8.h"
 #include "symbols.h"
@@ -2433,6 +2434,74 @@ void Editor::goToProblem() {
     say(number(lastDiag_.line) + ":" + number(lastDiag_.col) + ": " + lastDiag_.message);
 }
 
+void Editor::convertFile(bool toShalimar) {
+    const std::string converter = findConverter();
+    if (converter.empty()) {
+        say("no c2s beside this editor - set C2S, or build Converter-C2S here");
+        return;
+    }
+
+    // c2s reads a file, not a screen, so saving is part of converting for the
+    // same reason it is part of building.
+    if (buf_.dirty() || buf_.path().empty()) {
+        if (!save()) return;
+    }
+
+    const std::string produced = convertedName(buf_.path(), toShalimar);
+    if (produced.empty()) {
+        say("this file has no name to convert - save it first");
+        return;
+    }
+    if (produced == buf_.path()) {
+        // Asking to convert a .c into a .c, which is what the wrong direction
+        // looks like from here. Turned away rather than told to write over
+        // the file it is reading.
+        say(std::string("that would write over ") + baseName(buf_.path()) +
+            " - it is already what you asked for");
+        return;
+    }
+
+    panelOpen_ = true;
+    tab_ = TabConsole;
+    console_.clear();
+    console_.push_back("$ " + baseName(converter) + " " +
+                       (toShalimar ? "--to-shalimar " : "--to-c ") +
+                       baseName(buf_.path()) + " -o " + baseName(produced));
+    panelOff_ = 0;
+    say(std::string("converting ") + baseName(buf_.path()) + " ...");
+    refresh();
+
+    Conversion result = convert(converter, buf_.path(), produced, toShalimar,
+                                consoleSink, this);
+
+    if (!result.ran) {
+        say(std::string("could not run ") + converter);
+        return;
+    }
+
+    // Three endings, and they are not the same thing. Everything came across;
+    // or some of it did not and is marked in a file that was still written;
+    // or nothing was written at all. c2s has already said which, in its own
+    // words, in the console - what is added here is what to do about it.
+    if (result.produced.empty()) {
+        say("nothing was written - c2s could not read or write a file");
+        return;
+    }
+
+    open(result.produced);
+    if (result.ok) {
+        say(baseName(result.produced) + " - converted");
+    } else {
+        // Exit 1 with a file written means markers in it: constructs with no
+        // expression in the target language, each quoting the source it
+        // stands for. That file is the work left to do, so it is opened -
+        // but it is not a program yet, and saying "converted" would claim it
+        // was.
+        say(baseName(result.produced) +
+            " - written with unconverted parts marked; search for BEYOND");
+    }
+}
+
 void Editor::compile() {
     // Which compiler runs is decided here, from the language, unless the
     // choice was taken by hand. Said before anything else so that a file that
@@ -3284,6 +3353,8 @@ void Editor::perform(Action action) {
             if (!panelOpen_ && focus_ == FocusPanel) focus_ = FocusText;
             break;
         case ActionBuild:        compile(); break;
+        case ActionConvertToShalimar: convertFile(true); break;
+        case ActionConvertToC:        convertFile(false); break;
         case ActionRun:          buildAndRun(); break;
         case ActionBuildProject: buildProject(false); break;
         case ActionRunProject:   buildProject(true); break;

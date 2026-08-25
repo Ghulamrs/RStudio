@@ -24,6 +24,7 @@
 // cannot exercise what it calls.
 #include "bridge.h"
 #include "compile.h"
+#include "convert.h"
 #include "indent.h"
 #include "symbols.h"
 #include "syntax.h"
@@ -4121,6 +4122,40 @@ void theWindowStoppingShalimar() {
 // How the window is told a project's program is stepped through - which is a
 // different question from how one file is, and the one the window could not
 // ask at all until it had a Debug project item.
+// c2s, driven from the Language menu. The editor runs it over the open file
+// and opens what it wrote; these are the decisions made before it is run,
+// which are the ones that can be wrong without anybody noticing until a file
+// has been written over.
+void namingAConversion() {
+    checkEqual(editor::convertedName("prime.c", true), "prime.shm",
+               "a C file converts to .shm beside itself");
+    checkEqual(editor::convertedName("prime.shm", false), "prime.c",
+               "and a Shalimar one back to .c");
+    checkEqual(editor::convertedName("prime.shl", false), "prime.c",
+               ".shl is read, though .shm is what gets written");
+
+    // The whole path is kept, not just the name: the converted file belongs
+    // beside the original and not in whatever directory the editor was
+    // started from.
+    checkEqual(editor::convertedName("/a/b/prime.c", true), "/a/b/prime.shm",
+               "the directory comes with it");
+
+    // A dot in a directory name is not an extension of the file. Getting this
+    // wrong would truncate the path and write somewhere else entirely.
+    checkEqual(editor::convertedName("/a.b/prime", true), "/a.b/prime.shm",
+               "a dot in a directory is not the file's extension");
+    checkEqual(editor::convertedName("/a.b/prime.c", false), "/a.b/prime.c",
+               "and the same file asked for in the direction it is already in");
+
+    checkEqual(editor::convertedName("", true), "",
+               "an unsaved file has no name to convert");
+
+    // The one the editor turns away: converting a .c into a .c would write
+    // over the file it is reading.
+    check(editor::convertedName("prime.c", false) == "prime.c",
+          "the wrong direction names the file itself, which the editor refuses");
+}
+
 void theWindowsProjectDebug() {
     std::printf("what the window asks about debugging a project\n");
 
@@ -4281,6 +4316,7 @@ int main(int argc, char** argv) {
     debuggingCppForReal();
     theSeamTheWindowUses();
     theWindowsProjectBuild();
+    namingAConversion();
     diagnostics();
     layout();
     typing();

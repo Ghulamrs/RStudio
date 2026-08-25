@@ -115,6 +115,7 @@
     <ClCompile Include="..\src\settings.cpp"><CompileAsManaged>false</CompileAsManaged><ExceptionHandling>Sync</ExceptionHandling></ClCompile>
     <ClCompile Include="..\src\about.cpp"><CompileAsManaged>false</CompileAsManaged><ExceptionHandling>Sync</ExceptionHandling></ClCompile>
     <ClCompile Include="..\src\compile.cpp"><CompileAsManaged>false</CompileAsManaged><ExceptionHandling>Sync</ExceptionHandling></ClCompile>
+    <ClCompile Include="..\src\convert.cpp"><CompileAsManaged>false</CompileAsManaged><ExceptionHandling>Sync</ExceptionHandling></ClCompile>
     <ClCompile Include="..\src\toolchain.cpp"><CompileAsManaged>false</CompileAsManaged><ExceptionHandling>Sync</ExceptionHandling></ClCompile>
     <!-- The Shalimar half. The window reaches it through the same seam as
          everything else: bridge.cpp holds a Session beside the Debugger and

@@ -126,6 +126,14 @@ Menu::Menu() : active_(false), dropped_(false), column_(0), item_(0) {
     language.items.push_back({"Shalimar", "", ActionLangShalimar});
     language.items.push_back({"JSON", "", ActionLangJson});
     language.items.push_back({"Plain text", "", ActionLangText});
+    // The other two things one can do about which language a file is in: not
+    // read it as another one, but turn it into another one. c2s writes the
+    // converted file beside the original and it is opened here, so the two
+    // are on screen together - a conversion is something to read and finish,
+    // not something to take on trust.
+    language.items.push_back(separator());
+    language.items.push_back({"Convert C to Shalimar", "", ActionConvertToShalimar});
+    language.items.push_back({"Convert Shalimar to C", "", ActionConvertToC});
     columns_.push_back(language);
 
     // Which compiler is driven. cc1 is what this was written for; cl is here

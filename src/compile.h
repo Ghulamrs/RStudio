@@ -38,6 +38,14 @@ extern const char* const kArches[3];
 // is for: a build that says nothing until it is over looks like one that hung.
 typedef void (*LineSink)(void* context, const std::string& line);
 
+// Runs a command with its errors joined to its output, handing the sink each
+// line as it arrives, and gives back what the command exited with - or -1 when
+// it could not be started at all. Everything this editor runs, compiler and
+// built program alike, goes through here, which is why it is declared rather
+// than being private to compile.cpp: convert.cpp runs c2s through it too.
+int runCaptured(const std::string& command, std::string& output,
+                LineSink sink = 0, void* context = 0);
+
 Build build(const Toolchain& tool, ToolchainKind kind, const std::string& sourcePath,
             Language lang, const std::string& arch, Configuration config,
             LineSink sink = 0, void* context = 0);

@@ -54,6 +54,7 @@
     <ClCompile Include="src\about.cpp" />
     <ClCompile Include="src\buffer.cpp" />
     <ClCompile Include="src\compile.cpp" />
+    <ClCompile Include="src\convert.cpp" />
     <ClCompile Include="src\debugger.cpp" />
     <ClCompile Include="src\demangle_win.cpp" />
     <ClCompile Include="src\editor.cpp" />

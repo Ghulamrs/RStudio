@@ -10,4 +10,7 @@
    <FileRef
       location = "group:../Compiler-S/shc.xcodeproj">
    </FileRef>
+   <FileRef
+      location = "group:../Converter-C2S/c2s.xcodeproj">
+   </FileRef>
 </Workspace>

@@ -47,7 +47,7 @@ endif
 # tools/make-projects.py checks winforms/RStudioGui.vcxproj against it - that
 # project is kept by hand, and a file added here and forgotten there is a link
 # error on the one machine that builds the window and nowhere else.
-CORE_SRC := src/buffer.cpp src/compile.cpp \
+CORE_SRC := src/buffer.cpp src/compile.cpp src/convert.cpp \
        src/indent.cpp src/syntax.cpp \
        src/toolchain.cpp src/json.cpp src/project.cpp src/find.cpp \
        src/utf8.cpp src/workspace.cpp src/symbols.cpp src/demangle_win.cpp \
@@ -127,10 +127,11 @@ tests/test: tests/test.cpp src/compile.cpp src/indent.cpp src/syntax.cpp \
        src/utf8.cpp src/workspace.cpp src/symbols.cpp src/demangle_win.cpp \
             src/path.cpp src/process.cpp src/debugger.cpp src/settings.cpp src/about.cpp src/help.cpp \
             src/buffer.cpp \
-            winforms/bridge.cpp winforms/bridge.h src/compile.h src/indent.h src/syntax.h \
+            winforms/bridge.cpp winforms/bridge.h src/compile.h src/convert.h \
+            src/indent.h src/syntax.h \
             src/json.h src/project.h src/path.h src/buffer.h
 	$(CXX) $(CXXFLAGS) -Isrc -Iwinforms -o $@ tests/test.cpp winforms/bridge.cpp \
-	    src/compile.cpp src/indent.cpp \
+	    src/compile.cpp src/convert.cpp src/indent.cpp \
 	    src/syntax.cpp src/toolchain.cpp src/json.cpp src/project.cpp src/find.cpp \
        src/utf8.cpp src/workspace.cpp src/symbols.cpp src/demangle_win.cpp \
 	    src/path.cpp src/process.cpp src/debugger.cpp src/settings.cpp src/about.cpp src/help.cpp \
@@ -163,7 +164,11 @@ check: test session
 # Both archives are named, not only the release one. Debug is the editor's
 # default configuration and links the other file, so checking one of the two
 # would confirm exactly the half that was not about to be used.
-DEPENDENCIES := cc1.exe shc.exe \
+# c2s is here for the same reason the two compilers are: the editor runs it
+# and finds it beside itself, so "built" and "usable" are two states and this
+# checks the second. It is not a compiler and nothing links it - the Language
+# menu's two Convert items run it over the open file.
+DEPENDENCIES := cc1.exe shc.exe c2s.exe \
        lib/shmrt-$(SHM_TARGET).a lib/shmrt-$(SHM_TARGET)-debug.a
 
 confirm: $(EDITOR)

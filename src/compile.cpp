@@ -205,6 +205,8 @@ std::string temporaryDirectory(const char* what) {
     return path::join(path::tempDir(), std::string(what) + "-" + id);
 }
 
+}  // namespace
+
 // Runs a command with its errors joined to its output, handing the sink each
 // line as it arrives, and gives back what the command exited with - or -1 when
 // it could not be started at all. Everything this editor runs, compiler and
@@ -253,6 +255,9 @@ int runCaptured(const std::string& command, std::string& output,
 #endif
     return status;
 }
+
+namespace {
+
 
 // The shell reads its own words when a program is not there, and they differ
 // per platform and explain nothing about how to fix it here.
