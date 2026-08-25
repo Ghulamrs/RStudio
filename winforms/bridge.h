@@ -248,6 +248,28 @@ const char* rstudio_shown_command(const char* cc1, const char* cl, const char* s
                               const char* source, int language, const char* arch,
                               int config);
 
+/* c2s, the C89 <-> Shalimar converter, driven over the open file. Not a
+   toolchain: what comes out is source in the other language rather than a
+   program, so it has its own handle and says nothing to the diagnostic pane.
+
+   rstudio_converts_from answers which way a file of this language goes, and 0
+   for a language with no other side - C++, JSON, assembly, plain text.
+   rstudio_find_converter answers where c2s is, or "" when nothing was found;
+   the string is the caller's and rstudio_free takes it back. */
+int rstudio_converts_from(int language, int* toShalimar);
+char* rstudio_find_converter(void);
+char* rstudio_converted_name(const char* source, int toShalimar);
+
+typedef struct RStudioConversion RStudioConversion;
+
+RStudioConversion* rstudio_convert(const char* converter, const char* source,
+                                   const char* output, int toShalimar);
+void rstudio_conversion_free(RStudioConversion* made);
+int rstudio_conversion_ran(RStudioConversion* made);
+int rstudio_conversion_ok(RStudioConversion* made);
+const char* rstudio_conversion_produced(RStudioConversion* made);
+const char* rstudio_conversion_output(RStudioConversion* made);
+
 typedef struct RStudioBuild RStudioBuild;
 
 RStudioBuild* rstudio_build(const char* cc1, const char* cl, const char* shc, int kind, const char* source,

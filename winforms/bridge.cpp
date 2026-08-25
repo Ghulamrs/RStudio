@@ -29,6 +29,7 @@
 
 #include "about.h"
 #include "compile.h"
+#include "convert.h"
 #include "debugger.h"
 #include "shalimar/session.h"
 #include "find.h"
@@ -1286,6 +1287,45 @@ RStudioRan* rstudio_run_built(const char* program) {
     RStudioRan* out = new RStudioRan();
     out->ran = editor::runBuilt(program ? program : "");
     return out;
+}
+
+struct RStudioConversion {
+    editor::Conversion made;
+};
+
+int rstudio_converts_from(int language, int* toShalimar) {
+    bool wanted = false;
+    if (!editor::convertsFrom(static_cast<editor::Language>(language), &wanted)) {
+        return 0;
+    }
+    if (toShalimar) *toShalimar = wanted ? 1 : 0;
+    return 1;
+}
+
+char* rstudio_find_converter(void) {
+    return give(editor::findConverter());
+}
+
+char* rstudio_converted_name(const char* source, int toShalimar) {
+    return give(editor::convertedName(source ? source : "", toShalimar != 0));
+}
+
+RStudioConversion* rstudio_convert(const char* converter, const char* source,
+                                   const char* output, int toShalimar) {
+    RStudioConversion* out = new RStudioConversion();
+    out->made = editor::convert(converter ? converter : "", source ? source : "",
+                                output ? output : "", toShalimar != 0);
+    return out;
+}
+
+void rstudio_conversion_free(RStudioConversion* made) { delete made; }
+int rstudio_conversion_ran(RStudioConversion* made) { return made->made.ran ? 1 : 0; }
+int rstudio_conversion_ok(RStudioConversion* made) { return made->made.ok ? 1 : 0; }
+const char* rstudio_conversion_produced(RStudioConversion* made) {
+    return made->made.produced.c_str();
+}
+const char* rstudio_conversion_output(RStudioConversion* made) {
+    return made->made.output.c_str();
 }
 
 RStudioBuild* rstudio_build(const char* cc1, const char* cl, const char* shc, int kind, const char* source,

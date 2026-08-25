@@ -4156,6 +4156,40 @@ void namingAConversion() {
           "the wrong direction names the file itself, which the editor refuses");
 }
 
+void theConversionSeam() {
+    std::printf("what the window asks the core to convert\n");
+
+    int toShalimar = -1;
+    check(rstudio_converts_from(editor::LangC, &toShalimar) == 1 && toShalimar == 1,
+          "C converts to Shalimar");
+    toShalimar = -1;
+    check(rstudio_converts_from(editor::LangShalimar, &toShalimar) == 1 && toShalimar == 0,
+          "and Shalimar back to C");
+    check(rstudio_converts_from(editor::LangCpp, &toShalimar) == 0,
+          "C++ has no other side");
+    check(rstudio_converts_from(editor::LangPlain, &toShalimar) == 0,
+          "and neither has plain text");
+
+    char* named = rstudio_converted_name("/a/b/prime.c", 1);
+    checkEqual(named, "/a/b/prime.shm", "the window is told the same name the editor uses");
+    rstudio_free(named);
+
+    named = rstudio_converted_name("/a.b/prime", 1);
+    checkEqual(named, "/a.b/prime.shm", "including that a dot in a directory is not an extension");
+    rstudio_free(named);
+
+    char* found = rstudio_find_converter();
+    check(found != 0, "asking where c2s is always answers something");
+    rstudio_free(found);
+
+    RStudioConversion* made = rstudio_convert("", "", "", 1);
+    check(rstudio_conversion_ran(made) == 0, "a conversion with nothing named did not run");
+    check(rstudio_conversion_ok(made) == 0, "and is not ok");
+    check(std::string(rstudio_conversion_produced(made)).empty(),
+          "and wrote no file");
+    rstudio_conversion_free(made);
+}
+
 void theWindowsProjectDebug() {
     std::printf("what the window asks about debugging a project\n");
 
@@ -4317,6 +4351,7 @@ int main(int argc, char** argv) {
     theSeamTheWindowUses();
     theWindowsProjectBuild();
     namingAConversion();
+    theConversionSeam();
     diagnostics();
     layout();
     typing();
