@@ -235,7 +235,14 @@ def projects():
 # just as surely as one that is laxer; it simply fails instead of passing. So
 # the Xcode-only extras are turned off and the flag set is the Makefile's:
 # -Wall -Wextra -pedantic, as errors.
+# And the output goes outside the checkout. With no SYMROOT an Xcode build
+# lands in <project>/build, which is how RStudio came to hold 92 object files
+# under a target name that had been renamed away months earlier - invisible to
+# make clean, because it is not make's. $(TMPDIR) is per-user and Xcode expands
+# it from the environment.
 COMMON = """				ALWAYS_SEARCH_USER_PATHS = NO;
+				OBJROOT = "$(TMPDIR)/rstudio-xcode";
+				SYMROOT = "$(TMPDIR)/rstudio-xcode";
 				CLANG_CXX_LANGUAGE_STANDARD = "c++14";
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CLANG_WARN_IMPLICIT_SIGN_CONVERSION = NO;
