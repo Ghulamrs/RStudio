@@ -18,11 +18,6 @@ namespace editor {
 
 #ifdef _WIN32
 
-// The pseudo-console entry points are asked for by name rather than linked
-// against, so that this still builds with a toolchain whose headers predate
-// them - and answers "no console" at run time on a Windows that has none.
-// PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE is a number, and is one here for the
-// same reason.
 #ifndef PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE
 #define PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE 0x00020016
 #endif
@@ -44,7 +39,7 @@ struct Process::Held {
     HANDLE toChild;
     HANDLE fromChild;
     HANDLE child;
-    void* console;      // the pseudo-console, when the child was given one
+    void* console;
 
     Held() : toChild(NULL), fromChild(NULL), child(NULL), console(NULL) {}
 };
@@ -73,8 +68,6 @@ Process::~Process() {
 bool Process::start(const std::string& command) {
     if (running_) return false;
 
-    // The child must inherit its ends of the pipes and this process must not
-    // hold on to them, or a child that exits leaves a read that never returns.
     SECURITY_ATTRIBUTES inherit;
     inherit.nLength = sizeof inherit;
     inherit.lpSecurityDescriptor = NULL;
@@ -96,17 +89,8 @@ bool Process::start(const std::string& command) {
     startup.dwFlags = STARTF_USESTDHANDLES;
     startup.hStdInput = childReads;
     startup.hStdOutput = childWrites;
-    startup.hStdError = childWrites;   // one console, so one stream
+    startup.hStdError = childWrites;
 
-    // Through cmd, like every other command here, and writable because
-    // CreateProcess is allowed to modify what it is given.
-    //
-    // The extra pair of quotes is the same one compile.cpp needs and for the
-    // same reason: cmd removes the first and last quote when a command has
-    // both a quoted program and quoted arguments, which every command here
-    // does. Without it the debugger was never reached - cdb lives under
-    // "Program Files (x86)", so its path is quoted, and the program it is
-    // given is quoted too.
     std::string line = "cmd /c \"" + command + "\"";
     std::vector<char> writable(line.begin(), line.end());
     writable.push_back('\0');
@@ -138,8 +122,6 @@ bool Process::startOnConsole(const std::string& command) {
     MakeConsole make = makeConsole();
     if (!make) return false;
 
-    // The console owns one end of each pipe and this process the other. They
-    // are not inheritable: what the child gets is the console, not these.
     HANDLE consoleReads = NULL, weWrite = NULL, weRead = NULL, consoleWrites = NULL;
     if (!CreatePipe(&consoleReads, &weWrite, NULL, 0)) return false;
     if (!CreatePipe(&weRead, &consoleWrites, NULL, 0)) {
@@ -148,10 +130,6 @@ bool Process::startOnConsole(const std::string& command) {
         return false;
     }
 
-    // Wide on purpose. A console wraps what is written to it at its own width,
-    // and a wrapped line is a line the stop-reading cannot parse - the same
-    // fault "set width unlimited" exists to prevent in gdb, arriving here by a
-    // different road.
     COORD size;
     size.X = 500;
     size.Y = 50;
@@ -186,21 +164,9 @@ bool Process::startOnConsole(const std::string& command) {
         return false;
     }
 
-    // Straight to the program, with no cmd in front of it. start() goes
-    // through cmd because a pipe-fed child wants its quoting rules; a console
-    // does not need them - CreateProcess takes a quoted program itself - and
-    // cmd in the middle of a pseudo-console is a second console client between
-    // the debugger and the terminal, which is one too many.
     std::vector<char> writable(command.begin(), command.end());
     writable.push_back('\0');
 
-    // Even with inheritance off, a child is handed this process's own standard
-    // handles through its process parameters - and this process's are a pipe,
-    // because the editor is itself started from one. The child then writes to
-    // that pipe instead of to the console it was given, which is not a subtle
-    // failure: the first version of this wrote the program's output into the
-    // editor's own stdout and nothing came back at all. Cleared across the
-    // call, so the console is the only thing there is to write to.
     HANDLE keepIn = GetStdHandle(STD_INPUT_HANDLE);
     HANDLE keepOut = GetStdHandle(STD_OUTPUT_HANDLE);
     HANDLE keepErr = GetStdHandle(STD_ERROR_HANDLE);
@@ -210,11 +176,7 @@ bool Process::startOnConsole(const std::string& command) {
 
     PROCESS_INFORMATION made;
     std::memset(&made, 0, sizeof made);
-    // No CREATE_NO_WINDOW here, though start() uses it. That flag says "a
-    // console program with no console", and it wins: given both, the child got
-    // no console at all and said nothing whatever - not one byte, which is
-    // what sent this looking in the wrong place first. A pseudo-console shows
-    // no window anyway; there is nothing for the flag to prevent.
+
     BOOL ok = CreateProcessA(NULL, &writable[0], NULL, NULL, FALSE,
                              EXTENDED_STARTUPINFO_PRESENT,
                              NULL, NULL, &startup.StartupInfo, &made);
@@ -246,10 +208,7 @@ bool Process::startOnConsole(const std::string& command) {
 
 bool Process::say(const std::string& line) {
     if (!running_) return false;
-    // A console is a terminal: it is reading keystrokes, and the key that ends
-    // a line there is Return. A bare newline is not that key, so a child on a
-    // console sat waiting for the rest of a line that had already been sent -
-    // which reads as a debugger that would not start.
+
     std::string out = line + (held_->console ? "\r\n" : "\n");
     DWORD written = 0;
     if (!WriteFile(held_->toChild, out.data(), static_cast<DWORD>(out.size()), &written, NULL))
@@ -263,13 +222,9 @@ void Process::stop() {
 
     if (held_->toChild) { CloseHandle(held_->toChild); held_->toChild = NULL; }
 
-    // A moment to leave of its own accord, since a debugger told to quit has
-    // its own child to take with it.
     if (WaitForSingleObject(held_->child, 2000) == WAIT_TIMEOUT)
         TerminateProcess(held_->child, 1);
 
-    // The console holds the write end itself, so while it is open a read has
-    // something to wait for however dead the child is.
     if (held_->console) {
         DropConsole drop = dropConsole();
         if (drop) drop(held_->console);
@@ -283,15 +238,12 @@ void Process::stop() {
 
 namespace {
 
-// Whether anything can be read without waiting. A pipe cannot be handed to
-// select here, so it is asked how much it is holding.
 bool waitingToBeRead(HANDLE from) {
     DWORD ready = 0;
-    if (!PeekNamedPipe(from, NULL, 0, NULL, &ready, NULL)) return true;  // gone: let the read say so
+    if (!PeekNamedPipe(from, NULL, 0, NULL, &ready, NULL)) return true;
     return ready > 0;
 }
 
-// Read: 1 said something, 0 said nothing in time, -1 has gone for good.
 int readSome(void* from, char* into, size_t room, size_t& got, int timeoutMs) {
     HANDLE pipe = static_cast<HANDLE>(from);
     for (int waited = 0; waited < timeoutMs; waited += 10) {
@@ -306,14 +258,10 @@ int readSome(void* from, char* into, size_t room, size_t& got, int timeoutMs) {
     return read > 0 ? 1 : -1;
 }
 
-}  // namespace
+}
 
 #else
 
-// Nothing to do here: lldb gives its program a pseudo-terminal of its own, and
-// gdb is told to run it through stdbuf, so neither is buffered the way a
-// Windows program writing down a pipe is. Saying so plainly beats a second way
-// of starting a child that no caller on this machine would ever want.
 bool Process::startOnConsole(const std::string&) { return false; }
 
 bool Process::start(const std::string& command) {
@@ -335,17 +283,15 @@ bool Process::start(const std::string& command) {
     }
 
     if (child == 0) {
-        // The child. Its ends become its standard streams and every other
-        // descriptor it inherited is closed, so that the parent closing its
-        // end is something the child can actually see.
+
         dup2(toChild[0], STDIN_FILENO);
         dup2(fromChild[1], STDOUT_FILENO);
-        dup2(fromChild[1], STDERR_FILENO);   // one console, so one stream
+        dup2(fromChild[1], STDERR_FILENO);
         close(toChild[0]); close(toChild[1]);
         close(fromChild[0]); close(fromChild[1]);
 
         execl("/bin/sh", "sh", "-c", command.c_str(), static_cast<char*>(0));
-        _exit(127);   // only reached when the shell itself could not be run
+        _exit(127);
     }
 
     close(toChild[0]);
@@ -378,8 +324,6 @@ void Process::stop() {
     if (!running_) return;
     running_ = false;
 
-    // Closing its input is how a debugger is asked to leave: the same thing
-    // that reaching the end of a script does to it.
     if (held_->toChild >= 0) { close(held_->toChild); held_->toChild = -1; }
 
     for (int waited = 0; waited < 200; ++waited) {
@@ -399,9 +343,6 @@ void Process::stop() {
 
 namespace {
 
-// Read: 1 said something, 0 said nothing in time, -1 has gone for good. The
-// difference is the whole point of the timeout: a debugger that is thinking is
-// left alone, and one that has died is noticed.
 int readSome(int from, char* into, size_t room, size_t& got, int timeoutMs) {
     for (;;) {
         struct pollfd waiting;
@@ -410,7 +351,7 @@ int readSome(int from, char* into, size_t room, size_t& got, int timeoutMs) {
         waiting.revents = 0;
 
         int ready = poll(&waiting, 1, timeoutMs);
-        if (ready == 0) return 0;                       // quiet, but still there
+        if (ready == 0) return 0;
         if (ready < 0) {
             if (errno == EINTR) continue;
             return -1;
@@ -418,13 +359,13 @@ int readSome(int from, char* into, size_t room, size_t& got, int timeoutMs) {
 
         ssize_t read = ::read(from, into, room);
         if (read > 0) { got = static_cast<size_t>(read); return 1; }
-        if (read == 0) return -1;                       // the far end closed
+        if (read == 0) return -1;
         if (errno == EINTR) continue;
         return -1;
     }
 }
 
-}  // namespace
+}
 
 #endif
 
@@ -446,10 +387,10 @@ std::string Process::readUntil(const std::string& marker, bool* found, int timeo
         size_t got = 0;
         int said = readSome(held_->fromChild, chunk, sizeof chunk, got, timeoutMs);
         if (said < 0) {
-            running_ = false;   // gone, and there is nothing more coming
+            running_ = false;
             break;
         }
-        if (said == 0) break;   // quiet: still there, and the caller's to judge
+        if (said == 0) break;
         pending_.append(chunk, got);
     }
 
@@ -458,4 +399,4 @@ std::string Process::readUntil(const std::string& marker, bool* found, int timeo
     return rest;
 }
 
-}  // namespace editor
+}

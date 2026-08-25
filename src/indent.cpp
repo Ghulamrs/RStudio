@@ -19,8 +19,6 @@ std::string trimmed(const std::string& s) {
     return s.substr(a, b - a);
 }
 
-// Whether `word` stands alone at `at` rather than being part of a longer name -
-// so that 'iffy' is not an if and 'switcher' is not a switch.
 bool wordAt(const std::string& s, size_t at, const char* word) {
     size_t n = 0;
     while (word[n]) ++n;
@@ -35,7 +33,7 @@ bool startsWithWord(const std::string& s, const char* word) {
     return wordAt(s, 0, word);
 }
 
-}  // namespace
+}
 
 LineFacts examine(const std::string& line, const IndentState& in,
                   IndentDialect dialect) {
@@ -48,7 +46,7 @@ LineFacts examine(const std::string& line, const IndentState& in,
     bool comment = in.comment;
     bool inString = false;
     bool inChar = false;
-    bool atHead = true;   // nothing but whitespace seen yet
+    bool atHead = true;
 
     for (size_t i = 0; i < line.size(); ++i) {
         const char ch = line[i];
@@ -61,10 +59,7 @@ LineFacts examine(const std::string& line, const IndentState& in,
             continue;
         }
         if (inString || inChar) {
-            // C has escapes where Shalimar's strings have none, so a quote
-            // behind a backslash does not end anything there. In Shalimar the
-            // first closing quote always ends the literal, and a literal that
-            // is not closed on its line is an error rather than a carry-over.
+
             if (c && ch == '\\' && i + 1 < line.size()) {
                 ++i;
                 continue;
@@ -86,9 +81,7 @@ LineFacts examine(const std::string& line, const IndentState& in,
             f.code += ch;
             continue;
         }
-        // Shalimar has no character literal at all - a lone quote is not a
-        // token there - so an apostrophe inside a comment or a name cannot
-        // open one.
+
         if (c && ch == '\'') {
             inChar = true;
             atHead = false;
@@ -113,26 +106,21 @@ LineFacts examine(const std::string& line, const IndentState& in,
     std::string raw = trimmed(line);
 
     f.blank = raw.empty();
-    // The # is read off the raw line: it is the first thing on the line that
-    // matters, and it is never inside anything.
+
     f.preprocessor = c && !f.startsInComment && !raw.empty() && raw[0] == '#';
 
     if (!t.empty()) {
         char last = t[t.size() - 1];
-        // Shalimar has no statement terminator: every line that holds code is
-        // a whole statement, so every one of them ends what came before.
+
         f.endsStatement = c ? (last == ';' || last == '}' || last == '{') : true;
     }
 
     f.endsInComment = comment;
-    // A backslash at the very end carries the line on - a macro over several
-    // lines, whose layout belongs to whoever wrote it. Shalimar has no such
-    // thing.
+
     f.endsContinued = c && !raw.empty() && raw[raw.size() - 1] == '\\';
 
     f.caseLabel = c && (startsWithWord(t, "case") || startsWithWord(t, "default"));
 
-    // switch, but only where it opens the brace on this line.
     if (c) {
         for (size_t i = 0; i < t.size(); ++i) {
             if (t[i] == '{') break;
@@ -143,21 +131,13 @@ LineFacts examine(const std::string& line, const IndentState& in,
     bool control = startsWithWord(t, "if") || startsWithWord(t, "for") ||
                    startsWithWord(t, "while") || startsWithWord(t, "do") ||
                    startsWithWord(t, "else") || startsWithWord(t, "switch");
-    // Only C can have a head with its body still to come. Shalimar's blocks
-    // are always braced, so nothing there ever hangs.
+
     if (c && control && !t.empty()) {
         char last = t[t.size() - 1];
-        // '{' opens a block and counts itself; ';' is a body that was already
-        // written, empty or not.
+
         f.controlHead = (last != '{' && last != ';' && last != '}');
     }
 
-    // A label is a name and a colon and nothing else before it. The test for a
-    // question mark is what keeps `x = a ? b : c` from looking like one.
-    //
-    // Shalimar is asked nothing here at all: ':' is its assignment, so 'x : 5'
-    // has exactly this shape, and reading it as a label would put every
-    // assignment in the function's own column.
     if (c && !f.caseLabel && !f.preprocessor && !t.empty() && !f.startsInComment) {
         size_t i = 0;
         while (i < t.size() && isIdentChar(t[i])) ++i;
@@ -178,8 +158,6 @@ IndentState advance(const IndentState& in, const LineFacts& f) {
     out.comment = f.endsInComment;
     out.continued = f.endsContinued;
 
-    // Walk the braces in the order they appeared, so the switch stack rises and
-    // falls with them rather than with a count.
     bool sawOpen = false;
     for (size_t i = 0; i < f.code.size(); ++i) {
         if (f.code[i] == '{') {
@@ -193,8 +171,7 @@ IndentState advance(const IndentState& in, const LineFacts& f) {
     }
 
     if (f.blank) {
-        // A blank line settles nothing. An if waiting for its body is still
-        // waiting on the other side of it.
+
         return out;
     }
 
@@ -202,8 +179,7 @@ IndentState advance(const IndentState& in, const LineFacts& f) {
         ++out.hanging;
     } else if (f.endsStatement || f.opens > 0 || f.closes > 0 || f.caseLabel ||
                f.gotoLabel || f.preprocessor) {
-        // A statement ends every head that was waiting: in `if (a) if (b) x;`
-        // the one semicolon closes both.
+
         out.hanging = 0;
     }
 
@@ -220,8 +196,7 @@ int levelFor(const IndentState& in, const LineFacts& f, const IndentStyle& style
     int level = in.depth;
 
     if (f.leadingCloses > 0) {
-        // Dedent before the line is written, so a } settles under the line that
-        // opened its group rather than under the group's contents.
+
         level -= static_cast<int>(f.leadingCloses);
     } else if (switchBody) {
         level += static_cast<int>(style.caseIndent);
@@ -283,7 +258,7 @@ std::vector<std::string> reindent(const std::vector<std::string>& lines,
         if (level == kKeep) {
             out.push_back(lines[i]);
         } else if (f.blank) {
-            // A blank line stays blank rather than collecting trailing space.
+
             out.push_back(std::string());
         } else {
             out.push_back(indentString(level, style) + withoutLeadingSpace(lines[i]));
@@ -299,8 +274,6 @@ std::string indentAfterNewline(const std::vector<std::string>& lines, size_t row
                                size_t col, const IndentStyle& style) {
     if (row >= lines.size()) return std::string();
 
-    // Measure the head of the line as its own line, so a brace opened before
-    // the caret counts and one after it does not.
     std::vector<std::string> upto(lines.begin(), lines.begin() + static_cast<long>(row));
     std::string head = lines[row].substr(0, col > lines[row].size() ? lines[row].size() : col);
     upto.push_back(head);
@@ -312,12 +285,11 @@ std::string indentAfterNewline(const std::vector<std::string>& lines, size_t row
     std::string rest = withoutLeadingSpace(tail);
 
     LineFacts next = examine(rest, after, style.dialect);
-    // The line about to be opened is empty because it is new, not because its
-    // author left it blank - it takes the level of the place it opens in.
+
     if (rest.empty()) next.blank = false;
     int level = levelFor(after, next, style);
     if (level == kKeep) return std::string();
     return indentString(level, style);
 }
 
-}  // namespace editor
+}

@@ -7,15 +7,6 @@ namespace editor {
 
 namespace {
 
-// Made once and never destroyed, deliberately. A function-local static with a
-// destructor registers an atexit handler the first time it is reached, and
-// doing that from a native file inside a mixed native/managed binary corrupts
-// the heap - found from a stack trace on Windows reading
-//
-//     Json::get -> atexit -> register_onexit_function -> RtlSizeHeap
-//
-// One object of a few bytes outlives the program instead. Nothing here owns
-// anything the operating system will not take back.
 const Json& nothing() {
     static const Json* empty = new Json();
     return *empty;
@@ -33,8 +24,7 @@ struct Reader {
     void skip() {
         for (;;) {
             while (at < in.size() && space(in[at])) ++at;
-            // Not JSON, and deliberate: a project file people edit by hand is
-            // a file people want to leave notes in.
+
             if (at + 1 < in.size() && in[at] == '/' && in[at + 1] == '/') {
                 while (at < in.size() && in[at] != '\n') ++at;
                 continue;
@@ -122,7 +112,7 @@ struct Reader {
 
     bool array(Json& out) {
         out = Json::array();
-        ++at;   // [
+        ++at;
         skip();
         if (at < in.size() && in[at] == ']') { ++at; return true; }
 
@@ -140,7 +130,7 @@ struct Reader {
 
     bool object(Json& out) {
         out = Json::object();
-        ++at;   // {
+        ++at;
         skip();
         if (at < in.size() && in[at] == '}') { ++at; return true; }
 
@@ -181,7 +171,7 @@ std::string quoted(const std::string& s) {
     return out + "\"";
 }
 
-}  // namespace
+}
 
 Json Json::fromBool(bool value) {
     Json j;
@@ -250,7 +240,7 @@ const Json& Json::get(const std::string& key) const {
 }
 
 const std::string& Json::keyAt(size_t index) const {
-    // Never destroyed, for the reason given above nothing().
+
     static const std::string* none = new std::string();
     if (type_ == Object && index < members_.size()) return members_[index].first;
     return *none;
@@ -306,8 +296,7 @@ std::string Json::write(int depth) const {
         case String: return quoted(text_);
         case Number: {
             char buffer[32];
-            // Written as a whole number when it is one: an indent width of 4
-            // should not come back as 4.0.
+
             if (number_ == static_cast<double>(static_cast<long>(number_)))
                 std::snprintf(buffer, sizeof buffer, "%ld", static_cast<long>(number_));
             else
@@ -339,4 +328,4 @@ std::string Json::write(int depth) const {
     return "null";
 }
 
-}  // namespace editor
+}

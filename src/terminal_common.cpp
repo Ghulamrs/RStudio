@@ -1,11 +1,3 @@
-// The key decoding, shared by both machines. A terminal on either sends the
-// same bytes: an ordinary key as itself, and everything else as an escape
-// sequence. Only the getting of a byte is platform work, and that is readByte.
-//
-// The sequences all have one shape - ESC [ parameters final - so they are read
-// that way rather than as a list of special cases. It is what lets shift+arrow
-// be understood: it is the arrow's own sequence with a modifier parameter in
-// it, and nothing else about it is new.
 
 #include "terminal.h"
 
@@ -15,8 +7,6 @@ namespace editor {
 
 namespace {
 
-// The modifier parameter a terminal sends: 1 plus a bitmask, so shift is 2,
-// control is 5, and control with shift is 6.
 bool hasShift(int modifier) {
     if (modifier < 2) return false;
     return ((modifier - 1) & 1) != 0;
@@ -41,8 +31,6 @@ int shiftedForm(int key) {
     }
 }
 
-// Only the two that mean anything here. Control with any other arrow is that
-// arrow, which is what it did before there was a stack to walk.
 int controlledForm(int key) {
     switch (key) {
         case KEY_ARROW_UP:   return KEY_CTRL_UP;
@@ -51,8 +39,6 @@ int controlledForm(int key) {
     }
 }
 
-// '1;2' is two parameters. Missing ones are 1, which is what a terminal means
-// by leaving them out.
 void parameters(const std::string& text, int& first, int& second) {
     first = 1;
     second = 1;
@@ -106,7 +92,7 @@ int fromNumber(int number) {
     }
 }
 
-}  // namespace
+}
 
 bool isShiftedMove(int key) {
     return key >= KEY_SHIFT_LEFT && key <= KEY_SHIFT_PAGE_DOWN;
@@ -131,12 +117,9 @@ int Terminal::readKey() const {
     if (!readByte(c)) return KEY_NONE;
     if (c != '\x1b') return static_cast<unsigned char>(c);
 
-    // An Escape with nothing behind it is the Escape key. An Escape with more
-    // bytes behind it is the terminal spelling out a key that has no character.
     char next = 0;
     if (!readByte(next)) return '\x1b';
 
-    // The other spelling of the function keys, used in application-keypad mode.
     if (next == 'O') {
         char letter = 0;
         if (!readByte(letter)) return '\x1b';
@@ -145,8 +128,6 @@ int Terminal::readKey() const {
 
     if (next != '[') return '\x1b';
 
-    // ESC [ parameters final. The parameters are digits and semicolons; the
-    // first byte that is neither ends the sequence and says what it was.
     std::string params;
     char final = 0;
     for (int i = 0; i < 16; ++i) {
@@ -172,10 +153,8 @@ int Terminal::readKey() const {
     }
     if (key == '\x1b') return '\x1b';
 
-    // Control first, and control with shift counts as control: the two keys
-    // that mean anything with control on them mean nothing with shift.
     if (hasControl(second)) return controlledForm(key);
     return hasShift(second) ? shiftedForm(key) : key;
 }
 
-}  // namespace editor
+}

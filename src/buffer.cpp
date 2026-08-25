@@ -11,9 +11,7 @@ Buffer::Buffer()
       finalNewline_(true) {}
 
 void Buffer::beginEdit(EditKind kind, size_t cx, size_t cy) {
-    // Only typing and erasing run together. EditOther means exactly what it
-    // says - a newline, a re-layout, a replace - and each one is its own step
-    // even when the last change was also one.
+
     bool runs = (kind == EditTyping || kind == EditErasing);
     if (runs && kind == lastKind_ && !undo_.empty()) return;
 
@@ -25,14 +23,11 @@ void Buffer::beginEdit(EditKind kind, size_t cx, size_t cy) {
 
     if (undo_.size() > kMaxSteps) {
         undo_.erase(undo_.begin());
-        // Everything below has shifted down one. If the saved point was the
-        // one just dropped, it can never be recognised again.
+
         if (savedAt_ > 0) --savedAt_;
         else savedAt_ = -1;
     }
 
-    // Anything done afresh throws away what was undone: there is one past, and
-    // a future only for as long as nothing else happens.
     redo_.clear();
     lastKind_ = kind;
 }
@@ -52,7 +47,6 @@ bool Buffer::undo(size_t& cx, size_t& cy) {
     cx = before.cx;
     cy = before.cy;
 
-    // Back at the depth the file was written at is back at what is on disk.
     dirty_ = !(savedAt_ >= 0 && static_cast<size_t>(savedAt_) == undo_.size());
     lastKind_ = EditNone;
     return true;
@@ -79,11 +73,7 @@ bool Buffer::redo(size_t& cx, size_t& cy) {
 }
 
 Buffer::LoadResult Buffer::load(const std::string& path, std::string& error) {
-    // stdio rather than <fstream>, and not as a matter of taste. Including
-    // <fstream> gives a translation unit iostreams' static initialisation, and
-    // in a mixed native/managed binary that initialisation runs under the
-    // loader lock and corrupts the heap before main - which is what stopped the
-    // Windows Forms front end from starting at all. Nothing here needs streams.
+
     FILE* in = std::fopen(path.c_str(), "rb");
     if (!in) {
         path_ = path;
@@ -112,8 +102,7 @@ Buffer::LoadResult Buffer::load(const std::string& path, std::string& error) {
             line += text[i];
             continue;
         }
-        // The newline is dropped, and so is the carriage return a file written
-        // on Windows carries in front of it.
+
         if (!line.empty() && line[line.size() - 1] == '\r') line.resize(line.size() - 1);
         lines.push_back(line);
         line.clear();
@@ -122,14 +111,14 @@ Buffer::LoadResult Buffer::load(const std::string& path, std::string& error) {
     if (!line.empty()) {
         if (line[line.size() - 1] == '\r') line.resize(line.size() - 1);
         lines.push_back(line);
-        sawNewline = false;   // the last line had no newline after it
+        sawNewline = false;
     }
 
     if (lines.empty()) lines.push_back(std::string());
 
     lines_.swap(lines);
     path_ = path;
-    // A file just opened has no past worth going back to.
+
     undo_.clear();
     redo_.clear();
     lastKind_ = EditNone;
@@ -165,12 +154,8 @@ bool Buffer::save(std::string& error) {
         return false;
     }
 
-    // Where the history stood when this text reached the disk, so that undoing
-    // back to here can be recognised as being unmodified again.
     savedAt_ = static_cast<long>(undo_.size());
-    // Whatever is typed next starts a step of its own rather than joining the
-    // run that was in progress - otherwise the saved depth would be a depth
-    // the text no longer matches.
+
     lastKind_ = EditNone;
     dirty_ = false;
     return true;
@@ -224,8 +209,6 @@ void Buffer::eraseRange(const Range& range) {
         return;
     }
 
-    // What is left of the first line, joined to what is left of the last, and
-    // everything between them gone.
     lines_[range.fromRow] = lines_[range.fromRow].substr(0, from) +
                             lines_[lastRow].substr(to);
     lines_.erase(lines_.begin() + static_cast<long>(range.fromRow) + 1,
@@ -315,4 +298,4 @@ void Buffer::joinLine(size_t row) {
     dirty_ = true;
 }
 
-}  // namespace editor
+}

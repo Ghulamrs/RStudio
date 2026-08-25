@@ -24,17 +24,13 @@ const Page kPages[] = {
     {"",   "Appendix A",       "the Shalimar language, in full",                "appendix-a-shalimar-language.md"},
 };
 
-// Padded to a fixed width so the third column lines up. Written out rather
-// than computed from the longest title: the panel is eighty columns and the
-// widths were chosen to fit it, so a title that would break the layout should
-// be shortened rather than silently pushing the line off the edge.
 std::string column(const std::string& text, size_t width) {
     std::string out = text;
     while (out.size() < width) out += ' ';
     return out;
 }
 
-}  // namespace
+}
 
 const std::vector<Page>& pages() {
     static const std::vector<Page> all(kPages, kPages + sizeof kPages / sizeof kPages[0]);
@@ -49,9 +45,7 @@ std::vector<std::string> contents() {
     bool languagesStarted = false;
     const std::vector<Page>& all = pages();
     for (size_t i = 0; i < all.size(); ++i) {
-        // The numbered pages are about the editor and the rest are about one
-        // language each. A blank line between them says so without a heading,
-        // which the panel has no room for.
+
         if (!languagesStarted && all[i].number[0] == '\0') {
             languagesStarted = true;
             said.push_back("");
@@ -66,5 +60,5 @@ std::vector<std::string> contents() {
     return said;
 }
 
-}  // namespace help
-}  // namespace editor
+}
+}

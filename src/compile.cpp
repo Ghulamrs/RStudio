@@ -22,11 +22,6 @@ const char* const kArches[3] = {"x86_64-windows", "x86_64-linux", "arm64-darwin"
 
 namespace {
 
-// file:line:col: error: message
-//
-// Read from the right rather than by splitting on every colon: a Windows path
-// starts 'C:\', so the first colon on the line is not a separator - but
-// ': error: ' only ever appears where the compiler put it.
 bool parseGnu(const std::string& line, Diagnostic& d) {
     const std::string marker = ": error: ";
     size_t at = line.find(marker);
@@ -50,9 +45,6 @@ bool parseGnu(const std::string& line, Diagnostic& d) {
     return true;
 }
 
-// file(line,col): error C2059: message, and the form with no column at all -
-// which is what cl gives without /diagnostics:column, and what ml64 gives
-// always.
 bool parseMsvc(const std::string& line, Diagnostic& d) {
     size_t at = line.find("): ");
     if (at == std::string::npos) return false;
@@ -77,28 +69,14 @@ bool parseMsvc(const std::string& line, Diagnostic& d) {
     d.file = line.substr(0, open);
     d.line = lineNo;
     d.col = colNo;
-    // The word 'error' is dropped from the message: whoever shows this puts it
-    // back, and 'error: error C2059' reads like a stutter.
+
     d.message = rest.compare(0, 12, "fatal error ") == 0 ? rest.substr(12) : rest.substr(6);
     d.present = true;
     return true;
 }
 
-}  // namespace
+}
 
-// cc1 says it in two shapes and this only ever knew one of them.
-//
-// The parser's shape is what parseGnu reads: file:line:col: error: message.
-// The preprocessor's is two lines, with no severity word and no column at all -
-// it echoes the offending line and points at it:
-//
-//     /path/main.c:1: #include "shapes.h"
-//                               ^ cannot find "shapes.h" - looked in ...
-//
-// The column is recoverable even so: the caret sits under the character it
-// means, and the echoed source began at the width of the "file:line: " prefix,
-// so the difference between them is the column. A missing header is the most
-// ordinary mistake there is, and until this the editor could not take you to it.
 bool parseCc1Preprocessor(const std::string& first, const std::string& caretLine,
                           Diagnostic& d) {
     if (first.empty()) return false;
@@ -106,10 +84,8 @@ bool parseCc1Preprocessor(const std::string& first, const std::string& caretLine
     size_t caret = caretLine.find('^');
     if (caret == std::string::npos) return false;
     for (size_t i = 0; i < caret; ++i)
-        if (caretLine[i] != ' ' && caretLine[i] != '\t') return false;   // not a caret line
+        if (caretLine[i] != ' ' && caretLine[i] != '\t') return false;
 
-    // "file:line: " - found from the right, so a Windows drive letter's colon
-    // is never mistaken for the one that separates the line number.
     size_t after = first.rfind(": ");
     if (after == std::string::npos || after == 0) return false;
     std::string where = first.substr(0, after);
@@ -123,13 +99,13 @@ bool parseCc1Preprocessor(const std::string& first, const std::string& caretLine
     size_t lineNo = static_cast<size_t>(std::atol(where.c_str() + lineAt + 1));
     if (lineNo == 0) return false;
 
-    size_t prefix = after + 2;                 // where the echoed source starts
+    size_t prefix = after + 2;
     size_t col = caret >= prefix ? caret - prefix + 1 : 1;
 
     std::string message = caretLine.substr(caret + 1);
     size_t begin = message.find_first_not_of(" \t");
     message = (begin == std::string::npos) ? std::string() : message.substr(begin);
-    if (message.empty()) return false;         // a caret with nothing to say is not one
+    if (message.empty()) return false;
 
     d.file = where.substr(0, lineAt);
     d.line = lineNo;
@@ -139,13 +115,6 @@ bool parseCc1Preprocessor(const std::string& first, const std::string& caretLine
     return true;
 }
 
-// Error: line 3: message
-//
-// shc names neither the file nor the column. The file is the one being
-// compiled - there is one, since Shalimar has no include - and the column is
-// not something the language reports: a runtime error names the statement it
-// happened in, and a compile error names the line. The caller passes the path
-// in so the editor still has somewhere to jump to.
 bool parseShalimar(const std::string& line, const std::string& source, Diagnostic& d) {
     const std::string marker = "Error: line ";
     if (line.compare(0, marker.size(), marker) != 0) return false;
@@ -192,9 +161,6 @@ Diagnostic parseDiagnostic(const std::string& text, const std::string& source) {
 
 namespace {
 
-// A directory of this process's own under the machine's temporary one. The
-// process id is in the name so that two editors building at once do not put
-// their objects in the same place and link each other's.
 std::string temporaryDirectory(const char* what) {
     char id[32];
 #ifdef _WIN32
@@ -205,24 +171,14 @@ std::string temporaryDirectory(const char* what) {
     return path::join(path::tempDir(), std::string(what) + "-" + id);
 }
 
-}  // namespace
+}
 
-// Runs a command with its errors joined to its output, handing the sink each
-// line as it arrives, and gives back what the command exited with - or -1 when
-// it could not be started at all. Everything this editor runs, compiler and
-// built program alike, is run through here.
 int runCaptured(const std::string& command, std::string& output,
                 LineSink sink, void* context) {
     std::string cmd = command + " 2>&1";
 
 #ifdef _WIN32
-    // _popen hands the string to cmd /c, and cmd removes the first and last
-    // quote when a command has both a quoted program and quoted arguments -
-    // which every command here does, since paths hold spaces. An extra pair
-    // around the whole thing is what cmd then eats, leaving the real ones
-    // alone. Without this the compiler is never reached and cmd complains
-    // instead: "The filename, directory name, or volume label syntax is
-    // incorrect."
+
     cmd = "\"" + cmd + "\"";
 #endif
 
@@ -247,9 +203,7 @@ int runCaptured(const std::string& command, std::string& output,
 
     int status = PCLOSE(pipe);
 #ifndef _WIN32
-    // pclose hands back what wait handed it, which is not the number the
-    // program returned: the exit code is in the upper bits, and a program
-    // killed by a signal never had one.
+
     if (WIFEXITED(status)) return WEXITSTATUS(status);
     if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
 #endif
@@ -258,18 +212,6 @@ int runCaptured(const std::string& command, std::string& output,
 
 namespace {
 
-
-// The shell reads its own words when a program is not there, and they differ
-// per platform and explain nothing about how to fix it here.
-// Whether the compiler could not be *started*, as against having run and
-// failed. It used to look for "not found" anywhere in the output, which every
-// undefined symbol says: "ld: symbol(s) not found for architecture arm64" got
-// a program that had just run perfectly diagnosed as one that was not
-// installed, and the advice that followed - name it with --cc1, put it on PATH
-// - sent people looking in the wrong place entirely.
-//
-// So: the shell's own words, and nothing that only a running compiler or
-// linker could have said.
 bool looksLikeMissingProgram(const std::string& output) {
     bool shellSaidSo =
         output.find("command not found") != std::string::npos ||
@@ -284,16 +226,13 @@ bool looksLikeMissingProgram(const std::string& output) {
     return true;
 }
 
-}  // namespace
+}
 
 Build build(const Toolchain& tool, ToolchainKind kind, const std::string& sourcePath,
             Language lang, const std::string& arch, Configuration config,
             LineSink sink, void* context) {
     Build result;
 
-    // Puts this process into a Developer Command Prompt's environment if it is
-    // not already in one, so that cl can be found when the editor was started
-    // from an ordinary console. Nothing happens off Windows.
     if (!prepareFor(kind)) {
         result.output = "no Visual Studio 2022 found - cl cannot be run\n";
         if (sink) sink(context, "no Visual Studio 2022 found - cl cannot be run");
@@ -318,9 +257,7 @@ Build build(const Toolchain& tool, ToolchainKind kind, const std::string& source
     }
 
     if (result.ok) {
-        // stdio, not <fstream> - see the note in buffer.cpp: iostreams'
-        // static initialisation makes a mixed native/managed binary die on
-        // load, and reading a file of lines needs nothing streams provide.
+
         FILE* assembly = std::fopen(recipe.assemblyPath.c_str(), "rb");
         if (assembly) {
             std::string line;
@@ -410,10 +347,6 @@ Built buildTarget(const Toolchain& tool, ToolchainKind kind,
         return result;
     }
 
-    // Several sources here, and shc names none of them in a diagnostic.
-    // The first is the only honest guess, and it is right whenever a target
-    // holds one program's worth of Shalimar - which is every target that
-    // builds, since Shalimar has no separate compilation.
     result.diag = parseDiagnostic(result.output, sources.empty() ? std::string() : sources[0]);
     result.ok = (made == 0);
 
@@ -424,8 +357,6 @@ Built buildTarget(const Toolchain& tool, ToolchainKind kind,
         if (sink) sink(context, hint);
     }
 
-    // The objects and the directory they went in are the editor's mess; the
-    // program is the point and stays where it was asked for.
     for (size_t i = 0; i < result.leftovers.size(); ++i)
         std::remove(result.leftovers[i].c_str());
     result.leftovers.clear();
@@ -442,9 +373,6 @@ Built buildParts(const Toolchain& tool, const std::vector<Part>& parts,
         return result;
     }
 
-    // One compiler makes the whole of it, which is every project that worked
-    // before this and the only shape shc has. Nothing is split and nothing is
-    // linked separately: the command is the one it always was.
     if (parts.size() == 1) {
         return buildTarget(tool, toolchainOf(tool, parts[0]), parts[0].sources,
                            parts[0].lang, arch, config, program, sink, context);
@@ -468,9 +396,6 @@ Built buildParts(const Toolchain& tool, const std::vector<Part>& parts,
     for (size_t i = 0; i < parts.size(); ++i) {
         ToolchainKind kind = toolchainOf(tool, parts[i]);
 
-        // Said before each one, because a build that takes three commands and
-        // reports one is a build nobody can read. The group is named rather
-        // than the compiler alone: two groups may go to the same compiler.
         if (sink)
             sink(context, "$ " + parts[i].group + " (" + toolchainShown(tool, kind) + ")");
 
@@ -480,9 +405,7 @@ Built buildParts(const Toolchain& tool, const std::vector<Part>& parts,
 
         int rc = runCaptured(recipe.command, result.output, sink, context);
         if (rc != 0) {
-            // The diagnostic is looked for among this part's own sources, so
-            // the caret lands in the file the compiler was complaining about
-            // rather than in whichever file the target happened to list first.
+
             result.diag = parseDiagnostic(result.output, parts[i].sources[0]);
             if (rc < 0 || (!result.diag.present && looksLikeMissingProgram(result.output))) {
                 std::string hint = std::string(programOf(tool, kind)) +
@@ -502,15 +425,10 @@ Built buildParts(const Toolchain& tool, const std::vector<Part>& parts,
     Recipe link = linkRecipe(tool, made, withCpp, arch, config, program);
     int linked = runCaptured(link.command, result.output, sink, context);
 
-    // The objects are the editor's mess whether the link worked or not - a
-    // failed link leaves them behind just as readily, and a directory of stale
-    // objects is how a later build comes to link something nobody compiled.
     path::removeTree(objects);
 
     if (linked != 0) {
-        // A linker's complaint has no line to go to: it is about a name, not a
-        // place. So nothing is parsed out of it and the console is where it is
-        // read, which is what linkFailure already says for the one-command case.
+
         if (linked < 0) {
             std::string hint = linkerName(withCpp) +
                                " could not be run - it is the host's linker, and on Windows "
@@ -530,8 +448,6 @@ Ran runBuilt(const std::string& program, LineSink sink, void* context) {
     Ran result;
     if (program.empty()) return result;
 
-    // Its input is emptied for the same reason as above: a program that reads
-    // would otherwise eat the editor's own keys.
 #ifdef _WIN32
     const char* noInput = " < NUL";
 #else
@@ -560,9 +476,7 @@ Ran runProgram(const Toolchain& tool, ToolchainKind kind, const std::string& sou
     result.built = made.ok;
 
     if (result.built) {
-        // Its input is emptied rather than left as the editor's own, which in a
-        // terminal is the keyboard and under a test is the rest of the keys.
-        // A program that reads would otherwise eat what it was never sent.
+
 #ifdef _WIN32
         const char* noInput = " < NUL";
 #else
@@ -577,4 +491,4 @@ Ran runProgram(const Toolchain& tool, ToolchainKind kind, const std::string& sou
     return result;
 }
 
-}  // namespace editor
+}

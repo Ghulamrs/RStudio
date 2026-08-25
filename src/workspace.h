@@ -7,80 +7,38 @@
 
 namespace editor {
 
-// What changing a project actually involves: a rule to check, something done
-// on disk, the project's list kept in step, and the file written back out.
-//
-// It lives here rather than in either front end because both need all four and
-// neither needs them differently. The terminal asks its questions on the
-// message line and the window asks them in a dialog; what happens after the
-// answer is this, once.
 struct Outcome {
     bool ok = false;
-    std::string message;   // what to tell whoever asked, either way
-    std::string path;      // the file it ended up at, when there is one
+    std::string message;
+    std::string path;
 };
 
-// Makes an empty file and puts it in the project. `relative` is as the project
-// counts paths - the two-level rule is checked before anything is written.
 Outcome createFile(Project& project, const std::string& relative,
                    const std::string& group);
 
-// Renames on disk and follows it in the project.
 Outcome renameFile(Project& project, const std::string& fromAbsolute,
                    const std::string& toRelative);
 
-// Removes from disk and from the project. The asking is the caller's; by the
-// time this is reached the answer was yes.
 Outcome deleteFile(Project& project, const std::string& absolute);
 
-// Regrouping changes two lists and nothing on disk.
 Outcome moveToGroup(Project& project, const std::string& absolute,
                     const std::string& group);
 
-// Puts a file that already exists into the project.
-// Which group a file belongs in, by its name: "Headers" for a .h or .hpp,
-// "Shalimar" for a .shl, "Sources" for the rest of what this editor compiles,
-// and empty for anything it does not.
-//
-// One rule, in one place, because three things ask it: the scanner that writes
-// a project out of a directory, Add this file, and New file. They used to
-// agree only by accident - the scanner sorted headers correctly and the other
-// two put everything in Sources, so a header added by hand landed among the
-// sources and had to be moved.
 std::string groupForFile(const std::string& name);
 
 Outcome addExisting(Project& project, const std::string& absolute,
                     const std::string& group);
 
-// Out of the project's list; the file itself is not touched.
 Outcome removeExisting(Project& project, const std::string& absolute);
 
 Outcome beginProject(Project& project, const std::string& directory,
                      const std::string& name, const std::string& firstFile);
 Outcome saveProject(Project& project);
 
-// A project made out of what is already in a directory, for when there is no
-// RStudio.json to read. Named after the directory, and holding the source it can
-// find there and one level under it - which is where this project keeps its
-// own, and most others do too.
-//
-// For a directory with no project file, not for one whose project file will
-// not parse: a file somebody wrote and mistyped is theirs, and writing over it
-// would be the editor destroying work to save itself an error message.
 Outcome beginFromWhatIsThere(Project& project, const std::string& directory);
 
-// Where a first run opens. There is nothing to remember the first time and an
-// empty window teaches nothing, so a small project is made in your own files -
-// one C program with a loop and a function in it, which is enough to build,
-// run, and stop inside with a breakpoint.
-//
-// Made once. Afterwards it is an ordinary project like any other, and anything
-// you do to it stays done.
-//
-// Gives back the directory to open, or empty when it could not be made - on a
-// machine that will not say where home is, which is not worth stopping for.
 std::string demoDirectory();
 
-}  // namespace editor
+}
 
 #endif

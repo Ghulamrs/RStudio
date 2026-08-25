@@ -18,7 +18,6 @@ std::string trimmed(const std::string& s) {
     return s.substr(a, b - a);
 }
 
-// The word at `at`, and where it ended.
 std::string word(const std::string& s, size_t at, size_t& after) {
     while (at < s.size() && space(s[at])) ++at;
     size_t start = at;
@@ -29,8 +28,6 @@ std::string word(const std::string& s, size_t at, size_t& after) {
 
 bool isAll(const std::string& s, const char* what) { return s == what; }
 
-// A label a person did not write: cc1's .L.str.0 and L.main.end.0, MASM's
-// $SG5346 and $_L_str_0. They are the compiler's own bookkeeping.
 bool madeUp(const std::string& name) {
     if (name.empty()) return true;
     if (name[0] == '$') return true;
@@ -39,8 +36,6 @@ bool madeUp(const std::string& name) {
     return false;
 }
 
-// "as expected\000" and 'first is %d', 0aH, 00H and 97, 115, 32 are all the
-// same thing said three ways.
 std::string readText(const std::string& rest) {
     std::string out;
     size_t at = 0;
@@ -55,7 +50,7 @@ std::string readText(const std::string& rest) {
             char closer = rest[at++];
             while (at < rest.size() && rest[at] != closer) {
                 if (rest[at] == '\\' && at + 1 < rest.size()) {
-                    // \000 and friends end the string as far as reading it goes.
+
                     char escape = rest[at + 1];
                     if (escape == '0') return out;
                     if (escape == 'n') out += ' ';
@@ -68,7 +63,6 @@ std::string readText(const std::string& rest) {
             continue;
         }
 
-        // A number, in MASM's 0aH or in plain decimal.
         size_t start = at;
         while (at < rest.size() && rest[at] != ',' && !space(rest[at])) ++at;
         std::string number = rest.substr(start, at - start);
@@ -81,26 +75,21 @@ std::string readText(const std::string& rest) {
         else
             value = std::strtol(number.c_str(), 0, 10);
 
-        if (value == 0) return out;               // the terminator ends it
+        if (value == 0) return out;
         if (value == 10 || value == 13) out += ' ';
         else if (value >= 32 && value < 127) out += static_cast<char>(value);
     }
     return out;
 }
 
-}  // namespace
+}
 
 std::vector<Symbol> symbolsIn(const std::vector<std::string>& assembly) {
     std::vector<Symbol> found;
 
-    // Which function the reader is inside, so that the stack it takes can be
-    // hung on the right name.
     size_t inside = found.size();
     bool prologue = false;
 
-    // arm64 cannot subtract a large immediate from the stack pointer, so cc1
-    // puts the number in a register first. The register and its value are kept
-    // until the subtraction that uses them turns up.
     std::string held;
     long heldValue = 0;
 
@@ -124,14 +113,14 @@ std::vector<Symbol> symbolsIn(const std::vector<std::string>& assembly) {
 
         if (isAll(first, "EXTERN") || isAll(first, "EXTRN") || isAll(first, ".extern")) {
             made.kind = SymbolExternal;
-            // EXTERN puts:PROC - the name is what comes before the colon.
+
             size_t colon = second.find(':');
             made.name = colon == std::string::npos ? second : second.substr(0, colon);
             found.push_back(made);
             continue;
         }
 
-        if (isAll(second, "PROC")) {           // MASM: name PROC [FRAME]
+        if (isAll(second, "PROC")) {
             made.kind = SymbolFunction;
             made.name = first;
             found.push_back(made);
@@ -146,14 +135,12 @@ std::vector<Symbol> symbolsIn(const std::vector<std::string>& assembly) {
             continue;
         }
 
-        // A DB on its own continues the string named on the line before it -
-        // MASM breaks long ones across lines.
         if (isAll(first, "DB") && !found.empty() && found.back().kind == SymbolText) {
             found.back().detail += readText(line.substr(after - second.size()));
             continue;
         }
 
-        if (isAll(second, "DB") || isAll(second, ".asciz")) {   // MASM: name DB bytes
+        if (isAll(second, "DB") || isAll(second, ".asciz")) {
             std::string said = readText(line.substr(after));
             if (!said.empty()) {
                 made.kind = SymbolText;
@@ -168,7 +155,7 @@ std::vector<Symbol> symbolsIn(const std::vector<std::string>& assembly) {
             std::string said = readText(line.substr(after - second.size()));
             if (!said.empty() && !found.empty() && found.back().kind == SymbolText &&
                 found.back().detail.empty()) {
-                found.back().detail = said;    // the label came on the line before
+                found.back().detail = said;
             } else if (!said.empty()) {
                 made.kind = SymbolText;
                 made.name = "(string)";
@@ -178,14 +165,12 @@ std::vector<Symbol> symbolsIn(const std::vector<std::string>& assembly) {
             continue;
         }
 
-        // A label at the head of a line: a function in the GNU spelling, or a
-        // name for a string about to be given.
         if (line[line.size() - 1] == ':') {
             std::string name = line.substr(0, line.size() - 1);
             if (name.find(' ') != std::string::npos) continue;
 
             if (madeUp(name)) {
-                // A string's label, waiting for the .ascii on the next line.
+
                 made.kind = SymbolText;
                 made.name = name;
                 found.push_back(made);
@@ -201,8 +186,6 @@ std::vector<Symbol> symbolsIn(const std::vector<std::string>& assembly) {
 
         if (!prologue || inside >= found.size()) continue;
 
-        // 'mov x9, #16' on its own means nothing; it means something when the
-        // next subtraction from the stack pointer uses x9.
         if (isAll(first, "mov")) {
             std::string into = second;
             if (!into.empty() && into[into.size() - 1] == ',') into.resize(into.size() - 1);
@@ -214,8 +197,6 @@ std::vector<Symbol> symbolsIn(const std::vector<std::string>& assembly) {
             continue;
         }
 
-        // How much stack the function takes, from the first subtraction in its
-        // prologue: 'sub rsp, 16', 'sub sp, sp, #16', or 'sub sp, sp, x9'.
         if (isAll(first, "sub") && found[inside].detail.empty()) {
             long bytes = 0;
 
@@ -238,7 +219,6 @@ std::vector<Symbol> symbolsIn(const std::vector<std::string>& assembly) {
         }
     }
 
-    // Labels that turned out to name nothing are the compiler's bookkeeping.
     std::vector<Symbol> kept;
     for (size_t i = 0; i < found.size(); ++i) {
         if (found[i].kind == SymbolText && found[i].detail.empty()) continue;
@@ -285,4 +265,4 @@ std::vector<std::string> describe(const std::vector<Symbol>& symbols) {
     return out;
 }
 
-}  // namespace editor
+}

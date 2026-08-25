@@ -30,9 +30,6 @@ std::string baseName(const std::string& path) {
     return at == std::string::npos ? path : path.substr(at + 1);
 }
 
-// Writing the project back out is part of every change, so nothing can leave
-// the list disagreeing with the disk. With no project file there is nothing to
-// write, and the change on disk still stands.
 Outcome andSave(Project& project, const std::string& said, const std::string& path) {
     if (!project.loaded()) return yes(said, path);
     std::string error;
@@ -40,7 +37,7 @@ Outcome andSave(Project& project, const std::string& said, const std::string& pa
     return yes(said, path);
 }
 
-}  // namespace
+}
 
 Outcome createFile(Project& project, const std::string& relative,
                    const std::string& group) {
@@ -81,10 +78,6 @@ Outcome renameFile(Project& project, const std::string& fromAbsolute,
 
 namespace {
 
-// Case-insensitively, because syntax.cpp's languageFor already is - a file
-// called READ.H is coloured as C there - and two rules about the same suffix
-// that disagree about case is a file that reads as one thing and is filed as
-// another.
 bool endsWith(const std::string& name, const std::string& suffix) {
     if (name.size() < suffix.size()) return false;
 
@@ -98,25 +91,9 @@ bool endsWith(const std::string& name, const std::string& suffix) {
     return true;
 }
 
-// The suffixes worth putting in a project made without being told, and which
-// group each one belongs in. Anything else in the directory is left out rather
-// than guessed at, and an empty answer here is what "left out" means.
-//
-// What you declare and what you write are different things to look at, which
-// is why Headers is separate from Sources - a project made without being told
-// should still put them in different places.
-//
-// **Shalimar gets a group of its own, and that is not a matter of taste.**
-// project.cpp refuses a group holding Shalimar and C or C++ together, because
-// shc reads Shalimar and nothing else while cc1 and cl read neither. Dropping
-// a .shl into Sources beside a .c would therefore write a project that cannot
-// build - a refusal earned by the editor rather than by whoever owns the
-// directory.
 std::string groupForNamed(const std::string& name) {
     if (endsWith(name, ".h") || endsWith(name, ".hpp")) return "Headers";
 
-    // One suffix. .shm - what the phone app writes - was recognised here too
-    // until 2026-08-23 and is not any more; see syntax.h for why.
     if (endsWith(name, ".shl")) return "Shalimar";
 
     const char* const sources[4] = {".c", ".cpp", ".cc", ".s"};
@@ -126,15 +103,13 @@ std::string groupForNamed(const std::string& name) {
     return std::string();
 }
 
-// The same directories the pane on the left refuses to show: build output and
-// version control, which would bury the files anyone is looking for.
 bool worthDescending(const std::string& name) {
     if (name.empty() || name[0] == '.') return false;
     return name != "obj" && name != "build" && name != "x64" && name != "Debug" &&
            name != "Release" && name != "node_modules";
 }
 
-}  // namespace
+}
 
 std::string groupForFile(const std::string& name) { return groupForNamed(name); }
 
@@ -142,13 +117,8 @@ Outcome beginFromWhatIsThere(Project& project, const std::string& directory) {
     std::string root = path::absolute(directory);
     project.begin(root, path::filename(root));
 
-    // Both groups exist before anything is found, so a project with no headers
-    // yet has the place to put the first one rather than needing the group made
-    // at the same moment as the file.
     project.addGroup("Headers");
 
-    // Here, and one level down. Two levels is what a project path is allowed
-    // anyway, so there would be nowhere to put anything deeper.
     size_t found = 0;
     std::vector<path::Entry> here = path::entries(root);
     for (size_t i = 0; i < here.size(); ++i) {
@@ -183,22 +153,6 @@ Outcome beginFromWhatIsThere(Project& project, const std::string& directory) {
     return done;
 }
 
-// Small on purpose, and every line of it is doing something you can watch: the
-// numbers appear one at a time as you step, which is the whole of what a
-// debugger is for.
-//
-// The same program is in examples/projectile.c, where it can be read and built
-// like any other file. It is a string here as well because a first run has to
-// be able to write it without knowing where this editor was installed.
-//
-// The guard around M_PI is not decoration. It is in <math.h> on a Mac and on
-// Linux, and MSVC keeps it behind _USE_MATH_DEFINES - so without this the
-// first program a first run opens would not compile on one of the three
-// machines it is written for.
-//
-// Which also means the value here is only ever used on Windows, and 3.14 is
-// enough for it: the program prints two decimal places, and it prints the same
-// two - 2.88, 10.19, 40.77 - whichever value of pi it was given.
 const char* const kDemoProgram =
     "#include <stdio.h>\n"
     "#include <math.h>\n"
@@ -236,8 +190,6 @@ std::string demoDirectory() {
     std::string dir = path::join(home, "cc1-demo");
     std::string file = path::join(dir, "src/first.c");
 
-    // Made once. If it is already there it is yours now, and whatever you have
-    // done to it is what opens.
     if (path::exists(file)) return dir;
 
     if (!path::makeDirectories(path::join(dir, "src"))) return std::string();
@@ -263,7 +215,6 @@ Outcome moveToGroup(Project& project, const std::string& absolute,
                     const std::string& group) {
     std::string relative = project.relative(absolute);
 
-    // Not in the project yet means moving it in is the same as adding it.
     if (!project.moveToGroup(relative, group) && !project.addFile(relative, group))
         return no("could not move " + relative);
 
@@ -281,9 +232,6 @@ Outcome addExisting(Project& project, const std::string& absolute,
     return andSave(project, relative + " added to " + group, absolute);
 }
 
-// The pair to addExisting, and deliberately not the pair to deleteFile: this
-// takes the file out of the project's list and leaves it on the disk exactly
-// where it was. Whoever asked for "Remove File" asked about the project.
 Outcome removeExisting(Project& project, const std::string& absolute) {
     std::string relative = project.relative(absolute);
 
@@ -310,4 +258,4 @@ Outcome saveProject(Project& project) {
     return andSave(project, project.file() + " written", project.file());
 }
 
-}  // namespace editor
+}

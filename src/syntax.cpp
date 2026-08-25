@@ -13,7 +13,6 @@ bool identChar(char c) {
 
 bool digit(char c) { return c >= '0' && c <= '9'; }
 
-// C89 through C11, which is what cc1 accepts.
 const char* const kCKeywords[] = {
     "auto", "break", "case", "continue", "default", "do", "else", "enum", "extern",
     "for", "goto", "if", "inline", "register", "restrict", "return", "sizeof",
@@ -25,14 +24,6 @@ const char* const kCTypes[] = {
     "char", "const", "double", "float", "int", "long", "short", "signed",
     "unsigned", "void", "size_t", "ptrdiff_t", "wchar_t", "FILE", 0};
 
-// Added on top of the C lists, not instead of them.
-//
-// C++14 and no further, which is what this arena compiles: cl is told
-// /std:c++14, so colouring a word cl would refuse to accept would be the
-// editor promising something the compiler will not do. `final` and `override`
-// are in because they are read as keywords even though the standard calls them
-// contextual, and the alternative tokens - and, or, not_eq and the rest - are
-// in because they are keywords, however rarely anybody writes them.
 const char* const kCppKeywords[] = {
     "alignas", "alignof", "and", "and_eq", "asm", "bitand", "bitor", "catch",
     "class", "compl", "constexpr", "const_cast", "decltype", "delete",
@@ -42,10 +33,6 @@ const char* const kCppKeywords[] = {
     "static_assert", "static_cast", "template", "this", "thread_local", "throw",
     "true", "try", "typeid", "typename", "using", "virtual", "xor", "xor_eq", 0};
 
-// The built-in types, and the names from the standard library that turn up in
-// ordinary code often enough to be worth telling apart from a variable. A
-// library name is not a keyword and this does not pretend otherwise - they are
-// coloured as types, which is what they are.
 const char* const kCppTypes[] = {
     "auto", "bool", "char16_t", "char32_t", "nullptr_t",
     "std", "string", "wstring", "vector", "array", "deque", "list", "forward_list",
@@ -57,9 +44,6 @@ const char* const kCppTypes[] = {
     "exception", "runtime_error", "logic_error", "bad_alloc",
     "function", "thread", "mutex", "atomic", "chrono", 0};
 
-// Shalimar's whole vocabulary. Thirteen words, and three of them - int, real
-// and char - are the names of the conversions as well, which is resolved by
-// position rather than by spelling.
 const char* const kShalimarKeywords[] = {
     "if", "elseif", "else", "while", "for", "to", "step", "fun", "return",
     "break", "continue", 0};
@@ -67,17 +51,11 @@ const char* const kShalimarKeywords[] = {
 const char* const kShalimarTypes[] = {
     "int", "real", "char", 0};
 
-// The twenty built-ins. Not keywords - a program cannot define a function of
-// the same name, which is close enough to being reserved that colouring them
-// tells the truth.
 const char* const kShalimarBuiltins[] = {
     "abs", "sqrt", "log", "exp", "hypot", "sin", "cos", "tan", "asin", "acos",
     "atan", "atan2", "pow", "round", "ceil", "floor", "trunc", "max", "min",
     "len", 0};
 
-// Read-only and reserved: neither can be declared, assigned, taken as a
-// parameter name, or used as a loop counter. One name, one meaning - so
-// colouring them as the numbers they are is not a guess.
 const char* const kShalimarConstants[] = { "pi", "e", 0 };
 
 bool inList(const char* const* list, const std::string& word) {
@@ -89,7 +67,7 @@ bool inList(const char* const* list, const std::string& word) {
 bool endsWith(const std::string& s, const char* suffix) {
     size_t n = std::strlen(suffix);
     if (s.size() < n) return false;
-    // Compared without case, so a .C and a .S are found as well as a .c and .s.
+
     for (size_t i = 0; i < n; ++i) {
         char a = s[s.size() - n + i];
         char b = suffix[i];
@@ -107,8 +85,6 @@ void markAsm(const std::string& line, std::vector<unsigned char>& kind) {
     for (; i < line.size(); ++i) {
         char c = line[i];
 
-        // Three spellings of a comment reach this pane: ';' from MASM, '#'
-        // from the GNU assemblers, and '//' from both.
         if (c == ';' || c == '#' || (c == '/' && i + 1 < line.size() && line[i + 1] == '/')) {
             for (size_t j = i; j < line.size(); ++j) kind[j] = KindComment;
             return;
@@ -130,8 +106,7 @@ void markAsm(const std::string& line, std::vector<unsigned char>& kind) {
         if (c == '.' && (i == 0 || !identChar(line[i - 1]))) {
             size_t j = i + 1;
             while (j < line.size() && identChar(line[j])) ++j;
-            // A directive, unless a colon makes it a label - cc1 writes both,
-            // and .L.str.0: is a label whose name happens to start with a dot.
+
             size_t k = j;
             while (k < line.size() && (line[k] == '.' || identChar(line[k]))) ++k;
             unsigned char what = (k < line.size() && line[k] == ':') ? KindLabel : KindPreproc;
@@ -155,7 +130,7 @@ void markAsm(const std::string& line, std::vector<unsigned char>& kind) {
                 for (size_t m = i; m <= j; ++m) kind[m] = KindLabel;
                 i = j;
             } else if (i == 0 || line[i - 1] == ' ' || line[i - 1] == '\t') {
-                // The first word on the line is the mnemonic.
+
                 bool first = true;
                 for (size_t m = 0; m < i; ++m)
                     if (line[m] != ' ' && line[m] != '\t') first = false;
@@ -169,17 +144,6 @@ void markAsm(const std::string& line, std::vector<unsigned char>& kind) {
     }
 }
 
-// Shalimar, which is simpler than C in exactly the places a highlighter cares
-// about: one kind of comment, one kind of literal, no escapes inside it, no
-// preprocessor, and no character literal at all - an apostrophe is not a token
-// there, so it colours nothing.
-// JSON, which has no comments, no escapes worth colouring differently, and
-// three words.
-//
-// A string is marked as a *type* when the next thing after it is a colon and
-// as a string otherwise - so the keys of an object stand away from its values,
-// which is the whole of what makes a project file scannable. That is the only
-// cleverness here and it is one lookahead deep.
 void markJson(const std::string& line, std::vector<unsigned char>& kind) {
     for (size_t i = 0; i < line.size(); ++i) {
         char c = line[i];
@@ -187,13 +151,12 @@ void markJson(const std::string& line, std::vector<unsigned char>& kind) {
         if (c == '"') {
             size_t j = i + 1;
             for (; j < line.size(); ++j) {
-                if (line[j] == '\\') { ++j; continue; }   // \" does not end it
+                if (line[j] == '\\') { ++j; continue; }
                 if (line[j] == '"') break;
             }
 
             size_t end = (j < line.size()) ? j : line.size() - 1;
 
-            // What follows, ignoring spaces: a colon makes this a key.
             size_t after = end + 1;
             while (after < line.size() && (line[after] == ' ' || line[after] == '\t')) ++after;
             unsigned char as = (after < line.size() && line[after] == ':') ? KindType : KindString;
@@ -217,7 +180,6 @@ void markJson(const std::string& line, std::vector<unsigned char>& kind) {
             continue;
         }
 
-        // true, false, null - the only bare words JSON has.
         if (c == 't' || c == 'f' || c == 'n') {
             static const char* const words[3] = {"true", "false", "null"};
             for (size_t w = 0; w < 3; ++w) {
@@ -234,9 +196,6 @@ void markJson(const std::string& line, std::vector<unsigned char>& kind) {
 void markShalimar(const std::string& line, std::vector<unsigned char>& kind) {
     size_t i = 0;
 
-    // '?' and '??' are commands and must be the first token on their line, so
-    // they are looked for only there. Nothing else in the language carries
-    // layout, and this is the one place it does.
     while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) ++i;
     if (i < line.size() && line[i] == '?') {
         kind[i] = KindPreproc;
@@ -252,8 +211,6 @@ void markShalimar(const std::string& line, std::vector<unsigned char>& kind) {
             return;
         }
 
-        // No escapes: the first closing quote always ends it, and a literal
-        // that reaches the end of the line was never closed.
         if (c == '"') {
             size_t j = i;
             kind[j] = KindString;
@@ -281,8 +238,7 @@ void markShalimar(const std::string& line, std::vector<unsigned char>& kind) {
 
             unsigned char what = KindNormal;
             if (afterDot) {
-                // row, col and dim mean something only here. Everywhere else
-                // they are ordinary names, and 'row : 9' declares a variable.
+
                 if (word == "row" || word == "col" || word == "dim") what = KindType;
             } else if (inList(kShalimarKeywords, word)) {
                 what = KindKeyword;
@@ -293,8 +249,7 @@ void markShalimar(const std::string& line, std::vector<unsigned char>& kind) {
             } else if (inList(kShalimarBuiltins, word)) {
                 what = KindType;
             } else if (word == "prec") {
-                // Also contextual: a directive at the head of a print item and
-                // an ordinary name anywhere else, told apart by the bracket.
+
                 size_t k = j;
                 while (k < line.size() && line[k] == ' ') ++k;
                 if (k < line.size() && line[k] == '(') what = KindPreproc;
@@ -308,7 +263,7 @@ void markShalimar(const std::string& line, std::vector<unsigned char>& kind) {
     }
 }
 
-}  // namespace
+}
 
 Language languageFor(const std::string& path) {
     if (endsWith(path, ".shl")) return LangShalimar;
@@ -320,8 +275,6 @@ Language languageFor(const std::string& path) {
         return LangCpp;
     if (endsWith(path, ".s") || endsWith(path, ".asm")) return LangAsm;
 
-    // .pro is a project file and .json is JSON; both are read as JSON, which
-    // is what a .pro is made of whatever its name says.
     if (endsWith(path, ".json") || endsWith(path, ".pro")) return LangJson;
     return LangPlain;
 }
@@ -350,22 +303,20 @@ const char* languageSuffix(Language lang) {
 
 const char* colourFor(unsigned char kind) {
     switch (kind) {
-        case KindKeyword: return "94";   // bright blue
-        case KindType:    return "36";   // cyan
-        case KindString:  return "32";   // green
+        case KindKeyword: return "94";
+        case KindType:    return "36";
+        case KindString:  return "32";
         case KindChar:    return "32";
-        case KindComment: return "90";   // grey
-        case KindPreproc: return "35";   // magenta
-        case KindNumber:  return "33";   // yellow
-        case KindLabel:   return "93";   // bright yellow
-        default:          return "39";   // whatever the terminal calls normal
+        case KindComment: return "90";
+        case KindPreproc: return "35";
+        case KindNumber:  return "33";
+        case KindLabel:   return "93";
+        default:          return "39";
     }
 }
 
 void advanceState(const std::string& line, Language lang, SyntaxState& state) {
-    // Shalimar has no block comment and no literal that outlives its line, so
-    // nothing it writes can leave anything behind. That is the same reason
-    // plain text and assembly need no walk.
+
     if (lang == LangPlain || lang == LangAsm || lang == LangShalimar ||
         lang == LangJson) {
         state.comment = false;
@@ -420,7 +371,6 @@ std::vector<unsigned char> highlight(const std::string& line, Language lang,
 
     size_t i = 0;
 
-    // A line that began inside a block comment stays in one until it closes.
     if (state.comment) {
         while (i < line.size()) {
             kind[i] = KindComment;
@@ -435,8 +385,6 @@ std::vector<unsigned char> highlight(const std::string& line, Language lang,
         if (state.comment) return kind;
     }
 
-    // The preprocessor, marked before anything else so that the < > of an
-    // include is a string rather than two comparisons.
     size_t head = i;
     while (head < line.size() && (line[head] == ' ' || line[head] == '\t')) ++head;
     bool include = false;
@@ -483,7 +431,7 @@ std::vector<unsigned char> highlight(const std::string& line, Language lang,
             while (j < line.size()) {
                 kind[j] = KindString;
                 if (closer == '"' && line[j] == '\\' && j + 1 < line.size()) {
-                    kind[++j] = KindString;   // an escaped quote ends nothing
+                    kind[++j] = KindString;
                 } else if (line[j] == closer) {
                     break;
                 }
@@ -536,4 +484,4 @@ std::vector<unsigned char> highlight(const std::string& line, Language lang,
     return kind;
 }
 
-}  // namespace editor
+}

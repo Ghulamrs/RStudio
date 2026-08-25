@@ -8,8 +8,6 @@ Match findNext(const std::vector<std::string>& lines, const std::string& needle,
     if (needle.empty() || lines.empty()) return match;
     if (row >= lines.size()) row = lines.size() - 1;
 
-    // Every line once, starting with the one the caret is on and coming back to
-    // it last - which is what makes the wrap stop rather than go round forever.
     for (size_t step = 0; step <= lines.size(); ++step) {
         size_t at = (row + step) % lines.size();
         size_t from = (step == 0) ? col : 0;
@@ -17,8 +15,6 @@ Match findNext(const std::vector<std::string>& lines, const std::string& needle,
 
         size_t found = lines[at].find(needle, from);
 
-        // On the last look the line is the one it began on, and only the part
-        // before the caret is left to search.
         if (step == lines.size() && found != std::string::npos && found >= col)
             return match;
 
@@ -43,7 +39,7 @@ Match findPrevious(const std::vector<std::string>& lines, const std::string& nee
 
         size_t upTo;
         if (step == 0) {
-            if (col == 0) continue;   // nothing before the caret on this line
+            if (col == 0) continue;
             upTo = col - 1;
         } else {
             upTo = lines[at].size();
@@ -73,8 +69,7 @@ size_t replaceAll(std::vector<std::string>& lines, const std::string& needle,
             size_t found = line.find(needle, at);
             if (found == std::string::npos) break;
             line.replace(found, needle.size(), with);
-            // Past what was just written, so a replacement containing the thing
-            // being replaced does not send this round forever.
+
             at = found + with.size();
             ++count;
         }
@@ -82,4 +77,4 @@ size_t replaceAll(std::vector<std::string>& lines, const std::string& needle,
     return count;
 }
 
-}  // namespace editor
+}

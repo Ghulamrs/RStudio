@@ -10,20 +10,13 @@ namespace editor {
 
 namespace {
 
-// Written with forward slashes whatever the machine, so a project file made on
-// one opens on the other. Windows takes them everywhere it takes backslashes.
-// The turning round is in path.h now, since everything there works that way.
 std::string withSlashes(const std::string& text) { return path::withSlashes(text); }
 
 ToolchainKind toolchainFrom(const std::string& word) {
     if (word == "cc1") return ToolCc1;
     if (word == "msvc" || word == "cl") return ToolMsvc;
     if (word == "shc") return ToolShc;
-    // All four spellings mean "the machine's own C++ compiler", and none of
-    // them means g++ *rather than* clang++. Which one that is, is a fact about
-    // a machine, and the rule this file already keeps is that a machine's
-    // facts do not go in a project file - the same reason the paths to cc1 and
-    // cl are not in here. $CXX or --cxx is where that answer lives.
+
     if (word == "c++" || word == "cxx" || word == "g++" || word == "clang++")
         return hostCppToolchain();
     return ToolAuto;
@@ -33,15 +26,11 @@ const char* toolchainWord(ToolchainKind kind) {
     if (kind == ToolCc1) return "cc1";
     if (kind == ToolMsvc) return "msvc";
     if (kind == ToolShc) return "shc";
-    // Written back as "c++" - the word that means "this machine's", which is
-    // what was meant however it was spelled. "msvc" above is the other half of
-    // the same file being readable on the machine it was not written on.
+
     if (kind == ToolCxx) return "c++";
     return "auto";
 }
 
-// What the suffix says, which is what the compilers go by. A .h is C by name
-// and is still not a source, so it comes back as LangPlain and is skipped.
 Language languageOf(const std::string& relative) {
     size_t dot = relative.find_last_of('.');
     if (dot == std::string::npos) return LangPlain;
@@ -59,7 +48,7 @@ const char* languageWord(Language lang) {
     return "text";
 }
 
-}  // namespace
+}
 
 Project::Project()
     : loaded_(false), toolchain_(ToolAuto),
@@ -68,12 +57,9 @@ Project::Project()
 const char* Project::fileName() { return "RStudio.json"; }
 const char* Project::formerFileName() { return "ed1.json"; }
 
-// Whether a name ends in the project suffix, ignoring case - the same rule
-// workspace.cpp uses for source suffixes and syntax.cpp for languages, so a
-// PRIME.PRO is not a file this editor can see two ways about.
 static bool namedPro(const std::string& name) {
     const std::string suffix = Project::suffix();
-    if (name.size() <= suffix.size()) return false;   // ".pro" alone is not a name
+    if (name.size() <= suffix.size()) return false;
 
     size_t at = name.size() - suffix.size();
     for (size_t i = 0; i < suffix.size(); ++i) {
@@ -87,14 +73,6 @@ static bool namedPro(const std::string& name) {
 
 const char* Project::suffix() { return ".pro"; }
 
-// Every named project file in a directory, sorted, so which one is found first
-// does not depend on the order the filesystem happens to hand them back.
-//
-// This directory only. Not one level down, not recursively - which is what
-// keeps a template like docs/sample.pro from ever being mistaken for somebody's
-// project. A file that is meant to be read rather than opened has to be
-// somewhere the search does not go, and "the directory you asked for" is a rule
-// anybody can hold in their head.
 std::vector<std::string> Project::projectFilesIn(const std::string& directory) {
     std::vector<std::string> found;
     std::string base = path::absolute(directory);
@@ -109,14 +87,6 @@ std::vector<std::string> Project::projectFilesIn(const std::string& directory) {
     return found;
 }
 
-// The project file to open in a directory, by name if there is one and by the
-// older whole-directory names if not.
-//
-// Several .pro is not an error and not ambiguous here: the first by name is
-// answered, which is what a caller that only wants *a* project needs - working
-// out which project a named source file belongs to, say. A caller that can ask
-// a person which one - opening a directory on purpose - asks projectFilesIn
-// instead and offers the list.
 std::string Project::fileIn(const std::string& directory) {
     std::vector<std::string> named = projectFilesIn(directory);
     if (!named.empty()) return named[0];
@@ -142,19 +112,12 @@ std::string Project::relative(const std::string& file) const {
     return out;
 }
 
-// A project made here is a named one: prime.pro, not RStudio.json. The older
-// whole-directory names are still read - every project written before this has
-// one - and a project loaded under one is saved back to it, so nothing is
-// converted behind anybody's back. Project > Save as is how a
-// person converts one when they mean to.
 void Project::begin(const std::string& dir, const std::string& name) {
     root_ = path::absolute(dir);
     file_ = root_ + "/" + name + suffix();
     name_ = name;
     groups_.clear();
 
-    // One group to start with. Splitting a project into more of them is a
-    // decision about the project, and not one the editor should make for you.
     Group all;
     all.name = "Sources";
     groups_.push_back(all);
@@ -162,12 +125,6 @@ void Project::begin(const std::string& dir, const std::string& name) {
     loaded_ = true;
 }
 
-// Takes a directory, or a project file by name.
-//
-// Both, because a directory holding two named projects has to be openable at
-// one of them in particular - by the picker, and by the last-project the
-// editor remembers, which would otherwise reopen whichever sorts first and
-// quietly ignore which one you were actually in.
 bool Project::load(const std::string& dir, std::string& error) {
     error.clear();
     loaded_ = false;
@@ -177,16 +134,14 @@ bool Project::load(const std::string& dir, std::string& error) {
     std::string path;
     if (path::isDirectory(base)) {
         path = fileIn(base);
-        if (path.empty()) return false;   // no project here, which is not a fault
+        if (path.empty()) return false;
     } else {
-        // Named directly. The root is the directory holding it, which is what
-        // every relative path in the file is counted from.
+
         if (!path::exists(base)) return false;
         path = base;
         base = path::parent(base);
     }
 
-    // stdio, not <fstream> - see the note in buffer.cpp.
     FILE* in = std::fopen(path.c_str(), "rb");
     if (!in) return false;
 
@@ -211,34 +166,19 @@ bool Project::load(const std::string& dir, std::string& error) {
     file_ = path;
     name_ = root.get("name").text(path::filename(base));
     toolchain_ = toolchainFrom(root.get("toolchain").text("auto"));
-    // Debug unless the file says otherwise: the one you want while the code is
-    // still being written is the one you want by default.
-    // The machine this is being opened on, unless the file names a target. It
-    // used to default to x86_64-windows wherever it was opened, which quietly
-    // made every project a cross build on the other two machines - the assembly
-    // came out for a target this one cannot assemble, and Run had nothing to
-    // start. A file that names a target still gets it.
+
     arch_ = root.get("arch").text(hostArch());
 
     indent_.width = static_cast<size_t>(root.get("indent").integer(4));
     if (indent_.width < 1 || indent_.width > 16) indent_.width = 4;
     indent_.tabs = root.get("tabs").boolean(false);
 
-    // A group is a name and a list of files, which is exactly what an object
-    // whose members are arrays already is. Anything more would be a shape to
-    // learn before the file could be edited by hand.
     groups_.clear();
     const Json& groups = root.get("groups");
     for (size_t i = 0; i < groups.size(); ++i) {
         Group group;
         group.name = groups.keyAt(i);
-        // Two spellings, and the plain one is not deprecated. A group that has
-        // nothing to say about its compiler is a list of files and is written
-        // back as one; a group that names a compiler needs somewhere to put
-        // the name, and an object is that somewhere.
-        //
-        //   "Sources":  ["src/main.c"]
-        //   "Engine":   { "files": ["src/engine.cpp"], "toolchain": "cl" }
+
         const Json& entry = groups.valueAt(i);
         const Json& files = entry.is(Json::Object) ? entry.get("files") : entry;
         if (entry.is(Json::Object))
@@ -262,9 +202,6 @@ bool Project::load(const std::string& dir, std::string& error) {
         groups_.push_back(all);
     }
 
-    // What the project builds, if it says. Absent is the ordinary case and
-    // means "nothing beyond the file in front of you", which is what every
-    // project written before this said by saying nothing.
     target_ = Target();
     const Json& built = root.get("build");
     if (built.is(Json::Object)) {
@@ -287,15 +224,11 @@ bool Project::saveAs(const std::string& file, std::string& error) {
         return false;
     }
 
-    // The old file is left exactly where it is. Two project files in a
-    // directory is a state this editor understands - it lists them and lets
-    // you pick - and deleting somebody's file to tidy up after a rename is not
-    // this command's business.
     std::string was = file_;
     file_ = file;
     if (save(error)) return true;
 
-    file_ = was;   // nothing written, so nothing has moved
+    file_ = was;
     return false;
 }
 
@@ -318,9 +251,7 @@ bool Project::save(std::string& error) {
         Json files = Json::array();
         for (size_t j = 0; j < groups_[i].files.size(); ++j)
             files.push(Json::fromText(groups_[i].files[j]));
-        // The plain array unless there is something to say, so that adding a
-        // file to a project written before any of this existed leaves the file
-        // looking the way its author left it.
+
         if (groups_[i].toolchain == ToolAuto) {
             groups.set(groups_[i].name, files);
         } else {
@@ -332,9 +263,6 @@ bool Project::save(std::string& error) {
     }
     root.set("groups", groups);
 
-    // Written back only when there is one, so that a project which builds
-    // nothing does not grow an empty object saying so every time a file is
-    // added to it.
     if (builds()) {
         Json target = Json::object();
         target.set("target", Json::fromText(target_.name.empty() ? name_ : target_.name));
@@ -401,7 +329,7 @@ std::vector<std::string> Project::directories() const {
         for (size_t j = 0; j < groups_[i].files.size(); ++j) {
             const std::string& file = groups_[i].files[j];
             size_t slash = file.find('/');
-            if (slash == std::string::npos) continue;   // a file on the ground
+            if (slash == std::string::npos) continue;
 
             std::string dir = file.substr(0, slash);
             bool seen = false;
@@ -443,7 +371,7 @@ bool Project::addFile(const std::string& rel, const std::string& group) {
     std::string want = withSlashes(rel);
     std::string why;
     if (!allows(want, why)) return false;
-    if (groupOf(want) < groups_.size()) return false;   // already in the project
+    if (groupOf(want) < groups_.size()) return false;
 
     addGroup(group.empty() ? std::string("Sources") : group);
     std::string into = group.empty() ? std::string("Sources") : group;
@@ -492,8 +420,6 @@ bool Project::moveToGroup(const std::string& rel, const std::string& group) {
     size_t from = groupOf(want);
     if (from >= groups_.size()) return false;
 
-    // Regrouping is a change to two lists and nothing else. Nothing on disk
-    // moves, which is the point of groups being the project's own idea.
     if (!removeFile(want)) return false;
     addGroup(group);
     for (size_t i = 0; i < groups_.size(); ++i) {
@@ -505,13 +431,8 @@ bool Project::moveToGroup(const std::string& rel, const std::string& group) {
     return false;
 }
 
-// The sources a program is made of, and the language they are in. Headers are
-// passed over - they are in the project to be opened, not to be compiled - and
-// so is anything that is neither C nor C++.
 ToolchainKind toolchainOf(const Toolchain& tool, const Part& part) {
-    // The group's word beats the language's, and the editor's own --cc1 or
-    // Language menu still beats both - that last one is inside resolve, and is
-    // why this asks it rather than working the answer out here.
+
     if (part.toolchain != ToolAuto) return part.toolchain;
     return resolve(tool, part.lang);
 }
@@ -563,7 +484,6 @@ bool Project::targetParts(std::vector<Part>& parts, std::string& why,
 
         const Group& group = groups_[at];
 
-        // What is in it, by language and in the order the group names them.
         std::vector<std::string> byLanguage[LangCount];
         bool sawShalimar = false, sawOther = false;
         for (size_t f = 0; f < group.files.size(); ++f) {
@@ -575,10 +495,6 @@ bool Project::targetParts(std::vector<Part>& parts, std::string& why,
             byLanguage[lang].push_back(full);
         }
 
-        // Shalimar shares a group with nothing, whatever the group says about
-        // a compiler, because no compiler here takes both - and because the
-        // rest of the refusal below is about the *link*, which this one never
-        // reaches. Said per group, since that is where the fix is.
         if (sawShalimar && sawOther) {
             why = target_.groups[i] + " holds Shalimar and C or C++ in one group";
             if (detail)
@@ -589,12 +505,6 @@ bool Project::targetParts(std::vector<Part>& parts, std::string& why,
             return false;
         }
 
-        // A group that names a compiler is one part, and that compiler takes
-        // whatever is in it. Where the group holds C and C++ both, the part is
-        // C++: cl compiles C as C++ under /TP, and somebody who wrote
-        // "toolchain": "cl" on a group holding both asked for exactly that.
-        // A compiler that cannot take the result says so itself, in canCompile's
-        // own words, rather than being second-guessed here.
         if (group.toolchain != ToolAuto) {
             Part part;
             part.group = group.name;
@@ -611,10 +521,6 @@ bool Project::targetParts(std::vector<Part>& parts, std::string& why,
             continue;
         }
 
-        // And a group that names none is split by language, one part each, in
-        // the order the languages are numbered rather than the order the files
-        // happened to be listed - so the same project gives the same command
-        // line whichever way somebody sorted their group.
         for (int l = 0; l < LangCount; ++l) {
             if (byLanguage[l].empty()) continue;
             Part part;
@@ -626,10 +532,6 @@ bool Project::targetParts(std::vector<Part>& parts, std::string& why,
         }
     }
 
-    // Named in the project and not on disk. The compiler would say "cannot
-    // open" and stop, with no line to go to and nothing about the project;
-    // this is a fault in the configuration, and the editor is the one holding
-    // the list.
     if (!gone.empty()) {
         why = gone[0] + " is in this project and not on disk";
         if (gone.size() > 1) {
@@ -659,16 +561,6 @@ bool Project::targetParts(std::vector<Part>& parts, std::string& why,
         return false;
     }
 
-    // Shalimar among the rest. This is the one refusal that is not about the
-    // editor's tidiness and not about a missing feature either: it is what a
-    // Shalimar object *is*. Every one of them exports shm_user_main,
-    // shm_init_globals and shm_name_files whatever file it came from, so two
-    // collide by construction; a Shalimar function reads its own file's
-    // globals, which only that file's shm_init_globals sets up; and the
-    // language has no declarations, so a call that crossed a link could not be
-    // checked - and checking the whole program together is the rule the
-    // cross-file search exists to keep. ../Compiler-S/docs/LINKING.md has it in
-    // full, with what would have to change.
     bool shalimar = false;
     for (size_t i = 0; i < parts.size(); ++i)
         if (parts[i].lang == LangShalimar) shalimar = true;
@@ -705,10 +597,6 @@ bool Project::targetSources(std::vector<std::string>& sources, Language& lang,
     std::vector<Part> parts;
     if (!targetParts(parts, why, detail)) return false;
 
-    // One compiler, or this is not the question to be asking. Everything that
-    // takes several compilers goes through targetParts and links; this is for
-    // whoever wants the older answer - one command, one language - and it says
-    // so rather than picking a part and being quietly wrong about the rest.
     if (parts.size() > 1) {
         std::vector<std::string> named;
         for (size_t i = 0; i < parts.size(); ++i) {
@@ -735,18 +623,6 @@ bool Project::targetSources(std::vector<std::string>& sources, Language& lang,
     return true;
 }
 
-// Which of a Shalimar target's sources is the program, put first.
-//
-// The others are not dropped: shc looks for a function the program calls and
-// does not define in the files named after it, so the rest of the group is
-// exactly the place to look. What the project decides is which one has the
-// main() - the language has no way to say so from inside the file, since
-// every program has one.
-//
-// With one source there is nothing to decide. With more, the one whose name
-// matches the target's is the program, and if none does this refuses and says
-// which it was choosing between. Taking the first silently would build a
-// different program from the one the name promised, and say nothing.
 bool Project::oneShalimarProgram(std::vector<std::string>& sources, std::string& why,
                                  std::string* detail) const {
     if (sources.size() == 1) return true;
@@ -758,7 +634,7 @@ bool Project::oneShalimarProgram(std::vector<std::string>& sources, std::string&
         size_t dot = leaf.find_last_of('.');
         if (dot != std::string::npos) leaf.resize(dot);
         if (leaf != wanted) continue;
-        if (at != sources.size()) { at = sources.size(); break; }   // two of them
+        if (at != sources.size()) { at = sources.size(); break; }
         at = i;
     }
 
@@ -784,7 +660,6 @@ bool Project::oneShalimarProgram(std::vector<std::string>& sources, std::string&
     return false;
 }
 
-// A file name without its suffix.
 std::string Project::stemOf(const std::string& leaf) {
     size_t dot = leaf.find_last_of('.');
     return dot == std::string::npos ? leaf : leaf.substr(0, dot);
@@ -799,4 +674,4 @@ std::string Project::targetProgram() const {
     return path::join(root_, name);
 }
 
-}  // namespace editor
+}

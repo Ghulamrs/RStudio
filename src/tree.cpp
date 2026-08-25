@@ -8,16 +8,14 @@ namespace editor {
 
 namespace {
 
-// Directories that are build output or version control. Showing them would
-// bury the four files anyone is actually looking for.
 bool skip(const std::string& name) {
     if (name.empty()) return true;
-    if (name[0] == '.') return true;          // .git, .vs, and the rest
+    if (name[0] == '.') return true;
     return name == "obj" || name == "build" || name == "x64" || name == "Debug" ||
            name == "Release" || name == "node_modules";
 }
 
-}  // namespace
+}
 
 Tree::Tree() : showing_(ShowingDirectory) {}
 
@@ -34,23 +32,12 @@ void Tree::showProject(const Project& project) {
     error_.clear();
     entries_.clear();
 
-    // No "Open files" section. It listed what was open above the project's own
-    // groups, so a file that was both - which is the ordinary case - appeared
-    // twice, once under each heading, and the pane read as though it had lost
-    // track of itself. A loaded project shows the project: Sources, Headers,
-    // and whatever else it names. What is open is shown by the tabs, and by
-    // the mark on the row you are standing in.
-    //
-    // The flat list of open files has not gone; it is what showOpenFiles below
-    // draws, and Editor::refreshTree chooses between the two. See PaneMode.
-
     for (size_t i = 0; i < project.groups().size(); ++i) {
         const Group& group = project.groups()[i];
 
         TreeEntry head;
         head.name = group.name;
-        // Marked with a name no path can collide with, so a group called src
-        // and a directory called src do not open and close together.
+
         head.path = "group:" + group.name;
         head.directory = true;
         head.group = true;
@@ -60,20 +47,6 @@ void Tree::showProject(const Project& project) {
 
         if (!head.open) continue;
 
-        // **The file's own name, not its path.** A project's list is written
-        // relative to the root - `src/first.c` - and the pane used to show it
-        // that way, so a project of any size read as a column of repeated
-        // directory names with the one distinguishing word at the end of each.
-        // Worse, it says something untrue about where the file is: `src/` in
-        // the pane looks like a directory of whatever tree you are standing
-        // in, and the user's reading of it was that the file lived inside
-        // RStudio's own source.
-        //
-        // The grouping is what a project has instead of directories - that is
-        // the whole idea of a group - so the path adds nothing the pane was
-        // already saying. Where the file really is stays one keystroke away:
-        // `path` here is the absolute one, and the status bar names it in full
-        // the moment the file is opened.
         for (size_t j = 0; j < group.files.size(); ++j) {
             TreeEntry file;
             file.name = path::filename(group.files[j]);
@@ -84,9 +57,6 @@ void Tree::showProject(const Project& project) {
     }
 }
 
-// One flat list, in the order they were opened. No groups: there is no project
-// to have grouped them, and inventing a heading would be the pane claiming an
-// arrangement that nothing on disk agrees with.
 void Tree::showOpenFiles(const std::vector<std::string>& paths) {
     showing_ = ShowingOpenFiles;
     error_.clear();
@@ -95,10 +65,7 @@ void Tree::showOpenFiles(const std::vector<std::string>& paths) {
     for (size_t i = 0; i < paths.size(); ++i) {
         TreeEntry file;
         file.path = paths[i];
-        // A buffer that has never been saved has no name to show, and leaving
-        // it out entirely is worse than saying so: File > New would then put
-        // nothing in the pane at all, which reads as the pane being broken
-        // rather than as the file being new.
+
         file.name = paths[i].empty() ? std::string("untitled") : path::filename(paths[i]);
         file.depth = 0;
         entries_.push_back(file);
@@ -112,9 +79,7 @@ void Tree::clear() {
 }
 
 void Tree::reread() {
-    // Only a directory view is re-read from the disk. Every other view was
-    // built from something else - the project file, or the list of open
-    // documents - and re-reading would quietly replace it with a listing.
+
     if (showing_ != ShowingDirectory) return;
     entries_.clear();
     error_.clear();
@@ -130,8 +95,6 @@ void Tree::gather(const std::string& dir, int depth) {
         return;
     }
 
-    // Directories first, then files, each in name order - the order a person
-    // reads a project in, rather than the order the filesystem hands them over.
     std::sort(found.begin(), found.end(),
               [](const path::Entry& a, const path::Entry& b) {
                   if (a.directory != b.directory) return a.directory;
@@ -162,8 +125,7 @@ void Tree::toggle(size_t index) {
     if (!entry.directory) return;
 
     if (entry.group) {
-        // Groups start open, so the set holds the ones that are, and closing
-        // the first one has to put every other group into it first.
+
         if (opened_.empty())
             for (size_t i = 0; i < entries_.size(); ++i)
                 if (entries_[i].group) opened_.insert(entries_[i].path);
@@ -171,7 +133,7 @@ void Tree::toggle(size_t index) {
             opened_.erase(entry.path);
         else
             opened_.insert(entry.path);
-        return;   // the caller shows the project again
+        return;
     }
 
     if (opened_.count(entry.path))
@@ -188,4 +150,4 @@ size_t Tree::find(const std::string& where) const {
     return entries_.size();
 }
 
-}  // namespace editor
+}

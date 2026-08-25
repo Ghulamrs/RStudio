@@ -30,15 +30,13 @@ struct Channel::Held {
 
 namespace {
 
-// A pipe the child inherits one end of and this keeps the other.
 bool makePipe(HANDLE &readEnd, HANDLE &writeEnd, bool childReads) {
     SECURITY_ATTRIBUTES inheritable;
     inheritable.nLength = sizeof inheritable;
     inheritable.lpSecurityDescriptor = 0;
     inheritable.bInheritHandle = TRUE;
     if (!CreatePipe(&readEnd, &writeEnd, &inheritable, 0)) return false;
-    // Only the end the child uses is inherited; the other would leave the
-    // child holding a copy of our side and a read that never sees end of file.
+
     SetHandleInformation(childReads ? writeEnd : readEnd, HANDLE_FLAG_INHERIT, 0);
     return true;
 }
@@ -57,7 +55,7 @@ std::string drain(HANDLE pipe) {
     return out;
 }
 
-}  // namespace
+}
 
 bool Channel::start(const std::string& command, const std::string& environment) {
     stop();
@@ -76,9 +74,6 @@ bool Channel::start(const std::string& command, const std::string& environment) 
     startup.hStdOutput = childOut;
     startup.hStdError = childErr;
 
-    // The environment is this process's with one line added, which is what
-    // GetEnvironmentStrings gives and CreateProcess wants: name=value pairs
-    // one after another, the lot ended by a second null.
     std::vector<char> block;
     LPCH inherited = GetEnvironmentStrings();
     for (LPCH at = inherited; *at; ) {
@@ -185,12 +180,12 @@ std::string drain(int fd) {
         char buffer[4096];
         ssize_t got = ::read(fd, buffer, sizeof buffer);
         if (got > 0) { out.append(buffer, static_cast<size_t>(got)); continue; }
-        break;   // nothing waiting, or the far end has gone
+        break;
     }
     return out;
 }
 
-}  // namespace
+}
 
 bool Channel::start(const std::string& command, const std::string& environment) {
     stop();
@@ -208,8 +203,6 @@ bool Channel::start(const std::string& command, const std::string& environment) 
     posix_spawn_file_actions_addclose(&actions, out[0]);
     posix_spawn_file_actions_addclose(&actions, err[0]);
 
-    // Through the shell, like every other command the editor runs, so that a
-    // program named with a path holding spaces is quoted the same way.
     std::string line = environment.empty() ? command
                                            : "export " + environment + "; " + command;
     const char *argv[] = {"/bin/sh", "-c", line.c_str(), 0};
@@ -227,8 +220,6 @@ bool Channel::start(const std::string& command, const std::string& environment) 
         return false;
     }
 
-    // Read without blocking, so that asking for the program's printing never
-    // waits for printing that is not coming.
     ::fcntl(out[0], F_SETFL, O_NONBLOCK);
     ::fcntl(err[0], F_SETFL, O_NONBLOCK);
 
@@ -310,4 +301,4 @@ void Channel::stop() {
 Channel::Channel() : held_(0), running_(false) {}
 Channel::~Channel() { stop(); }
 
-}  // namespace shalimar
+}

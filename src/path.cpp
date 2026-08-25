@@ -23,9 +23,6 @@ namespace path {
 
 namespace {
 
-// A path taken apart: what it is rooted at, and the names under it. The root is
-// "/" on Unix and "C:/" or "//" on Windows, and empty when the path is
-// relative - which is the whole of what distinguishes the two.
 struct Split {
     std::string root;
     std::vector<std::string> parts;
@@ -42,15 +39,12 @@ std::string rootOf(const std::string& path) {
     return std::string();
 }
 
-// The names, with the empty ones that doubled slashes leave, and . and ..,
-// taken out the way a filesystem would take them out. A .. that walks off the
-// top of a relative path is kept, since there is nothing above it to cancel.
 Split split(const std::string& path) {
     Split out;
     out.root = rootOf(path);
 
     size_t at = out.root.size();
-    if (out.root.size() == 3) at = 3;         // C:/
+    if (out.root.size() == 3) at = 3;
     else if (out.root == "//") at = 2;
     else if (out.root == "/") at = 1;
 
@@ -78,8 +72,7 @@ std::string joined(const Split& s) {
         if (i) out += "/";
         out += s.parts[i];
     }
-    // A root on its own is "/" or "C:/", and must keep its slash; anything
-    // under it must not have gained a doubled one.
+
     if (!s.parts.empty() && !out.empty() && s.root.size() > 1 &&
         out.compare(0, s.root.size(), s.root) == 0) {
         return out;
@@ -132,7 +125,7 @@ bool isLink(const std::string& path) {
 #endif
 }
 
-}  // namespace
+}
 
 std::string withSlashes(const std::string& path) {
     std::string out = path;
@@ -252,15 +245,11 @@ bool remove(const std::string& path) {
 bool removeTree(const std::string& path) {
     if (path.empty()) return false;
 
-    // A root has no names under it, and deleting everything under one is not
-    // something any caller here means.
     Split here = split(absolute(path));
     if (here.parts.empty()) return false;
 
     if (!exists(path)) return true;
 
-    // Into a directory, but never through a link to one - what is on the other
-    // side of it was not asked about.
     if (isDirectory(path) && !isLink(path)) {
         bool ok = true;
         std::vector<Entry> inside = entries(path);
@@ -299,9 +288,6 @@ std::string homeDir() {
     return out;
 }
 
-// Three machines, three ways of asking, and no portable one. Each hands back
-// the program's own path, links and PATH lookups already resolved, which is
-// what argv[0] does not do.
 std::string programDirectory() {
 #ifdef _WIN32
     char buffer[MAX_PATH];
@@ -312,9 +298,7 @@ std::string programDirectory() {
     char buffer[4096];
     uint32_t room = sizeof buffer;
     if (_NSGetExecutablePath(buffer, &room) != 0) return std::string();
-    // It can hand back a path with symbolic links and .. still in it, which
-    // absolute() takes out - and which matters, since the answer is joined to
-    // a name and handed to a shell.
+
     return parent(absolute(withSlashes(std::string(buffer))));
 #else
     char buffer[4096];
@@ -338,8 +322,7 @@ std::string besideProgram(const std::string& name) {
 #endif
 
     std::string full = join(where, leaf);
-    // A directory of that name is not a program, and answering with one would
-    // put it on a command line to be run.
+
     if (!exists(full) || isDirectory(full)) return std::string();
     return full;
 }
@@ -379,5 +362,5 @@ std::vector<Entry> entries(const std::string& directory, bool* ok) {
     return found;
 }
 
-}  // namespace path
-}  // namespace editor
+}
+}

@@ -18,21 +18,9 @@ namespace editor {
 
 namespace {
 
-const int kTreeWidth = 22;   // enough for a name and two levels of nesting
-const int kPanelRows = 7;    // the command, and a few lines of what it said
+const int kTreeWidth = 22;
+const int kPanelRows = 7;
 
-// The lines the screen is partitioned by, from the box-drawing block. Written
-// as their bytes rather than as characters, so that no compiler has to be told
-// what encoding this file is in and no source file has to carry a mark saying
-// so - MSVC reads a plain file in the machine's own code page.
-//
-//   horizontal U+2500, vertical U+2502, then the four corners, the four tees
-//   and the cross.
-// The same frame in characters every font has. A console that draws the plain
-// line from one face and the junctions from another - which is what a missing
-// glyph makes it do - puts their crossbars at different heights, and the line
-// appears to break at every tee. Nothing in the program can mend that; this is
-// the way round it, chosen with --plain.
 const char* const kPlainAcross = "-";
 const char* const kPlainDown   = "|";
 const char* const kPlainJoint  = "+";
@@ -48,10 +36,7 @@ const char* const kTeeUp     = "\xe2\x94\xb4";
 const char* const kTeeRight  = "\xe2\x94\x9c";
 const char* const kTeeLeft   = "\xe2\x94\xa4";
 
-// Which of the two the screen is drawn with. Every line and corner is asked
-// for through one of these, so the choice is made once and nothing below has
-// to know which was made.
-}  // namespace
+}
 
 const Frame kBoxFrame = {kAcross, kDown, kTopLeft, kTopRight, kFootLeft, kFootRight,
                          kTeeDown, kTeeUp, kTeeRight, kTeeLeft, "\xe2\x80\xa2"};
@@ -61,17 +46,12 @@ const Frame kPlainFrame = {kPlainAcross, kPlainDown, kPlainJoint, kPlainJoint,
 
 namespace {
 
-// One character repeated. The box characters are three bytes each and one
-// column each, which is the whole reason this is not std::string(n, c).
 std::string repeated(const char* one, int times) {
     std::string out;
     for (int i = 0; i < times; ++i) out += one;
     return out;
 }
 
-// Puts a paragraph into the console a line at a time. The console holds lines
-// and a refusal is a sentence or three; without this the end of it is off the
-// side of the screen, which reads as the editor having nothing more to say.
 void wrapInto(std::vector<std::string>& lines, const std::string& text, size_t width) {
     if (width < 20) width = 20;
     std::string line;
@@ -92,9 +72,6 @@ void wrapInto(std::vector<std::string>& lines, const std::string& text, size_t w
     if (!line.empty()) lines.push_back(line);
 }
 
-// Takes `width` columns of `s` starting at `from`, padded with spaces if the
-// line runs out first. Every region is padded to its full width, so the one
-// beside it starts in the same column on every row.
 std::string window(const std::string& s, size_t from, size_t width) {
     std::string out;
     if (from < s.size()) out = s.substr(from, width);
@@ -114,11 +91,6 @@ size_t digitsIn(size_t n) {
     return d;
 }
 
-// Tabs and their colours expand together, so that a mark still sits under the
-// character it was worked out for once the line has been widened.
-//
-// A tab stop is counted in screen columns rather than in bytes, or a line with
-// anything but ASCII in front of a tab would line up wrongly.
 void expandWithKinds(const std::string& s, const std::vector<unsigned char>& kinds,
                      std::string& text, std::vector<unsigned char>& out) {
     size_t column = 0;
@@ -146,30 +118,22 @@ void expandWithKinds(const std::string& s, const std::vector<unsigned char>& kin
     }
 }
 
-// A window of the line, written as runs of one colour, with whatever is
-// selected shown in reverse. One escape per run rather than one per character -
-// a screen's worth of the latter is enough to be seen redrawing on a slow
-// console. selFrom and selTo are screen columns, and equal means nothing is
-// selected on this line.
 std::string colouredWindow(const std::string& text,
                            const std::vector<unsigned char>& kinds,
                            size_t from, size_t width,
                            size_t selFrom, size_t selTo) {
     std::string out;
-    size_t column = 0;   // where the next character will be drawn
+    size_t column = 0;
     size_t drawn = 0;
     int current = -1;
     bool inverted = false;
 
-    // Walked a character at a time and counted in screen columns, not bytes:
-    // one Urdu letter is two bytes and one column, and one Chinese character
-    // is three bytes and two columns.
     for (size_t i = 0; i < text.size();) {
         size_t step = utf8::next(text, i);
         if (step <= i) step = i + 1;
         size_t wide = utf8::widthOf(utf8::codePointAt(text, i));
 
-        if (column + wide <= from) {   // still left of what is being shown
+        if (column + wide <= from) {
             column += wide;
             i = step;
             continue;
@@ -208,9 +172,6 @@ size_t leadingSpace(const std::string& line) {
     return n;
 }
 
-// Whether a colon just typed ends a label, and so is worth re-laying the line
-// for. The colon in `x = a ? b : c` is not, and a line moving under the caret
-// while an expression is half written would be worse than no rule at all.
 bool endsALabel(const std::string& before) {
     std::string t = before.substr(leadingSpace(before));
     if (t.compare(0, 5, "case ") == 0 || t == "default") return true;
@@ -233,7 +194,7 @@ void consoleSink(void* context, const std::string& line) {
     static_cast<Editor*>(context)->console(line);
 }
 
-}  // namespace
+}
 
 Editor::Editor()
     : docs_(1), doc_(0),
@@ -250,36 +211,20 @@ Editor::Editor()
       treeCols_(kTreeWidth), sourceCols_(80), gutterCols_(4), paintedCols_(0),
       askChoice_(0) {
     frame_ = &kBoxFrame;
-    // The host's own architecture first, since that is the one cc1 will carry
-    // past -S on this machine - and so the only one Run can do anything with.
+
     for (size_t i = 0; i < 3; ++i)
         if (std::string(kArches[i]) == hostArch()) arch_ = i;
-    // $CC1 first, then a cc1 installed beside this editor, then the bare name
-    // for PATH to answer - the same three the window asks, in the same order.
-    // The middle one is what `make product` and `build.bat product` build:
-    // one directory holding the editor and the compiler it drives, which used
-    // to be found only when the editor happened to be started in it. Beside
-    // the editor is asked before PATH deliberately - a compiler shipped with
-    // this copy is the one this copy is meant to run. --cc1 overrides all of
-    // it, later, in main.
-    //
-    // cl is not looked for here: nothing installs it beside the editor, and
-    // toolchain.cpp already finds it through Visual Studio itself, which is a
-    // better answer than any directory search.
+
     const char* fromEnv = std::getenv("CC1");
     if (fromEnv && *fromEnv) {
         tool_.cc1 = fromEnv;
     } else {
-        // cc1.exe first, which is what Compiler-C builds on every machine
-        // now; then bare cc1, because installs made before that rename still
-        // have one and an editor that stopped finding them would be the
-        // rename breaking somebody's setup for nothing.
+
         std::string beside = path::besideProgram("cc1.exe");
         if (beside.empty()) beside = path::besideProgram("cc1");
         if (!beside.empty()) tool_.cc1 = beside;
     }
 
-    // shc is found the same way, and for the same reason.
     const char* shcFromEnv = std::getenv("SHC");
     if (shcFromEnv && *shcFromEnv) {
         tool_.shc = shcFromEnv;
@@ -311,15 +256,6 @@ void Editor::restore() {
     lang_ = docs_[doc_].lang;
 }
 
-// One file has more than one spelling, and comparing the text opened it twice:
-// "src/one.c" from the command line and the same file from the project pane,
-// which hands out the path it counts from the root. The second copy is read
-// from the disk, so unsaved changes in the first look as though they have been
-// thrown away - and saving the second would write over them.
-//
-// Compared by what they resolve to, not by how they were written. On Windows
-// the case is not part of the answer either, which path::absolute leaves alone
-// deliberately - the name is shown to people as they wrote it.
 size_t Editor::findDocument(const std::string& path) const {
     std::string want = path::oneName(path);
 
@@ -346,15 +282,11 @@ void Editor::nextDocument(int by) {
     say(buf_.path().empty() ? std::string("[no name]") : buf_.path());
 }
 
-// Every open file, not the one in front. The tab you are looking at is rarely
-// the one you forgot to save - which is exactly how this was found: two files
-// open, changes in the one behind, and Ctrl-Q left without a word.
 size_t Editor::unsaved(std::string& named) const {
     size_t count = 0;
     named.clear();
     for (size_t i = 0; i < docs_.size(); ++i) {
-        // The one in front lives in buf_; docs_[doc_] is only written back
-        // when the tab changes, so it is a copy of what it was.
+
         const Buffer& b = (i == doc_) ? buf_ : docs_[i].buf;
         if (!b.dirty()) continue;
         if (named.empty())
@@ -364,10 +296,6 @@ size_t Editor::unsaved(std::string& named) const {
     return count;
 }
 
-// Asked by both ways out - Ctrl-Q and the Quit on the File menu, which used to
-// leave outright and check nothing at all. The first press says what would be
-// lost and the second leaves anyway; anything else typed in between clears
-// that, which processKey does.
 bool Editor::mayLeave() {
     std::string named;
     size_t count = unsaved(named);
@@ -389,19 +317,13 @@ void Editor::closeDocument() {
     }
     stash();
     docs_.erase(docs_.begin() + static_cast<long>(doc_));
-    // There is always a document, even if it is an empty one. Every other rule
-    // in this file assumes there is a buffer to put the caret in.
+
     if (docs_.empty()) docs_.push_back(Document());
     if (doc_ >= docs_.size()) doc_ = docs_.size() - 1;
     restore();
 
-    // The same reason as in open(): one of the files the pane lists has just
-    // stopped being open, and the pane lists them whether or not a project is
-    // loaded underneath.
     refreshTree();
-    // And what is underneath said something about the file that has gone. A
-    // build's output outlives the file it was about otherwise, which reads as
-    // the output of the file now in front of you.
+
     console_.clear();
     say("closed");
 }
@@ -414,8 +336,6 @@ void Editor::open(const std::string& path) {
         return;
     }
 
-    // An untouched, unnamed document is a spare tab rather than a file anyone
-    // is working on, so opening into it replaces it instead of adding another.
     bool reuse = buf_.path().empty() && !buf_.dirty() && buf_.lineCount() == 1 &&
                  buf_.line(0).empty();
     if (!reuse) {
@@ -434,14 +354,6 @@ void Editor::open(const std::string& path) {
     cx_ = cy_ = rowoff_ = coloff_ = 0;
     applyLanguage();
 
-    // Always. In file mode the pane is the list of what is open, so this is
-    // the event that changes it; in project mode it is the row that gets
-    // marked. Either way the pane has something to say about a file arriving.
-    //
-    // Nothing here looks at the suffix, and that is deliberate: a .pro opened
-    // as a file is a file. It is JSON, the editor knows JSON, and what you get
-    // is the project file's text. Opening one *as a project* is the Project
-    // menu's job and goes through Project::load instead.
     refreshTree();
 
     size_t at = tree_.find(path);
@@ -451,9 +363,6 @@ void Editor::open(const std::string& path) {
 void Editor::applyProject() {
     if (!project_.loaded()) return;
 
-    // The project's settings are the project's. Anything named on the command
-    // line is applied after this and wins, which is the order someone expects:
-    // the file is what the project always does, the flag is what today needs.
     style_ = project_.indent();
     tool_.kind = project_.toolchain();
     for (size_t i = 0; i < 3; ++i)
@@ -461,18 +370,14 @@ void Editor::applyProject() {
 }
 
 void Editor::openFirstFile() {
-    if (!buf_.path().empty()) return;   // something was named, and it wins
+    if (!buf_.path().empty()) return;
 
     const std::vector<Group>& groups = project_.groups();
     for (size_t i = 0; i < groups.size(); ++i)
         for (size_t j = 0; j < groups[i].files.size(); ++j) {
             std::string where = project_.absolute(groups[i].files[j]);
-            if (!path::exists(where)) continue;   // listed but not there any more
+            if (!path::exists(where)) continue;
 
-            // Whatever opening the project had to say is the news on a first
-            // run - that one was made, or which one it is. Which file happens
-            // to be in front of you is on the status bar either way, so it
-            // does not need the line as well.
             std::string already = message_;
             open(where);
             if (!already.empty()) say(already);
@@ -480,16 +385,6 @@ void Editor::openFirstFile() {
         }
 }
 
-// What the pane is a view of, decided in one place because three commands now
-// change the answer: opening a project, closing it, and opening or closing a
-// file while there is none.
-//
-// With a project, the project - which is its groups, and says nothing about
-// what you happen to have open. Without one, the files you have open, down to
-// an empty pane when that is none of them. It used to read the directory
-// instead, and that is the behaviour this replaces: a pane that had fallen
-// back to listing whatever folder the editor was standing in looked exactly
-// like a project, and closing a file left its name sitting in it.
 void Editor::refreshTree() {
     std::vector<std::string> open = openPaths();
     if (project_.loaded() && paneMode_ == PaneProject) {
@@ -503,30 +398,20 @@ void Editor::refreshTree() {
 std::vector<std::string> Editor::openPaths() const {
     std::vector<std::string> paths;
     for (size_t i = 0; i < docs_.size(); ++i) {
-        // The current document's buffer is the editor's own, not the one in
-        // the list - stash() is what puts it back - so it has to be read from
-        // the right place or the file you are looking at is the one missing.
+
         const Buffer& b = (i == doc_) ? buf_ : docs_[i].buf;
-        // The unnamed ones too, as an empty string. showOpenFiles draws those
-        // as "untitled"; dropping them here is what used to make File > New
-        // put nothing in the pane.
+
         paths.push_back(b.path());
     }
     return paths;
 }
 
-// Closing the project is closing the *view* of it. Nothing is written, nothing
-// is removed from RStudio.json, and the files stay open - what goes is the pane's
-// claim to be showing a project, which is the thing that was wrong: there was
-// no way to stop looking at one, so a project opened at startup was a project
-// you were in until you quit.
 void Editor::closeProject() {
     if (!project_.loaded()) { say("there is no project open"); return; }
 
     std::string was = project_.name();
     project_.close();
-    // The groups go with the project - there is no project for them to be the
-    // groups of - and the pane falls back to what is open.
+
     paneMode_ = PaneFiles;
     refreshTree();
     treeSel_ = 0;
@@ -541,33 +426,23 @@ void Editor::openProject(const std::string& path) {
     std::string error;
     if (project_.load(path, error)) {
         applyProject();
-        // A project just opened is a project to look at.
+
         paneMode_ = PaneProject;
         refreshTree();
-        // Remembered so that the next run opens here without being told. It is
-        // the editor's own configuration and not the project's - see
-        // settings.h for why it cannot live in an RStudio.json.
+
         settings::rememberProject(project_.file());
-        // "ready" rather than a bare count: it is the first thing on the line
-        // when the editor comes up on a project it was told about or one it
-        // remembered, and what it means is that there is nothing to do first.
+
         size_t howMany = project_.groups().size();
         std::string said = "ready - " + project_.name() + ", " + number(howMany) +
                            (howMany == 1 ? " group" : " groups");
 
-        // A directory may hold several named projects, and one of them had to
-        // be picked to get this far. Saying so is the difference between an
-        // editor that chose and an editor that appears not to have noticed.
         size_t named = Project::projectFilesIn(project_.root()).size();
         if (named > 1)
             said += " - " + number(named) + " projects here, Project > Open chooses";
         say(said);
         sayIfSettingsWereBad();
     } else if (error.empty()) {
-        // Nothing to read, so one is written from what is in the directory
-        // rather than opening without a project at all. An editor that needs a
-        // file it can perfectly well make is an editor that stops for no
-        // reason.
+
         Outcome made = beginFromWhatIsThere(project_, path);
         if (made.ok) {
             applyProject();
@@ -580,10 +455,7 @@ void Editor::openProject(const std::string& path) {
             say(made.message);
         }
     } else {
-        // A project file that will not parse is a different matter: it is
-        // somebody's, and writing over it to save an error message would be
-        // the editor destroying work. The pane shows the directory instead,
-        // which is what it did before projects existed.
+
         tree_.setRoot(path);
         project_.setRoot(tree_.root());
         say(error);
@@ -594,8 +466,7 @@ void Editor::openProject(const std::string& path) {
 
 void Editor::console(const std::string& line) {
     console_.push_back(line);
-    // Keep the newest line in view while the build is running, which is the
-    // whole point of showing it as it arrives.
+
     if (panelOpen_ && tab_ == TabConsole && console_.size() > static_cast<size_t>(panelRows_))
         panelOff_ = console_.size() - static_cast<size_t>(panelRows_);
     refresh();
@@ -612,33 +483,23 @@ void Editor::layout() {
     if (screenRows_ < 8) screenRows_ = 8;
     if (screenCols_ < 40) screenCols_ = 40;
 
-    // One row each for the menu, the line the panes are drawn under, the line
-    // they are closed off with, the status bar and the message line. The panel
-    // takes the line above it - which carries its tabs, so the line and the
-    // names are one row and not two - plus its own.
     int taken = 5;
     panelRows_ = kPanelRows;
     if (panelOpen_) {
-        // On a short window the panel gives ground rather than squeezing the
-        // text out of existence.
+
         int room = screenRows_ - taken - 4;
         if (panelRows_ > room) panelRows_ = room;
         if (panelRows_ < 2) panelRows_ = 2;
         taken += panelRows_ + 1;
     }
     bodyRows_ = screenRows_ - taken;
-    // On a window short enough for the arithmetic to run out, the panel gives
-    // up its last rows rather than the frame giving up a line: a screen drawn
-    // one row taller than the terminal scrolls, and then none of the lines
-    // meet anything.
+
     while (bodyRows_ < 1 && panelOpen_ && panelRows_ > 1) {
         --panelRows_;
         ++bodyRows_;
     }
     if (bodyRows_ < 1) bodyRows_ = 1;
 
-    // Three columns of the width are lines when the project pane is open - the
-    // two edges and the one between the panes - and two when it is closed.
     if (treeOpen_) {
         treeCols_ = kTreeWidth;
         if (treeCols_ > screenCols_ / 3) treeCols_ = screenCols_ / 3;
@@ -648,9 +509,6 @@ void Editor::layout() {
         sourceCols_ = screenCols_ - 2;
     }
 
-    // Wide enough for the last line in the file, and it does not shrink back
-    // when you scroll up - a gutter that changed width as you moved would take
-    // the text with it.
     gutterCols_ = 0;
     if (numbers_) {
         gutterCols_ = static_cast<int>(digitsIn(buf_.lineCount())) + 1;
@@ -678,8 +536,7 @@ size_t Editor::renderCol(const std::string& line, size_t col) const {
 void Editor::clampCursor() {
     if (cy_ >= buf_.lineCount()) cy_ = buf_.lineCount() - 1;
     if (cx_ > buf_.line(cy_).size()) cx_ = buf_.line(cy_).size();
-    // Never inside a character. Everything else here can then assume the caret
-    // is somewhere a character begins.
+
     cx_ = utf8::startOf(buf_.line(cy_), cx_);
 }
 
@@ -709,8 +566,7 @@ void Editor::drawMenuBar(std::string& out) const {
     }
 
     out += "\x1b[7m";
-    // The active title is drawn back in normal video, which on an inverted bar
-    // is what makes it look pressed.
+
     if (menu_.active()) {
         size_t at = menu_.titleAt(menu_.column());
         size_t len = menu_.columns()[menu_.column()].title.size();
@@ -725,11 +581,6 @@ void Editor::drawMenuBar(std::string& out) const {
     out += "\x1b[m\r\n";
 }
 
-// A line across the whole screen. The junction is where the pane divider meets
-// it, when there is one; the labels are laid into the line after it and the
-// tail is put at its right-hand end. A line with the names in it is one row
-// where a line and a row of names would be two, and rows are what a terminal
-// has least of.
 std::string Editor::rule(const char* left, const char* right, const char* junction,
                          const std::string& labels, int labelColumns,
                          const std::string& tail, int tailColumns) const {
@@ -741,11 +592,9 @@ std::string Editor::rule(const char* left, const char* right, const char* juncti
         used += treeCols_ + 1;
     }
 
-    int room = screenCols_ - used - 1;   // what is left, less the right-hand end
+    int room = screenCols_ - used - 1;
     if (room < 0) room = 0;
 
-    // Never flush against a corner: a space of line either side is what makes
-    // a name look set into the line rather than dropped on top of it.
     if (labelColumns > 0 && labelColumns + 1 <= room) {
         out += frame_->across;
         out += labels;
@@ -763,8 +612,7 @@ std::string Editor::rule(const char* left, const char* right, const char* juncti
 }
 
 void Editor::drawFrameTop(std::string& out) const {
-    // The files that are open are the top edge of the pane they are shown in,
-    // which is where a tab belongs: the one in front is the one lit up.
+
     int room = screenCols_ - 2 - (treeOpen_ ? treeCols_ + 1 : 0);
     std::string tabs;
     int wide = 0;
@@ -776,7 +624,6 @@ void Editor::drawFrameTop(std::string& out) const {
         std::string cell = " " + name + " ";
         int cellWide = static_cast<int>(utf8::columns(cell, cell.size()));
 
-        // One column for the line that closes this tab off from the next.
         if (wide + cellWide + 2 > room) break;
         if (i == doc_) {
             tabs += "\x1b[7m";
@@ -795,8 +642,6 @@ void Editor::drawFrameTop(std::string& out) const {
     out += "\x1b[K\r\n";
 }
 
-// The line the panes are closed off with. The divider between them runs down to
-// it when the panel is shut, and stops at the panel's own line when it is open.
 void Editor::drawFrameFoot(std::string& out) const {
     out += rule(frame_->footLeft, frame_->footRight, panelOpen_ ? 0 : frame_->teeUp,
                 std::string(), 0, std::string(), 0);
@@ -804,15 +649,13 @@ void Editor::drawFrameFoot(std::string& out) const {
 }
 
 void Editor::drawBody(std::string& out) const {
-    // Drawing starts at rowoff_, so the lines above it are walked first - a
-    // block comment opened off the top of the screen still colours what is on
-    // it. Only the state is carried; no colours are worked out for them.
+
     SyntaxState state;
     for (size_t i = 0; i < rowoff_ && i < buf_.lineCount(); ++i)
         advanceState(buf_.line(i), lang_, state);
 
     for (int y = 0; y < bodyRows_; ++y) {
-        out += frame_->down;                       // the left edge of the window
+        out += frame_->down;
         if (treeOpen_) {
             size_t row = treeOff_ + static_cast<size_t>(y);
             std::string cell;
@@ -823,18 +666,7 @@ void Editor::drawBody(std::string& out) const {
                 cell += " ";
                 cell += e.name;
             }
-            // The pane makes one mark, and it means two different things.
-            //
-            // With the pane focused it is the cursor - where the arrows are,
-            // what enter will open - and it belongs on treeSel_.
-            //
-            // With the pane not focused there is nothing to be a cursor for,
-            // and the only honest thing the mark can say is *this is the file
-            // you are editing*. It used to say treeSel_ there as well, which
-            // is the last row that was moved to - so closing a file left the
-            // mark sitting on a name that was no longer open, and opening a
-            // file the project does not list left it sitting on the previous
-            // one. Asking the buffer instead means it cannot say either.
+
             bool picked;
             if (focus_ == FocusTree) {
                 picked = (row < tree_.size() && row == treeSel_);
@@ -845,7 +677,7 @@ void Editor::drawBody(std::string& out) const {
             if (picked) out += (focus_ == FocusTree) ? "\x1b[7m" : "\x1b[4m";
             out += window(cell, 0, static_cast<size_t>(treeCols_));
             if (picked) out += "\x1b[m";
-            out += frame_->down;                   // and the one between the panes
+            out += frame_->down;
         }
 
         size_t row = rowoff_ + static_cast<size_t>(y);
@@ -855,46 +687,25 @@ void Editor::drawBody(std::string& out) const {
             bool hasBreak = false, isStopped = false, isLooked = false;
             if (row < buf_.lineCount()) {
                 std::string num = number(row + 1);
-                // Right-aligned, with the last column left as a gap so the
-                // digits never touch the text.
+
                 size_t at = cell.size() - 1 - num.size();
                 for (size_t i = 0; i < num.size(); ++i) cell[at + i] = num[i];
 
-                // The first column of the gutter is the debugger's: a
-                // breakpoint waiting, and the line the program is standing on.
-                // Both in the space the numbers are already right-aligned away
-                // from, so nothing moves when a breakpoint is set.
                 hasBreak = breakpointOn(row + 1);
                 isStopped = stopLine_ == row + 1 && !stopFile_.empty() &&
                             path::filename(stopFile_) == path::filename(buf_.path());
 
-                // And the frame being looked at, when it is not the one the
-                // program stopped in - the line that is waiting for the call to
-                // come back. A different mark rather than the same one: the
-                // program is not standing there, you are only looking at it.
                 isLooked = looking_ > 0 && looking_ < stack_.size() &&
                            stack_[looking_].line == row + 1 &&
                            !stack_[looking_].file.empty() &&
                            path::filename(stack_[looking_].file) ==
                                path::filename(buf_.path());
 
-                // Where the program is outranks where you are looking, which
-                // outranks a breakpoint: the first two are about now and the
-                // third is about every run of the program.
-                //
-                // A colon rather than the dash tried first, which against a
-                // two-digit number reads as a minus sign - "-11" - and is
-                // already what the project pane puts in front of an open
-                // group. A colon is nothing else here and cannot be read as
-                // part of the number.
                 if (isStopped) cell[0] = '>';
                 else if (isLooked) cell[0] = ':';
                 else if (hasBreak) cell[0] = '*';
             }
 
-            // The line the caret is on is picked out, which is the whole reason
-            // for having the numbers where you can see them. Where the program
-            // stopped outranks it: that is the one line being looked at.
             if (isStopped) out += "\x1b[92m";
             else if (isLooked) out += "\x1b[96m";
             else if (hasBreak) out += "\x1b[91m";
@@ -909,8 +720,6 @@ void Editor::drawBody(std::string& out) const {
             std::vector<unsigned char> spread;
             expandWithKinds(buf_.line(row), kinds, text, spread);
 
-            // The selection is measured in the line's own columns and drawn in
-            // the screen's, so a tab inside it highlights its whole width.
             size_t selFrom = 0, selTo = 0;
             size_t rawFrom = 0, rawTo = 0;
             if (selectionOn(row, rawFrom, rawTo)) {
@@ -924,7 +733,7 @@ void Editor::drawBody(std::string& out) const {
             empty.resize(static_cast<size_t>(sourceCols_), ' ');
             out += empty;
         }
-        // Plainly, whatever the last thing drawn was coloured with.
+
         out += "\x1b[m";
         out += frame_->down;
         out += "\x1b[K\r\n";
@@ -950,8 +759,6 @@ void Editor::drawPanel(std::string& out) const {
         }
         visible += static_cast<int>(std::string(names[i]).size());
 
-        // A tick of the line between one tab and the next, so they read as
-        // three names on a line rather than as one long one.
         if (i + 1 < TabCount) {
             header += frame_->across;
             visible += 1;
@@ -966,9 +773,7 @@ void Editor::drawPanel(std::string& out) const {
     else
         right = assembly_.empty() ? std::string("nothing built yet")
                                   : number(assembly_.size()) + " lines";
-    // The line between the text and the panel, carrying the panel's own tabs
-    // and, at its far end, how much there is to read. The divider between the
-    // panes stops here, which is what the tee pointing up says.
+
     out += rule(frame_->teeRight, frame_->teeLeft, frame_->teeUp, header, visible, " " + right + " ",
                 static_cast<int>(right.size()) + 2);
     out += "\x1b[K\r\n";
@@ -1001,22 +806,15 @@ void Editor::drawStatus(std::string& out) const {
     if (buf_.dirty()) left += " *";
     left += "  " + lineCountText(buf_.lineCount());
 
-    // What will actually run, not what was picked - with a mark when the file
-    // is what picked it.
     ToolchainKind kind = resolve(tool_, lang_);
     std::string right = languageName(lang_);
     right += "  ";
     right += configName(config_);
     right += "  ";
-    // toolchainShown, not toolchainName: the build console says clang++ or
-    // g++ because which C++ compiler this machine has is the whole content of
-    // that answer, and a status bar saying "c++" while the console two lines
-    // below said "clang++" was the same fact written two ways.
+
     right += toolchainShown(tool_, kind);
     if (tool_.kind == ToolAuto) right += "*";
-    // The target is only shown when it means something. cl generates for the
-    // host it was installed as, and offering a choice that does nothing would
-    // be the status bar telling a lie.
+
     if (usesArch(kind)) {
         right += " ";
         right += kArches[arch_];
@@ -1040,9 +838,7 @@ void Editor::drawStatus(std::string& out) const {
 }
 
 void Editor::drawMessage(std::string& out) const {
-    // No timer on this line. A diagnostic has to stay put while you fix the
-    // line it points at, and a message that faded after five seconds would be
-    // gone by the time you had read the code.
+
     std::string text = message_;
     if (text.size() > static_cast<size_t>(screenCols_))
         text.resize(static_cast<size_t>(screenCols_));
@@ -1050,31 +846,9 @@ void Editor::drawMessage(std::string& out) const {
     out += "\x1b[K";
 }
 
-// Whether a menu item names what the editor is already doing.
-//
-// Only the items that stand for a *state* answer yes. "Save" and "Build
-// project" are things you ask for and are never current; "C++", "cc1",
-// "Release" and "Line numbers" are places you already are, and a menu that
-// showed you five compilers without saying which one you were on was a menu
-// that made you go and look at the status bar.
-//
-// Asked of the editor's own fields rather than kept as a flag on the item.
-// A flag would have to be set from four or five places and would go stale in
-// exactly the ones nobody remembered.
-// The menu, with what cannot be chosen just now already said.
-//
-// Told to it here rather than worked out inside it, because the menu knows
-// about labels and keys and nothing about debuggers - which is what keeps one
-// menu usable from a terminal and a window both.
 void Editor::openMenu() {
     std::vector<Action> unavailable;
 
-    // A Shalimar program says where it is and how deep, and nothing else. The
-    // compiler emits no table of a function's names against its frame slots,
-    // so there is no stack to walk and nothing to watch - see
-    // ../Compiler-S/docs/DEBUGGING.md. These three refuse with a sentence when
-    // they are chosen; greying them says the same thing before the choice is
-    // made, which is the better place to say it.
     if (debuggingShalimar()) {
         unavailable.push_back(ActionFrameUp);
         unavailable.push_back(ActionFrameDown);
@@ -1087,9 +861,7 @@ void Editor::openMenu() {
 
 bool Editor::menuItemIsCurrent(Action action) const {
     switch (action) {
-        // Which language the file is treated as. "By extension" is current
-        // when nothing was chosen by hand, which is not the same as the
-        // language it happens to be - that is what the status bar says.
+
         case ActionLangAuto:     return langChoice_ == LangCount;
         case ActionLangC:        return langChoice_ == LangC;
         case ActionLangCpp:      return langChoice_ == LangCpp;
@@ -1097,8 +869,6 @@ bool Editor::menuItemIsCurrent(Action action) const {
         case ActionLangJson:     return langChoice_ == LangJson;
         case ActionLangText:     return langChoice_ == LangPlain;
 
-        // Which compiler runs. Same shape: "By language" is current when
-        // nobody overrode it.
         case ActionToolAuto: return tool_.kind == ToolAuto;
         case ActionToolCc1:  return tool_.kind == ToolCc1;
         case ActionToolShc:  return tool_.kind == ToolShc;
@@ -1112,9 +882,6 @@ bool Editor::menuItemIsCurrent(Action action) const {
         case ActionConfigDebug:   return config_ == ConfigDebug;
         case ActionConfigRelease: return config_ == ConfigRelease;
 
-        // The switches on the Edit menu, which are on or off rather than one
-        // of several - but they are still a state you are in, and leaving them
-        // unmarked while everything else was marked would read as an oversight.
         case ActionToggleTree:    return treeOpen_;
         case ActionTogglePanel:   return panelOpen_;
         case ActionToggleNumbers: return numbers_;
@@ -1132,23 +899,16 @@ void Editor::drawDropdown(std::string& out, std::vector<size_t>& covered) const 
     size_t width = 0;
     for (size_t i = 0; i < col.items.size(); ++i) {
         if (col.items[i].rule) continue;
-        // One column for the mark, one for the gap after it, one between the
-        // label and the key, and one at each edge.
+
         size_t w = col.items[i].label.size() + col.items[i].key.size() + 5;
         if (w > width) width = w;
     }
 
-    // The box hangs from the title it belongs to, with its left-hand line one
-    // column left of the words so that they sit under the title rather than
-    // beside it - and, at the far left, over the window's own corner instead
-    // of beside that.
     size_t at = menu_.titleAt(menu_.column());
     if (at > 0) --at;
     if (at + width + 3 > static_cast<size_t>(screenCols_))
         at = static_cast<size_t>(screenCols_) - width - 3;
 
-    // A box of its own, hanging from the title it belongs to. Drawn last and
-    // placed by hand, so it lies over the text rather than pushing it aside.
     out += "\x1b[2;" + number(at + 1) + "H\x1b[m";
     out += frame_->topLeft;
     out += repeated(frame_->across, static_cast<int>(width));
@@ -1158,8 +918,6 @@ void Editor::drawDropdown(std::string& out, std::vector<size_t>& covered) const 
     for (size_t i = 0; i < col.items.size(); ++i) {
         out += "\x1b[" + number(i + 3) + ";" + number(at + 1) + "H\x1b[m";
 
-        // A rule is drawn across the box rather than written in it, joining
-        // the sides the way the panel's own rules do.
         if (col.items[i].rule) {
             out += frame_->teeRight;
             out += repeated(frame_->across, static_cast<int>(width));
@@ -1170,14 +928,6 @@ void Editor::drawDropdown(std::string& out, std::vector<size_t>& covered) const 
 
         out += frame_->down;
 
-        // The marker sits in the column the leading space used to be, so
-        // nothing moves when it appears and the labels stay in one line
-        // whether they are marked or not.
-        //
-        // The dot is three bytes and one column wide, and resize() counts
-        // bytes - so the target grows by what the marker costs over the space
-        // it replaced. Without that the marked rows come out two columns
-        // short and the keys on the right go ragged.
         const std::string mark = menuItemIsCurrent(col.items[i].action)
                                      ? std::string(frame_->chosen)
                                      : std::string(" ");
@@ -1185,10 +935,7 @@ void Editor::drawDropdown(std::string& out, std::vector<size_t>& covered) const 
         row.resize(width - col.items[i].key.size() - 1 + (mark.size() - 1), ' ');
         row += col.items[i].key;
         row += " ";
-        // Greyed when it cannot be chosen just now. Faint rather than a
-        // different colour, because the reason is "not available" and not "a
-        // different kind of thing" - and because a colour would have to work
-        // against both a dark and a light terminal.
+
         if (menu_.disabled(col.items[i].action)) out += "\x1b[2m";
         if (i == menu_.item()) out += "\x1b[7m";
         out += row;
@@ -1204,17 +951,11 @@ void Editor::drawDropdown(std::string& out, std::vector<size_t>& covered) const 
     covered.push_back(col.items.size() + 2);
 }
 
-// A question in a box of its own, in the middle of the text. It used to be
-// asked on the message line, which is also where the editor answers back - so
-// the question and the answer to the last one shared a row and neither looked
-// like it was waiting for anything.
 void Editor::dialogBox(int& at, int& top, int& wide) const {
     wide = static_cast<int>(askTitle_.size());
     int answer = static_cast<int>(utf8::columns(askAnswer_, askAnswer_.size()));
     if (answer + 2 > wide) wide = answer + 2;
 
-    // Wide enough for the longest thing on offer, so that a list of filenames
-    // is read rather than guessed at. Still bounded by the screen below.
     for (size_t i = 0; i < askShown_.size(); ++i) {
         int len = static_cast<int>(utf8::columns(askShown_[i], askShown_[i].size()));
         if (len + 4 > wide) wide = len + 4;
@@ -1229,7 +970,6 @@ void Editor::dialogBox(int& at, int& top, int& wide) const {
     top = 3 + bodyRows_ / 3;
     if (top < 3) top = 3;
 
-    // A list pushes the box up rather than off the bottom of the screen.
     int rows = 3 + static_cast<int>(askShown_.size());
     if (top + rows > bodyRows_ + 3) top = bodyRows_ + 3 - rows;
     if (top < 3) top = 3;
@@ -1241,8 +981,6 @@ void Editor::drawDialog(std::string& out, std::vector<size_t>& covered) const {
     int at = 0, top = 0, wide = 0;
     dialogBox(at, top, wide);
 
-    // The title sits in the top line of the box, as the tabs sit in the line
-    // above the text: a name in a line, not a row given up to a name.
     std::string title = " " + askTitle_ + " ";
     int titleWide = static_cast<int>(utf8::columns(title, title.size()));
     if (titleWide > wide - 2) {
@@ -1269,12 +1007,6 @@ void Editor::drawDialog(std::string& out, std::vector<size_t>& covered) const {
     foot += repeated(frame_->across, wide);
     foot += frame_->footRight;
 
-    // The list, between the line being typed into and the bottom of the box -
-    // attached to the question rather than floating somewhere else, because
-    // what it holds is the answer to that question and nothing else.
-    //
-    // The picked row is drawn in reverse video, which is what the menu and the
-    // project pane already use for "this is the one you are on".
     std::vector<std::string> rows;
     rows.push_back(head);
     rows.push_back(middle);
@@ -1283,10 +1015,6 @@ void Editor::drawDialog(std::string& out, std::vector<size_t>& covered) const {
         while (static_cast<int>(utf8::columns(text, text.size())) > wide - 2)
             text.resize(utf8::startOf(text, text.size() - 1));
 
-        // wide - 1 - len, and not wide - 2: the space before the text is the
-        // other column. Getting this wrong drew every list row one character
-        // short of the box's own sides, which is visible the moment there is
-        // more than one row.
         std::string pad(static_cast<size_t>(
                             wide - 1 - static_cast<int>(utf8::columns(text, text.size()))),
                         ' ');
@@ -1310,10 +1038,7 @@ void Editor::drawDialog(std::string& out, std::vector<size_t>& covered) const {
 void Editor::placeCursor(std::string& out) const {
     size_t row = 1, col = 1;
     if (!askTitle_.empty()) {
-        // In the box, after what has been typed into it - which is the only
-        // place a caret means anything while a question is being asked. It
-        // stays on the typed line even when the list below has a row picked:
-        // the list is walked with the arrows and typing still goes here.
+
         int at = 0, top = 0, wide = 0;
         dialogBox(at, top, wide);
         int answer = static_cast<int>(utf8::columns(askAnswer_, askAnswer_.size()));
@@ -1321,7 +1046,7 @@ void Editor::placeCursor(std::string& out) const {
         row = static_cast<size_t>(top + 1);
         col = static_cast<size_t>(at + 3 + answer);
     } else if (menu_.dropped()) {
-        // On the item it is standing on, inside the box's own left-hand line.
+
         row = menu_.item() + 3;
         col = menu_.titleAt(menu_.column()) + 2;
     } else if (focus_ == FocusTree) {
@@ -1332,8 +1057,7 @@ void Editor::placeCursor(std::string& out) const {
         col = 2;
     } else {
         row = 3 + (cy_ - rowoff_);
-        // The left edge, then the project pane and the line beside it when
-        // they are there, then the numbers, then how far along the line.
+
         col = (treeOpen_ ? static_cast<size_t>(treeCols_) + 3 : 2) +
               static_cast<size_t>(gutterCols_) + (rx_ - coloff_);
     }
@@ -1354,9 +1078,6 @@ void Editor::refresh() {
     drawStatus(screen);
     drawMessage(screen);
 
-    // Every part above writes whole rows and ends each one the same way, so the
-    // screen can be taken apart again here rather than every part being asked
-    // to hand back a list.
     std::vector<std::string> rows;
     size_t from = 0;
     for (;;) {
@@ -1371,14 +1092,9 @@ void Editor::refresh() {
     present(rows);
 }
 
-// What is on the screen already is left alone. A keystroke changes one row and
-// the status line, so those are what gets written - not the whole screen, which
-// is what made the whole screen flicker.
 void Editor::present(const std::vector<std::string>& rows) {
     std::string out;
 
-    // "Show me this all at once", for the terminals that understand it. The
-    // ones that do not skip it, as they skip anything else they do not know.
     out += "\x1b[?2026h\x1b[?25l";
 
     bool everything = painted_.size() != rows.size() || paintedCols_ != screenCols_;
@@ -1396,8 +1112,6 @@ void Editor::present(const std::vector<std::string>& rows) {
     }
     painted_ = rows;
 
-    // The menu and the question box lie over the screen rather than in it, so
-    // what they covered is remembered as unwritten and comes back when they go.
     std::vector<size_t> covered;
     drawDropdown(out, covered);
     drawDialog(out, covered);
@@ -1413,7 +1127,7 @@ void Editor::moveCursor(int key) {
     const std::string& line = buf_.line(cy_);
     switch (key) {
         case KEY_ARROW_LEFT:
-            // A whole character at a time, so the caret never lands inside one.
+
             if (cx_ > 0) cx_ = utf8::previous(line, cx_);
             else if (cy_ > 0) { --cy_; cx_ = buf_.line(cy_).size(); }
             break;
@@ -1517,8 +1231,7 @@ bool Editor::selectionOn(size_t row, size_t& from, size_t& to) const {
 }
 
 void Editor::extendTo(int key) {
-    // The first shifted movement puts the mark down where the caret was; the
-    // rest just move, and the stretch between the two is what is selected.
+
     if (!marked_) {
         marked_ = true;
         markRow_ = cy_;
@@ -1550,8 +1263,6 @@ void Editor::copySelection(bool cut) {
         return;
     }
 
-    // Nothing selected means the line the caret is on, which is what is nearly
-    // always wanted and saves selecting it first.
     clipboard_ = buf_.line(cy_) + "\n";
     if (cut) {
         buf_.beginEdit(EditOther, cx_, cy_);
@@ -1612,22 +1323,17 @@ void Editor::redoEdit() {
 }
 
 void Editor::insertNewline() {
-    // A newline stands alone, so undo gives back a line at a time rather than
-    // everything typed since the file was opened.
+
     buf_.beginEdit(EditOther, cx_, cy_);
 
     std::string lead = indentAfterNewline(buf_.lines(), cy_, cx_, style_);
     buf_.splitLine(cy_, cx_);
 
-    // A line left holding nothing but spaces keeps none of them. Pressing enter
-    // on an empty indented line should not write trailing whitespace into the
-    // file: cc1 will never see the difference, but a diff will.
     if (buf_.line(cy_).find_first_not_of(" \t") == std::string::npos)
         buf_.replaceLine(cy_, std::string());
 
     ++cy_;
-    // What followed the caret brings its own leading space with it; the level
-    // is decided here, so that space is dropped rather than added to.
+
     buf_.replaceLine(cy_, lead + withoutLeadingSpace(buf_.line(cy_)));
     cx_ = lead.size();
 }
@@ -1635,8 +1341,7 @@ void Editor::insertNewline() {
 void Editor::backspace() {
     buf_.beginEdit(EditErasing, cx_, cy_);
     if (cx_ > 0) {
-        // The whole character, not its last byte - deleting half of one would
-        // leave the file holding something that is not text.
+
         size_t start = utf8::previous(buf_.line(cy_), cx_);
         Range range;
         range.fromRow = range.toRow = cy_;
@@ -1670,8 +1375,6 @@ void Editor::realign() {
     std::string want = indentFor(buf_.lines(), cy_, style_);
     if (want == line.substr(0, had)) return;
 
-    // Part of the keystroke that caused it, so undoing a typed brace takes the
-    // line's indentation back with it in one go.
     buf_.beginEdit(EditTyping, cx_, cy_);
     buf_.replaceLine(cy_, want + line.substr(had));
     cx_ = (cx_ >= had) ? cx_ - had + want.size() : want.size();
@@ -1681,8 +1384,6 @@ void Editor::tabKey() {
     const std::string& line = buf_.line(cy_);
     size_t lead = leadingSpace(line);
 
-    // In the leading space, tab means 'put this line where it belongs' rather
-    // than 'add a step'. Anywhere else it is an ordinary indent.
     if (cx_ <= lead) {
         std::string want = indentFor(buf_.lines(), cy_, style_);
         buf_.beginEdit(EditOther, cx_, cy_);
@@ -1697,8 +1398,6 @@ void Editor::tabKey() {
 void Editor::findAgain(bool forwards) {
     if (needle_.empty()) { say("nothing to look for yet - Ctrl-F asks"); return; }
 
-    // From one past the caret, so pressing it again moves on instead of
-    // finding the same place for ever.
     Match match = forwards ? findNext(buf_.lines(), needle_, cy_, cx_ + 1)
                            : findPrevious(buf_.lines(), needle_, cy_, cx_);
     if (!match.found) { say(needle_ + " is not in this file"); return; }
@@ -1712,14 +1411,11 @@ void Editor::findAgain(bool forwards) {
 void Editor::findPrompt() {
     bool cancelled = false;
     std::string want = prompt("find: ", cancelled);
-    // An empty answer is not a search for nothing, and it is not the last
-    // search again either - looking on is what Ctrl-G is for, in both front
-    // ends. It used to re-find here and do nothing at all in the window, which
-    // is the sort of difference nobody discovers on purpose.
+
     if (cancelled || want.empty()) { say("nothing looked for"); return; }
 
     needle_ = want;
-    // From the caret itself this time, so a word already under it is found.
+
     Match match = findNext(buf_.lines(), needle_, cy_, cx_);
     if (!match.found) { say(needle_ + " is not in this file"); return; }
 
@@ -1749,28 +1445,16 @@ void Editor::replacePrompt() {
     say(number(count) + (count == 1 ? " change" : " changes") + " - Ctrl-Z puts them back");
 }
 
-// Lay out what is selected, or the whole file when nothing is.
-//
-// Even for a selection the whole file is laid out first, and only the selected
-// lines are taken from the result. Indentation is not a property of a line but
-// of everything above it - how deep the braces are, whether a comment is open -
-// so laying out a fragment on its own would start at column zero and be wrong
-// from the first line. What the selection decides is which lines are written
-// back, not what is measured.
 void Editor::reindentAll() {
     const std::vector<std::string> laid = reindent(buf_.lines(), style_);
 
     Range range;
     bool some = selection(range) && !range.empty();
 
-    // A run that adds or removes lines is not one this can take a slice of, so
-    // the selection is passed over and the whole file is laid out. The
-    // indenter does not do that today; if it ever does, this stays honest.
     if (some && laid.size() == buf_.lineCount()) {
         size_t first = range.fromRow, last = range.toRow;
         if (last >= buf_.lineCount()) last = buf_.lineCount() - 1;
 
-        // The selected lines, laid out; every other line exactly as it was.
         std::vector<std::string> kept = buf_.lines();
         size_t moved = 0;
         for (size_t row = first; row <= last; ++row)
@@ -1820,15 +1504,6 @@ void Editor::saveAs() {
     save();
 }
 
-// What is worth offering when the question is "which file". The languages this
-// editor compiles, the headers that go with them, and assembly - the same set
-// the project scanner puts in a project made without being told, which is the
-// right list for the same reason.
-//
-// Directories come too, with a '/' on the end. Without them the list stops at
-// the top of the project and the sources are usually one level down - the demo
-// project's own file is src/first.c - so a picker that could not go into a
-// directory would be a picker you could not use on a real project.
 std::vector<std::string> Editor::whatIsIn(const std::string& directory) const {
     std::vector<std::string> found;
     std::vector<path::Entry> here = path::entries(directory);
@@ -1836,8 +1511,7 @@ std::vector<std::string> Editor::whatIsIn(const std::string& directory) const {
     for (size_t i = 0; i < here.size(); ++i) {
         if (here[i].name.empty() || here[i].name[0] == '.') continue;
         if (here[i].directory) {
-            // The same ones the pane refuses to show: build output and version
-            // control, which would bury what anybody is looking for.
+
             if (here[i].name == "obj" || here[i].name == "build" ||
                 here[i].name == "x64" || here[i].name == "Debug" ||
                 here[i].name == "Release" || here[i].name == "node_modules")
@@ -1862,22 +1536,12 @@ std::vector<std::string> Editor::whatIsIn(const std::string& directory) const {
     return found;
 }
 
-// **There is no project file extension.** A project is a directory with an
-// RStudio.json in it - that is the whole of what being one consists of - so this
-// looks for the file rather than for a name. ".  (this directory)" is offered
-// first when the directory being looked at is itself a project, since that is
-// usually the one meant.
 std::vector<std::string> Editor::projectsIn(const std::string& directory) const {
     std::vector<std::string> found;
 
-    // The named projects here, by name, so a directory holding prime.pro and
-    // sums.pro offers both rather than one "." that quietly means whichever
-    // sorts first. This is the case the whole naming change exists for.
     std::vector<std::string> named = Project::projectFilesIn(directory);
     for (size_t i = 0; i < named.size(); ++i) found.push_back(path::filename(named[i]));
 
-    // "." only for a directory that is a project under one of the older
-    // whole-directory names - there is nothing else to call it.
     if (named.empty() && !Project::fileIn(directory).empty()) found.push_back("./");
 
     std::vector<path::Entry> here = path::entries(directory);
@@ -1887,41 +1551,20 @@ std::vector<std::string> Editor::projectsIn(const std::string& directory) const 
         found.push_back(here[i].name + "/");
     }
 
-    // The named projects are already sorted and stay at the top; only the
-    // directories under them are sorted here.
     std::sort(found.begin() + static_cast<long>(named.empty() ? (found.empty() ? 0 : 1)
                                                               : named.size()),
               found.end());
     return found;
 }
 
-// Asking which file, with what is there listed under the question.
-//
-// It loops because picking a directory is not an answer: the list becomes what
-// is inside it and the question is asked again, with the path built up so far
-// still in the line. Typing a name that is not on the list is still allowed
-// and still opens - or makes - that file, which is what it always did.
 void Editor::openPrompt() {
-    // Out of the project view, as File > New is. Asking the File menu for a
-    // file is asking about files; the pane says which ones are open rather
-    // than which groups the project has. Opening one *from the pane* is the
-    // other thing entirely and leaves the project showing - see openSelected.
+
     paneMode_ = PaneFiles;
     std::string where = project_.loaded() ? project_.root() : path::absolute(".");
     std::string prefix;
 
     for (;;) {
-        // **The project's own files first, when there is a project.** Listing
-        // the root directory alone was nearly useless there: a project keeps
-        // its sources a directory down, so the first thing offered was the
-        // project file and the name of a folder, and the file you actually
-        // wanted was two steps away. Worse, typing its name matched nothing,
-        // and a name that matches nothing is taken as typed - so asking for
-        // `beta` in a project holding src/beta.c made an empty new file called
-        // `beta` and left the pane pointing somewhere else entirely.
-        //
-        // Only at the top. Once a directory has been picked, the list is what
-        // is in that directory and nothing else, which is what browsing means.
+
         std::vector<std::string> offered;
         if (project_.loaded() && prefix.empty()) {
             const std::vector<Group>& groups = project_.groups();
@@ -1949,10 +1592,6 @@ void Editor::openPrompt() {
     }
 }
 
-// The same, for a project - which the terminal front end could not open at all
-// until now. It could be given one on the command line and it could remember
-// the last, and that was the whole of it; the window has had a folder picker
-// for as long as it has existed.
 void Editor::openProjectPrompt() {
     std::string where = project_.loaded() ? project_.root() : path::absolute(".");
 
@@ -1963,9 +1602,6 @@ void Editor::openProjectPrompt() {
 
         if (name == "./") { openProject(where); return; }
 
-        // A named project, picked from the list above. openProject takes a
-        // file as readily as a directory, which is what lets one of several be
-        // opened in particular.
         if (name.size() > 4 && name[name.size() - 1] != '/') {
             std::string named = path::join(where, name);
             if (path::exists(named) && !path::isDirectory(named)) {
@@ -1976,10 +1612,7 @@ void Editor::openProjectPrompt() {
 
         if (name[name.size() - 1] == '/') {
             std::string into = path::join(where, name.substr(0, name.size() - 1));
-            // A directory holding an RStudio.json is the one being asked for. One
-            // that does not is a step on the way to it, so the list becomes
-            // what is inside it rather than a project being made there by
-            // somebody who was only looking.
+
             if (!Project::fileIn(into).empty()) {
                 openProject(into);
                 return;
@@ -1999,10 +1632,7 @@ void Editor::newFile() {
     doc_ = docs_.size() - 1;
     restore();
     lang_ = LangPlain;
-    // Out of the project view. A new file is not in the project - it has no
-    // name yet to be in one by - so the pane shows what is open rather than
-    // groups this file is not in. The project itself stays loaded, and Ctrl-B
-    // still builds it.
+
     paneMode_ = PaneFiles;
     refreshTree();
     say("new file - Ctrl-S names it");
@@ -2020,8 +1650,6 @@ void Editor::openSelected() {
     focus_ = FocusText;
 }
 
-// What the file commands act on: whatever the project pane is standing on when
-// it has the keyboard, and the file being edited otherwise.
 std::string Editor::targetFile() const {
     if (focus_ == FocusTree && treeSel_ < tree_.size()) {
         const TreeEntry& e = tree_.entries()[treeSel_];
@@ -2034,9 +1662,7 @@ std::string Editor::groupUnderCursor() const {
     if (!project_.loaded()) return std::string();
     for (size_t i = treeSel_ + 1; i-- > 0;) {
         if (i >= tree_.size() || !tree_.entries()[i].group) continue;
-        // "Open files" is a heading, not a group: it says what you have open,
-        // and a file cannot be *put* there. Standing in it means no group was
-        // pointed at, and the caller's own default applies.
+
         if (tree_.entries()[i].session) return std::string();
         return tree_.entries()[i].name;
     }
@@ -2048,10 +1674,6 @@ void Editor::createFile() {
     std::string name = prompt("new file: ", cancelled);
     if (cancelled || name.empty()) { say("nothing made"); return; }
 
-    // The same rule: a new .h goes to Headers wherever the pane cursor happens
-    // to be standing. The cursor still decides for anything the rule has no
-    // opinion about, which is how a file gets into a group of somebody's own
-    // making.
     std::string group = groupForFile(path::filename(name));
     if (group.empty()) group = groupUnderCursor();
 
@@ -2076,20 +1698,11 @@ void Editor::renameFile() {
     say(done.message);
     if (!done.ok) return;
 
-    // A file open in a tab has to follow its own name, or saving would write
-    // the old one back. Compared by what the paths resolve to rather than by
-    // how they were written: the pane hands out one spelling and the edit view
-    // holds another, and a tab that misses here goes on wearing the old name
-    // with nothing said.
     for (size_t i = 0; i < docs_.size(); ++i) {
         Buffer& b = (i == doc_) ? buf_ : docs_[i].buf;
         if (!b.path().empty() && path::same(b.path(), path)) b.setPath(done.path);
     }
 
-    // So do its breakpoints. They are filed under the file's name, so a rename
-    // without this leaves them under a name nothing asks for again: the marks
-    // vanish from the gutter, and a debugger started afterwards is told to stop
-    // in a file that is no longer there.
     std::map<std::string, FileBreaks>::iterator had = breaks_.find(path::oneName(path));
     if (had != breaks_.end()) {
         std::set<size_t> lines = had->second.lines;
@@ -2109,8 +1722,6 @@ void Editor::deleteFile() {
 
     std::string shown = project_.relative(path);
 
-    // Typed in full, on purpose. This is the one command here that cannot be
-    // undone, and a single keypress is not enough to ask for it.
     bool cancelled = false;
     std::string answer = prompt("delete " + shown + " from disk? type yes: ", cancelled);
     if (cancelled || answer != "yes") { say("not deleted"); return; }
@@ -2124,9 +1735,6 @@ void Editor::deleteFile() {
         if (!b.path().empty() && path::same(b.path(), path)) b.setPath(std::string());
     }
 
-    // Its breakpoints go with it. A file that is not there cannot be stopped
-    // in - and a name can come back, so leaving them would hand lines somebody
-    // set in this file to whatever is written under the name next.
     breaks_.erase(path::oneName(path));
 
     refreshTree();
@@ -2151,8 +1759,6 @@ void Editor::addToProject() {
     if (!project_.loaded()) { say("there is no project - make one first"); return; }
     if (buf_.path().empty()) { say("save the file first, so it has a name"); return; }
 
-    // Offered by what the file is, not always "Sources". A header added by
-    // hand used to land among the sources and have to be moved out again.
     std::string wanted = groupForFile(path::filename(buf_.path()));
     if (wanted.empty()) wanted = "Sources";
 
@@ -2188,9 +1794,6 @@ void Editor::newProject() {
     if (done.ok) refreshTree();
 }
 
-// Writing the project out under a name of its own - which is how a project
-// held in one of the older whole-directory files becomes a named one. Nothing
-// converts a project without being asked, and this is the asking.
 void Editor::saveProjectAs() {
     if (!project_.loaded()) { say("there is no project to save"); return; }
 
@@ -2201,8 +1804,6 @@ void Editor::saveProjectAs() {
     if (cancelled) { say("not saved"); return; }
     if (name.empty()) name = offered;
 
-    // The suffix is added when it was left off, because somebody typing a
-    // project's name is not thinking about extensions.
     if (name.size() <= 4 || name.rfind(Project::suffix()) != name.size() - 4)
         name += Project::suffix();
 
@@ -2222,11 +1823,7 @@ void Editor::saveProject() {
 }
 
 void Editor::resetDebug() {
-    // Not a debugger, and it does not pretend to be one - but the reason has
-    // changed. cc1 writes DWARF for two of the three targets now, so on those
-    // there is something for a debugger to read; what there is not is a program
-    // to read it against, since this builds to assembly and stops there. The
-    // words come from the core so that the window says the same ones.
+
     debug_.clear();
     ToolchainKind kind = resolve(tool_, lang_);
 
@@ -2243,31 +1840,18 @@ void Editor::resetDebug() {
                      configFlags(kind, config_, kArches[arch_]) + " )");
 }
 
-// The frame the cursor is on, which is the panel's top line: with the panel
-// focused the terminal leaves the cursor at the start of that row, so the line
-// it is standing on is the line to act on, and moving down the panel moves it.
-// Nothing new is drawn to say which line is picked, because the cursor is
-// already sitting on it.
-//
-// This goes to where the call came from and no further: the program is still
-// standing where it stopped, the arrow in the gutter still marks that line, and
-// the variables are still that frame's. Going to a line is not stepping.
 void Editor::goToFrame() {
     const std::vector<std::string>& lines = panelLines();
     if (panelOff_ >= lines.size()) { say("there is nothing on that line"); return; }
 
     size_t which = dbg_frameOnLine(stack_, lines[panelOff_]);
 
-    // The top line names the frame the program stopped in, which is the way
-    // back from a caller: enter on it is enter on frame 0, and it is where the
-    // cursor is already standing once a frame has been looked at.
     if (which >= stack_.size() && !stack_.empty() &&
         lines[panelOff_] == dbg_stopLine(stopFile_, stopLine_, stopFunction_))
         which = 0;
 
     if (which >= stack_.size()) {
-        // Not a frame, but the tab's other kind of line is a variable, and
-        // pressing enter on one of those is how it is set.
+
         size_t variable = dbg_variableOnLine(locals_, lines[panelOff_]);
         if (variable < locals_.size()) { editVariable(variable); return; }
 
@@ -2281,18 +1865,11 @@ void Editor::goToFrame() {
     lookAt(which);
 }
 
-// An expression to keep asking about, read again wherever the program gets to
-// next. Asked for in the same box as everything else, and answered straight
-// away when there is something to answer it against.
 void Editor::watchExpression() {
     bool cancelled = false;
     std::string what = prompt("watch: ", cancelled);
     if (cancelled || what.empty()) { say("nothing to watch"); return; }
 
-    // A watch is an expression handed to a debugger to work out, and a
-    // Shalimar program has nothing to hand it to: it reports where it is, not
-    // what is in it. Refusing plainly beats accepting one and showing it blank
-    // for the rest of the session.
     if (shm_.running()) {
         say(std::string(shalimar::saysWhereOnly()) + " - nothing to watch with");
         return;
@@ -2306,9 +1883,6 @@ void Editor::watchExpression() {
                             : "watching " + what + " - it is read when the program stops");
 }
 
-// Changing one, or taking it away: the box comes up with nothing in it, and an
-// empty answer is how a watch is removed. There is no other list here that
-// needs a key for taking something out of it, so it does not get one.
 void Editor::editWatch(size_t which) {
     if (which >= debugger_.watches().size()) return;
     const std::string was = debugger_.watches()[which].expression;
@@ -2322,10 +1896,6 @@ void Editor::editWatch(size_t which) {
     say(what.empty() ? "stopped watching " + was : "watching " + what);
 }
 
-// Writing a variable back, into whichever frame is being looked at. The value
-// is asked for in the same box that asks for a filename, and what the debugger
-// says about a value it will not take is what the message line says: its
-// complaint names the mistake better than anything invented here.
 void Editor::editVariable(size_t which) {
     if (which >= locals_.size()) return;
 
@@ -2345,29 +1915,18 @@ void Editor::editVariable(size_t which) {
     locals_ = debugger_.locals();
     writeDebugTab();
 
-    // Read back rather than assumed: a debugger may take "3.7" for an int and
-    // store 3, and the tab should say what is in there rather than what was
-    // typed at it.
     std::string now = value;
     for (size_t i = 0; i < locals_.size(); ++i)
         if (locals_[i].name == name) now = locals_[i].value;
     say(name + " is " + now + " now");
 }
 
-// One frame along, without going near the panel: Ctrl-Up towards what called
-// this, Ctrl-Down back towards where the program stopped. The same act as
-// pressing enter on the frame, reached from the text where the caret already
-// is - which is where a person is when the question occurs to them.
 void Editor::lookAlongStack(int by) {
     if (!debugging() || stack_.empty()) {
         say("nothing is stopped, so there is no stack to walk");
         return;
     }
-    // Shalimar knows how deep it is and not what it is standing in - the
-    // compiler emits no table of callers - so frames() gives back one frame
-    // that says the depth. There is nothing to walk to, and saying so is
-    // better than the "nothing called ..." below, which would name that
-    // depth as if it were a function.
+
     if (shm_.running()) {
         say(shalimar::saysHowDeepOnly());
         return;
@@ -2387,8 +1946,6 @@ void Editor::lookAlongStack(int by) {
     lookAt(looking_ - 1);
 }
 
-// Looking at a frame: its variables are read, the tab is written again with it
-// marked, and the caret goes to the line that is waiting for the call.
 void Editor::lookAt(size_t which) {
     if (which >= stack_.size()) return;
 
@@ -2435,21 +1992,14 @@ void Editor::goToProblem() {
 }
 
 void Editor::convertFile() {
-    // Which way round is not a choice on the menu: it is what the file is.
-    // C goes to Shalimar, Shalimar comes back to C, and lang_ is what says
-    // which of those this file is - by its extension normally, and by hand
-    // through the Language column for the file whose suffix is wrong or
-    // missing. That is the whole reason this item lives in that column: set
-    // the language, then convert, and a .txt holding C converts like C.
+
     bool toShalimar = false;
     if (lang_ == LangC) {
         toShalimar = true;
     } else if (lang_ == LangShalimar) {
         toShalimar = false;
     } else {
-        // C++, JSON, assembly and plain text have no other side. Said with
-        // the language named, because the answer is usually to pick the right
-        // one in this same column rather than to give up.
+
         say(std::string("c2s converts between C and Shalimar, and this is ") +
             languageName(lang_) + " - set the language above if that is wrong");
         return;
@@ -2461,8 +2011,6 @@ void Editor::convertFile() {
         return;
     }
 
-    // c2s reads a file, not a screen, so saving is part of converting for the
-    // same reason it is part of building.
     if (buf_.dirty() || buf_.path().empty()) {
         if (!save()) return;
     }
@@ -2473,9 +2021,7 @@ void Editor::convertFile() {
         return;
     }
     if (produced == buf_.path()) {
-        // Asking to convert a .c into a .c, which is what the wrong direction
-        // looks like from here. Turned away rather than told to write over
-        // the file it is reading.
+
         say(std::string("that would write over ") + baseName(buf_.path()) +
             " - it is already what you asked for");
         return;
@@ -2499,10 +2045,6 @@ void Editor::convertFile() {
         return;
     }
 
-    // Three endings, and they are not the same thing. Everything came across;
-    // or some of it did not and is marked in a file that was still written;
-    // or nothing was written at all. c2s has already said which, in its own
-    // words, in the console - what is added here is what to do about it.
     if (result.produced.empty()) {
         say("nothing was written - c2s could not read or write a file");
         return;
@@ -2512,29 +2054,20 @@ void Editor::convertFile() {
     if (result.ok) {
         say(baseName(result.produced) + " - converted");
     } else {
-        // Exit 1 with a file written means markers in it: constructs with no
-        // expression in the target language, each quoting the source it
-        // stands for. That file is the work left to do, so it is opened -
-        // but it is not a program yet, and saying "converted" would claim it
-        // was.
+
         say(baseName(result.produced) +
             " - written with unconverted parts marked; search for BEYOND");
     }
 }
 
 void Editor::compile() {
-    // Which compiler runs is decided here, from the language, unless the
-    // choice was taken by hand. Said before anything else so that a file that
-    // cannot be compiled at all is turned away with a reason rather than with
-    // a wall of somebody else's parse errors.
+
     ToolchainKind kind = resolve(tool_, lang_);
     if (!canCompile(kind, lang_)) {
         say(refusal(kind, lang_));
         return;
     }
 
-    // cc1 reads a file, not a screen. Anything unsaved would not be in the
-    // build, so saving is part of building rather than something to remember.
     if (buf_.dirty() || buf_.path().empty()) {
         if (!save()) return;
     }
@@ -2542,9 +2075,7 @@ void Editor::compile() {
     panelOpen_ = true;
     tab_ = TabConsole;
     console_.clear();
-    // Shown with the compiler's own name and the file as the project knows it,
-    // rather than two absolute paths that push the flags off the right of an
-    // eighty-column console. The flags are the part worth reading.
+
     Toolchain shownAs = tool_;
     shownAs.cc1 = baseName(tool_.cc1);
     shownAs.cl = baseName(tool_.cl);
@@ -2565,12 +2096,8 @@ void Editor::compile() {
     lastDiag_ = result.diag;
     resetDebug();
 
-    // cc1's own words are already in the console, caret line and all, because
-    // they arrived there as it ran - the marker sits under the column it means,
-    // which a one-line summary would throw away.
     if (result.diag.present) {
-        // Land on the error. cc1 counts lines and columns from one; the buffer
-        // counts from zero.
+
         cy_ = result.diag.line - 1;
         if (cy_ >= buf_.lineCount()) cy_ = buf_.lineCount() - 1;
         cx_ = result.diag.col - 1;
@@ -2595,9 +2122,6 @@ void Editor::compile() {
     }
 }
 
-// Building is one thing and running is another, and the console has to keep
-// them apart: a compiler that failed and a program that returned 1 look the
-// same to anything that only asks whether the last command worked.
 void Editor::buildAndRun() {
     ToolchainKind kind = resolve(tool_, lang_);
     if (!canCompile(kind, lang_)) {
@@ -2647,8 +2171,7 @@ void Editor::buildAndRun() {
         console_.push_back(std::string(toolchainName(kind)) + " built no program");
         say(std::string(toolchainName(kind)) + " built no program - see the console");
     } else {
-        // What it returned, said as a number rather than as success or failure,
-        // because only the program knows which of those its number meant.
+
         console_.push_back("");
         console_.push_back("[program returned " + number(static_cast<size_t>(result.status)) + "]");
         say("ran " + shownFile + " - it returned " + number(static_cast<size_t>(result.status)));
@@ -2658,10 +2181,6 @@ void Editor::buildAndRun() {
         panelOff_ = console_.size() - static_cast<size_t>(panelRows_);
 }
 
-// Everything with a name and an unsaved change, written out. A project build
-// reads several files off the disk, so "save the one in front of you" - which
-// is all a single-file build ever needed - would build yesterday's copy of
-// every other one.
 bool Editor::saveEveryDirty() {
     stash();
     for (size_t i = 0; i < docs_.size(); ++i) {
@@ -2678,10 +2197,6 @@ bool Editor::saveEveryDirty() {
     return true;
 }
 
-// The compilers a target takes, named in the order its groups are. One is the
-// ordinary case and reads exactly as it always did; two is what the console
-// line says when C and C++ are in one program, and saying "cc1" there while cl
-// was also running would be the console telling half the truth.
 std::string Editor::compilersNamed(const std::vector<Part>& parts) const {
     std::vector<std::string> named;
     for (size_t i = 0; i < parts.size(); ++i) {
@@ -2697,20 +2212,11 @@ std::string Editor::compilersNamed(const std::vector<Part>& parts) const {
     return all;
 }
 
-// The project's program: the sources its build entry names, compiled and
-// linked into one thing, left beside the project file where it can be found
-// afterwards.
-//
-// This never asks what is in the edit view, and Ctrl-B never asks what the
-// project says. Which one you meant is said by which one you pressed - there
-// is nothing here that has to be guessed, and nothing that has to be closed
-// before the other will work.
 void Editor::buildProject(bool andRun) {
     std::vector<Part> parts;
     std::string why, detail;
     if (!project_.targetParts(parts, why, &detail)) {
-        // The line says what is wrong and the console says what to do about
-        // it: the message line is one line wide and clips what will not fit.
+
         say(why);
         if (!detail.empty()) {
             panelOpen_ = true;
@@ -2724,9 +2230,6 @@ void Editor::buildProject(bool andRun) {
         return;
     }
 
-    // Every part is asked, not just the first: a target of C and C++ has two
-    // compilers in it and either of them may be the one that cannot take what
-    // it was given, or cannot produce something this machine can run.
     for (size_t i = 0; i < parts.size(); ++i) {
         ToolchainKind kind = toolchainOf(tool_, parts[i]);
         if (!canCompile(kind, parts[i].lang)) { say(refusal(kind, parts[i].lang)); return; }
@@ -2759,18 +2262,12 @@ void Editor::buildProject(bool andRun) {
     Built made = buildParts(tool_, parts, kArches[arch_], config_, program,
                             consoleSink, this);
 
-    // For the messages below, which are about a compiler and are still true
-    // when there was more than one: whichever one stopped is the one whose
-    // diagnostic came back, and the words name them all rather than guess.
     const std::string compilers = compilersNamed(parts);
 
     lastDiag_ = made.diag;
 
     if (made.diag.present) {
-        // The error is as likely as not in a file that is not open, so it is
-        // opened before the caret is put on the line. A build of several files
-        // that lands you on the wrong one is worse than one that lands you
-        // nowhere.
+
         std::string where = made.diag.file;
         if (!where.empty() && !path::exists(where)) where = project_.absolute(where);
         if (!where.empty() && path::exists(where) && where != buf_.path()) open(where);
@@ -2812,20 +2309,14 @@ bool Editor::breakpointOn(size_t line) const {
 void Editor::toggleBreak() {
     if (buf_.path().empty()) { say("save the file first - a breakpoint is on a line of a file"); return; }
 
-    size_t line = cy_ + 1;   // the debugger counts from one, the buffer from zero
+    size_t line = cy_ + 1;
     FileBreaks& file = breaks_[path::oneName(buf_.path())];
     if (file.path.empty()) file.path = buf_.path();
     std::set<size_t>& here = file.lines;
     if (here.count(line)) {
         here.erase(line);
         if (debugging()) {
-            // The whole set is put back rather than one taken away: neither
-            // debugger promises the numbering of what it hands out, and there
-            // are never enough breakpoints here for it to matter. A Shalimar
-            // session does promise it - a breakpoint there is a file and a
-            // line and nothing hands a number back - but it is put back the
-            // same way, because one rule that is right everywhere beats two
-            // that are each right in one place.
+
             if (shm_.running()) {
                 shm_.clearBreakpoints();
                 for (std::set<size_t>::iterator it = here.begin(); it != here.end(); ++it)
@@ -2846,12 +2337,6 @@ void Editor::toggleBreak() {
     say("breakpoint on line " + number(line));
 }
 
-// A debugger names the file it stopped in the way its own line table spells it
-// - "main.c" from lldb here, an absolute path from gdb - and neither is
-// necessarily something that can be opened from where the editor is standing.
-// So it is looked for: as given, under the project's root, and then among the
-// project's own files by name, which is what finds src/main.c when all that
-// was said is main.c.
 std::string Editor::whereThatFileIs(const std::string& named) const {
     if (named.empty()) return std::string();
     if (path::exists(named)) return named;
@@ -2870,9 +2355,6 @@ std::string Editor::whereThatFileIs(const std::string& named) const {
     return std::string();
 }
 
-// Whatever a debugger printed, as lines. A string with newlines in it put into
-// the panel writes them to the screen, which walks the cursor out of the box
-// the panel is drawn in and leaves the frame in pieces.
 void Editor::sayIfSettingsWereBad() {
     std::string kept = settings::setAside();
     if (kept.empty()) return;
@@ -2898,20 +2380,6 @@ void Editor::showStop(const Stop& where) {
     panelOff_ = 0;
     debug_.clear();
 
-    // What the program printed on its way here goes to the console, where the
-    // program's output goes when it is run without a debugger. It arrives on
-    // the debugger's own stream mixed with the debugger's words, so it has to
-    // be taken out of them - see dbg_programOutput. Stepping over a printf now
-    // shows the line it printed, which is most of what stepping is for.
-    // A Shalimar session needs none of that taking apart. Its channel keeps
-    // the program's standard output away from the protocol on standard error,
-    // so `said` is already the program's own printing and nothing else - which
-    // is the whole reason that channel is not editor::Process.
-    //
-    // Asked as ownsTheStop rather than as "is a session running", because the
-    // last stop of all is the one that says the program ended, and by then the
-    // channel has closed. That one carries the last line the program printed,
-    // and it is the line most worth having.
     const std::string printed = shm_.ownsTheStop()
                                     ? where.said
                                     : dbg_programOutput(debugger_.kind(), where.said);
@@ -2932,11 +2400,7 @@ void Editor::showStop(const Stop& where) {
     }
 
     if (!where.stopped) {
-        // A step off the end of main lands in the loader, which has no source
-        // here - lldb reports "dyld`start + 7000" and gdb something like it.
-        // That is a real place to be standing and not a failure, so it is not
-        // reported as one: the debugger is left running, and F8 or Stop
-        // debugging both do what they say.
+
         if (dbg_stoppedWithNoSource(where.said)) {
             stopFile_.clear();
             stopLine_ = 0;
@@ -2965,24 +2429,11 @@ void Editor::showStop(const Stop& where) {
     stopFile_ = where.file;
     stopLine_ = where.line;
 
-    // The file it stopped in is opened if it is not open already, and then the
-    // caret follows it.
-    //
-    // This used to move the caret only when the file was the one already in
-    // front of you, on the grounds that jumping to a line of a file that is
-    // not open would be a lie about where you are. It would - but the answer
-    // is to open it, not to look away: stepping out of one file of a project
-    // into another said "stopped at main.c:13" while showing circle.c, which
-    // is a stranger lie than the one being avoided.
     if (!where.file.empty() && path::filename(where.file) != path::filename(buf_.path())) {
         std::string full = whereThatFileIs(where.file);
         if (!full.empty()) open(full);
     }
 
-    // Shalimar has no variables to read - the compiler emits no table of a
-    // function's names against its frame slots, and docs/DEBUGGING.md in
-    // Compiler-S says so plainly rather than leaving it to be discovered. An
-    // empty list is the truth here, and the tab says why below.
     if (debuggingShalimar()) {
         locals_.clear();
         stack_ = shm_.frames();
@@ -3007,29 +2458,18 @@ void Editor::showStop(const Stop& where) {
         (where.function.empty() ? std::string() : " in " + where.function));
 }
 
-// The Debug tab, written from what is known about the stop rather than from
-// the stop itself - so that it can be written again when the frame being
-// looked at changes, without the program having moved.
 void Editor::writeDebugTab() {
     debug_.clear();
     debug_.push_back(dbg_stopLine(stopFile_, stopLine_, stopFunction_));
     debug_.push_back("");
 
-    // Whose variables these are, when they are not the ones the program
-    // stopped among. Without it the line above stands over another function's
-    // locals and the two contradict each other.
     if (looking_ > 0 && looking_ < stack_.size()) {
         debug_.push_back(dbg_lookingAt(stack_[looking_]));
         debug_.push_back("");
     }
 
     if (locals_.empty()) {
-        // Empty means two different things. Under a debugger it means this
-        // place has no variables; under a Shalimar session it means no place
-        // ever will, because the compiler emits no table of a function's names
-        // against its frame slots. Saying which is the difference between a
-        // gap and a decision, and the second is not something to keep
-        // rediscovering.
+
         debug_.push_back(debuggingShalimar()
                              ? "  (" + std::string(shalimar::saysWhereOnly()) + ")"
                              : std::string("  (nothing in scope here)"));
@@ -3038,9 +2478,6 @@ void Editor::writeDebugTab() {
             debug_.push_back(dbg_variableLine(locals_[i]));
     }
 
-    // The expressions being watched, which are the editor's own question
-    // rather than the debugger's list of what is in scope - so they are their
-    // own block, under the variables.
     const std::vector<Watch>& watching = debugger_.watches();
     if (!watching.empty()) {
         debug_.push_back("");
@@ -3049,9 +2486,6 @@ void Editor::writeDebugTab() {
             debug_.push_back(dbg_watchLine(watching[i]));
     }
 
-    // Who is waiting for it. The first frame is where it is standing, which
-    // the line at the top already says, so what is worth showing is what is
-    // above that - and a program standing in main has nothing above it.
     if (stack_.size() > 1) {
         debug_.push_back("");
         debug_.push_back("called from");
@@ -3062,10 +2496,6 @@ void Editor::writeDebugTab() {
     debug_.push_back("");
     debug_.push_back("F8 carries on   F7 steps over   F6 steps into   F9 sets a breakpoint");
 
-    // Setting a variable needs no stack at all, so it is said whether or not
-    // there is one: a program standing in main has one frame and variables
-    // like any other. None of that is true of Shalimar, and offering the keys
-    // for it would be the panel promising what pressing them refuses.
     if (debuggingShalimar()) return;
 
     debug_.push_back("Ctrl-W puts the cursor in the panel; Enter on a variable sets it");
@@ -3084,10 +2514,6 @@ void Editor::debug(bool project) {
     if (shm_.running()) { showStop(shm_.resume()); return; }
     if (debugger_.running()) { showStop(debugger_.resume()); return; }
 
-    // What is going under the debugger, and in what language. For the project
-    // that is settled before anything else is asked, because the refusals -
-    // no build entry, a group of two languages - are about the project rather
-    // than about debugging, and they read better said first.
     std::vector<Part> parts;
     if (project) {
         std::string why, detail;
@@ -3117,15 +2543,6 @@ void Editor::debug(bool project) {
         if (!runsHere(each, kArches[arch_])) { say(whyNotRun(each, kArches[arch_])); return; }
     }
 
-    // Which debugger, when there may be more than one compiler in the program,
-    // and which groups it will be blind in. Worked out in the core so that the
-    // window asks the same question rather than answering it a second way -
-    // see dbg_planFor, which is also where Shalimar is asked about before
-    // anything can refuse it for lacking a debugger it never needed.
-    //
-    // A release build still has to be refused, because it genuinely cannot be
-    // stopped: it has no code for it. The sentence is the same shape with the
-    // true reason in it, and shc has never had a -g to leave out.
     const DebugPlan plan = dbg_planFor(tool_, parts, kArches[arch_]);
     ToolchainKind kind = plan.kind;
     const DebuggerKind engine = plan.engine;
@@ -3156,9 +2573,6 @@ void Editor::debug(bool project) {
             for (size_t f = 0; f < parts[i].sources.size(); ++f)
                 console_.push_back("    " + project_.relative(parts[i].sources[f]));
 
-    // Said before the build rather than after it, because it is about what the
-    // session will be able to do and whoever pressed F8 is about to find out
-    // the hard way otherwise.
     for (size_t i = 0; i < blind.size(); ++i)
         console_.push_back("  (" + blind[i] + " carries no debug information - the "
                            "debugger cannot stop in it)");
@@ -3167,9 +2581,6 @@ void Editor::debug(bool project) {
     say("building for the debugger ...");
     refresh();
 
-    // The project's program is built where the project keeps it and is not the
-    // editor's to remove afterwards; a single file's is a temporary thing made
-    // to be stepped through and cleared away.
     debugTemporary_ = !project;
     if (project)
         debugBuilt_ = buildParts(tool_, parts, kArches[arch_], config_,
@@ -3199,11 +2610,7 @@ void Editor::debug(bool project) {
     }
 
     if (stopsItself) {
-        // Nothing is started here except the program itself. If it will not
-        // arm, the reason is almost always that it was built without --debug -
-        // a release build runs and never says #ready - so that is what is
-        // said rather than "could not be started", which would send whoever
-        // read it looking for a debugger to install.
+
         if (!shm_.start(debugBuilt_.program)) {
             console_.push_back(shalimar::didNotArm());
             say("built without --debug, so there is nothing in it to stop - Ctrl-D, then F8");
@@ -3273,10 +2680,6 @@ void Editor::showAbout() {
     say(std::string(about::name()) + " " + about::version());
 }
 
-// The manual's contents, in the panel. Not the manual itself: ten pages of
-// prose compiled into the binary would be a second copy of what is in help/,
-// and a second copy is how documentation comes to outlive the fact. What
-// somebody at the keyboard wants is the reminder - what exists, and where.
 void Editor::showHelpContents() {
     panelOpen_ = true;
     tab_ = TabConsole;
@@ -3358,7 +2761,7 @@ void Editor::perform(Action action) {
             bool plain = frame_ != &kBoxFrame;
             setPlainFrame(!plain);
             settings::rememberPlainFrame(!plain);
-            // Everything moves, so nothing on the screen is where it was.
+
             painted_.clear();
             say(plain ? "the frame is drawn with the box characters again"
                       : "the frame is drawn with - | + now, and will be next time");
@@ -3394,8 +2797,7 @@ void Editor::perform(Action action) {
             config_ = ConfigDebug;
             settings::rememberConfiguration("debug");
             resetDebug();
-            // The flags themselves, rather than a second copy of them written
-            // out by hand: that copy is what went stale when cc1 grew a -g.
+
             say("debug:" + configFlags(resolve(tool_, lang_), config_, kArches[arch_]) +
                 (optimises(resolve(tool_, lang_)) ? "" : " - cc1 has no -O"));
             break;
@@ -3429,13 +2831,11 @@ void Editor::perform(Action action) {
         case ActionLangShalimar:
         case ActionLangJson:
         case ActionLangText: {
-            // Indexed by how far the action is from ActionLangC, so this array
-            // and the order of those actions in menu.h are one fact written
-            // twice. Keep them together.
+
             static const Language chosen[] = {LangC, LangCpp, LangShalimar, LangJson, LangPlain};
             langChoice_ = chosen[action - ActionLangC];
             applyLanguage();
-            resetDebug();   // which language it is decides which compiler runs
+            resetDebug();
             say(std::string("language: ") + languageName(lang_) + ", for every file");
             break;
         }
@@ -3446,7 +2846,7 @@ void Editor::perform(Action action) {
             break;
         case ActionToolAuto:
             tool_.kind = ToolAuto;
-            resetDebug();   // which compiler it is decides what the panel says
+            resetDebug();
             say(std::string("compiler: chosen by the file - this one goes to ") +
                 toolchainName(resolve(tool_, lang_)));
             break;
@@ -3461,13 +2861,10 @@ void Editor::perform(Action action) {
             say("compiler: cl, for every file");
             break;
         case ActionToolCxx:
-            // The machine's C++ compiler, which is a kind rather than a
-            // program: cl on Windows and a gcc-style driver elsewhere, and
-            // they take none of each other's flags.
+
             tool_.kind = hostCppToolchain();
             resetDebug();
-            // Named rather than called "the host's", because which one it is
-            // is the whole content of the answer and it is one string away.
+
             say("compiler: " + toolchainShown(tool_, tool_.kind) + ", for every file");
             break;
         case ActionHelpContents: showHelpContents(); break;
@@ -3479,9 +2876,7 @@ void Editor::perform(Action action) {
 
 void Editor::applyLanguage() {
     lang_ = (langChoice_ == LangCount) ? languageFor(buf_.path()) : langChoice_;
-    // Shalimar is not C with fewer rules: ':' is its assignment where C reads
-    // a label, and reading one as the other would walk every assignment out
-    // to the function's own column.
+
     style_.dialect = (lang_ == LangShalimar) ? DialectShalimar : DialectC;
 }
 
@@ -3491,10 +2886,6 @@ std::string Editor::prompt(const std::string& text, bool& cancelled) {
 
 namespace {
 
-// Case-insensitive, because a person reading their own filenames does not
-// think in case, and matched anywhere in the name rather than only at the
-// front: the file you want is often "gcd.shl" when what you remember typing
-// is "shl".
 bool holds(const std::string& name, const std::string& typed) {
     if (typed.empty()) return true;
     if (typed.size() > name.size()) return false;
@@ -3511,32 +2902,25 @@ bool holds(const std::string& name, const std::string& typed) {
     return false;
 }
 
-}  // namespace
+}
 
 std::string Editor::prompt(const std::string& text, bool& cancelled,
                            const std::vector<std::string>& choices) {
     std::string answer;
     cancelled = false;
 
-    // The title is what was asked, without the colon and space it used to be
-    // run together with its answer on the message line.
     std::string title = text;
     while (!title.empty() && (title[title.size() - 1] == ' ' || title[title.size() - 1] == ':'))
         title.resize(title.size() - 1);
     if (title.empty()) title = "?";
-    // A title, so it is written like one. The questions are phrased for the
-    // message line they used to be asked on and are left as they are there.
+
     if (title[0] >= 'a' && title[0] <= 'z') title[0] = static_cast<char>(title[0] - 'a' + 'A');
 
-    // At most this many rows of list. More than a screenful of names is not a
-    // help, and the box has to leave the text behind it visible enough to
-    // remember what the question was about.
     const size_t kMostShown = 12;
 
     bool done = false;
     for (; !done;) {
-        // Narrowed to what has been typed, every time round, so the list is
-        // never out of step with the line above it.
+
         askShown_.clear();
         for (size_t i = 0; i < choices.size() && askShown_.size() < kMostShown; ++i)
             if (holds(choices[i], answer)) askShown_.push_back(choices[i]);
@@ -3561,17 +2945,13 @@ std::string Editor::prompt(const std::string& text, bool& cancelled,
             if (!askShown_.empty() && askChoice_ > 0 && askChoice_ != static_cast<size_t>(-1))
                 --askChoice_;
         } else if (key == '\t') {
-            // Fills the line with what is picked, rather than answering. This
-            // is what gets you into a directory: pick it, tab, and the list
-            // below is what is inside it.
+
             if (askChoice_ < askShown_.size()) {
                 answer = askShown_[askChoice_];
                 askChoice_ = 0;
             }
         } else if (key == '\r' || key == '\n') {
-            // The picked row when there is one, and what was typed when there
-            // is not - so a name that does not exist yet can still be given,
-            // which is what Save as and New file need.
+
             if (askChoice_ < askShown_.size()) answer = askShown_[askChoice_];
             done = true;
         } else if (key == KEY_BACKSPACE || key == ctrl('h')) {
@@ -3583,8 +2963,6 @@ std::string Editor::prompt(const std::string& text, bool& cancelled,
         }
     }
 
-    // The box goes when the question has been answered, and the screen it was
-    // over comes back on the next refresh.
     askTitle_.clear();
     askAnswer_.clear();
     askShown_.clear();
@@ -3593,7 +2971,7 @@ std::string Editor::prompt(const std::string& text, bool& cancelled,
 }
 
 void Editor::processKey(int key) {
-    // While the menu is down it has the keyboard, and nothing reaches the text.
+
     if (menu_.active()) {
         perform(menu_.key(key));
         return;
@@ -3641,9 +3019,7 @@ void Editor::processKey(int key) {
             return;
 
         case ctrl('k'):
-            // Round them all rather than between two, in the order the Tools
-            // menu lists them, so what the key does and what the menu shows
-            // are one thing rather than two that can disagree.
+
             perform(tool_.kind == ToolAuto
                         ? ActionToolCc1
                         : (tool_.kind == ToolCc1
@@ -3673,8 +3049,7 @@ void Editor::processKey(int key) {
             if (focus_ == FocusTree) moveTree(key);
             else if (focus_ == FocusPanel) movePanel(key);
             else {
-                // Moving without shift lets the selection go, which is what
-                // every editor does and what the arrow keys mean here.
+
                 dropSelection();
                 moveCursor(key);
             }
@@ -3703,16 +3078,13 @@ void Editor::processKey(int key) {
             if (tab_ == TabConsole) goToProblem();
             else if (tab_ == TabDebug) goToFrame();
         }
-        return;   // otherwise the panel is there to be read
+        return;
     }
 
     switch (key) {
         case '\r':
         case '\n':
-            // A terminal in raw mode sends carriage return for the enter key;
-            // input arriving down a pipe carries a newline instead. Both mean
-            // the same thing here, and taking both is what lets the editor be
-            // driven by a script.
+
             insertNewline();
             return;
 
@@ -3729,8 +3101,6 @@ void Editor::processKey(int key) {
             if (key < 32 || key >= 127) return;
             char c = static_cast<char>(key);
 
-            // Three characters decide where their own line sits, and only these
-            // three, so nothing moves under the caret unless it had to.
             eraseSelection();
 
             std::string before = buf_.line(cy_).substr(0, cx_);
@@ -3751,9 +3121,7 @@ void Editor::run() {
 
     int wasRows = 0, wasCols = 0;
     while (running_) {
-        // A redraw for every timeout would rewrite the whole screen ten times a
-        // second for no reason. It is drawn when a key has changed something,
-        // or when the window itself has changed size.
+
         int rows = 0, cols = 0;
         term_.size(rows, cols);
         if (rows != wasRows || cols != wasCols) {
@@ -3769,11 +3137,7 @@ void Editor::run() {
         int key = term_.readKey();
         if (key != KEY_NONE) {
             processKey(key);
-            // That key may have built something, run something, or stepped a
-            // debugger, and on Windows every one of those shares this console
-            // and gives it back in its own mode. Asked for here rather than at
-            // each of those places because a child can only start in answer to
-            // a key, so this is the one spot that cannot be forgotten.
+
             term_.reclaim();
             needsDraw_ = true;
         }
@@ -3783,4 +3147,4 @@ void Editor::run() {
     Terminal::write("\x1b[2J\x1b[H");
 }
 
-}  // namespace editor
+}

@@ -1,12 +1,3 @@
-// The Windows half of the terminal. It is short for one reason: Windows 10 and
-// later speak the same escape sequences as a Unix terminal once the console is
-// asked to, so the drawing, the key decoding and the status bar are the shared
-// code and only the raw-mode switch is different.
-//
-//   ENABLE_VIRTUAL_TERMINAL_PROCESSING - the console reads the escape
-//     sequences the editor writes instead of printing them.
-//   ENABLE_VIRTUAL_TERMINAL_INPUT      - the console sends arrow keys and the
-//     rest as those same sequences instead of as its own key records.
 
 #include "terminal.h"
 
@@ -16,11 +7,7 @@ namespace editor {
 
 Terminal::Terminal()
     : in_(0), out_(0), inMode_(0), outMode_(0), codePage_(0), raw_(false), eof_(false) {
-    // The screen is written in UTF-8 - the lines the panes are drawn with are
-    // three bytes each, and so is anything in a file that is not ASCII. A
-    // console left on the machine's own code page shows those bytes as
-    // whatever that page has in those places, which is how a box turns into
-    // Latin-1 rubbish. The page it was on is put back on the way out.
+
     codePage_ = GetConsoleOutputCP();
     SetConsoleOutputCP(CP_UTF8);
 
@@ -29,7 +16,7 @@ Terminal::Terminal()
     if (hIn == INVALID_HANDLE_VALUE || hOut == INVALID_HANDLE_VALUE) return;
 
     DWORD inMode = 0, outMode = 0;
-    if (!GetConsoleMode(hIn, &inMode)) return;   // not a console: a pipe, say
+    if (!GetConsoleMode(hIn, &inMode)) return;
     if (!GetConsoleMode(hOut, &outMode)) return;
 
     in_ = hIn;
@@ -37,15 +24,11 @@ Terminal::Terminal()
     inMode_ = inMode;
     outMode_ = outMode;
 
-    if (!applyModes()) return;   // before Windows 10, and rightly refused
+    if (!applyModes()) return;
 
     raw_ = true;
 }
 
-// Written once and called twice - by the constructor, and by reclaim() after
-// every key the editor has acted on. Two copies of this would be two things to
-// keep in step, and the bug reclaim() exists for is precisely a console left in
-// a mode nobody meant.
 bool Terminal::applyModes() {
     HANDLE hIn = (HANDLE)in_;
     HANDLE hOut = (HANDLE)out_;
@@ -53,9 +36,6 @@ bool Terminal::applyModes() {
     DWORD wantOut = outMode_ | ENABLE_VIRTUAL_TERMINAL_PROCESSING | ENABLE_PROCESSED_OUTPUT;
     if (!SetConsoleMode(hOut, wantOut)) return false;
 
-    // Off: echo, waiting for a whole line, Ctrl-C as a signal, and quick-edit -
-    // which would otherwise let a stray click freeze the screen mid-build.
-    // EXTENDED_FLAGS has to be set for QUICK_EDIT to be cleared at all.
     DWORD wantIn = inMode_;
     wantIn &= ~(DWORD)(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT |
                        ENABLE_MOUSE_INPUT | ENABLE_QUICK_EDIT_MODE);
@@ -67,13 +47,6 @@ bool Terminal::applyModes() {
     return true;
 }
 
-// The console is shared with every child the editor starts, and cmd - which
-// the compiler runs through - hands it back in its own input mode rather than
-// the one it found. See the note in terminal.h for what that costs.
-//
-// The output code page goes with it, for the same reason it is set at all: the
-// pane borders are three UTF-8 bytes each, and a console back on the machine's
-// own page draws them as Latin-1 rubbish.
 void Terminal::reclaim() {
     if (!raw_) return;
     applyModes();
@@ -94,8 +67,7 @@ void Terminal::size(int& rows, int& cols) const {
         cols = 80;
         return;
     }
-    // The window, not the buffer. The buffer is usually far taller, and drawing
-    // to its height would scroll everything the editor just wrote off the top.
+
     cols = info.srWindow.Right - info.srWindow.Left + 1;
     rows = info.srWindow.Bottom - info.srWindow.Top + 1;
     if (cols <= 0) cols = 80;
@@ -120,15 +92,10 @@ bool Terminal::readByte(char& c) const {
     HANDLE hIn = in_ ? (HANDLE)in_ : GetStdHandle(STD_INPUT_HANDLE);
     if (hIn == INVALID_HANDLE_VALUE) return false;
 
-    // A tenth of a second, matching the VTIME the other machine is set to. It
-    // is what lets a pressed Escape be told from the start of an arrow key.
     if (WaitForSingleObject(hIn, 100) != WAIT_OBJECT_0) return false;
 
     if (raw_) {
-        // A signalled console handle is not always a character: a resized
-        // window and a released key both wake it, and ReadFile would sit there
-        // waiting for something it will never be given. Look first, and throw
-        // away anything that is not a key going down with a character on it.
+
         INPUT_RECORD record;
         DWORD seen = 0;
         if (!PeekConsoleInput(hIn, &record, 1, &seen) || seen == 0) return false;
@@ -141,11 +108,11 @@ bool Terminal::readByte(char& c) const {
 
     DWORD got = 0;
     if (!ReadFile(hIn, &c, 1, &got, NULL)) {
-        if (!raw_) eof_ = true;   // a pipe that has been closed
+        if (!raw_) eof_ = true;
         return false;
     }
     if (got == 0 && !raw_) eof_ = true;
     return got == 1;
 }
 
-}  // namespace editor
+}

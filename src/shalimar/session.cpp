@@ -5,10 +5,6 @@
 
 namespace shalimar {
 
-// The four sentences, in one place. Each is written to be true on its own and
-// to survive being quoted somewhere this file cannot see - the terminal's
-// message line, the window's status bar, a Debug tab - so none of them names a
-// key or assumes what is around it.
 const char* saysWhereOnly() {
     return "a Shalimar program says where it is, not what is in it";
 }
@@ -27,10 +23,6 @@ const char* didNotArm() {
 
 namespace {
 
-// The leaf of a path, which is what the program reports and what a breakpoint
-// is usually asked for by. Matching on the leaf rather than the whole path is
-// deliberate: the editor knows where a file is and the program does not, and
-// a project holds about five files with different names.
 std::string leafOf(const std::string& path) {
     size_t slash = path.find_last_of("/\\");
     return slash == std::string::npos ? path : path.substr(slash + 1);
@@ -41,7 +33,6 @@ bool startsWith(const std::string& text, const char* head) {
     return text.size() >= n && text.compare(0, n, head) == 0;
 }
 
-// '#stop 0 9 1' into its three numbers.
 bool three(const std::string& line, size_t from, int& a, int& b, int& c) {
     int* into[3] = {&a, &b, &c};
     size_t at = from;
@@ -58,7 +49,7 @@ bool three(const std::string& line, size_t from, int& a, int& b, int& c) {
     return true;
 }
 
-}  // namespace
+}
 
 bool Session::start(const std::string& executable) {
     stop();
@@ -75,9 +66,6 @@ bool Session::start(const std::string& executable) {
 #endif
     if (!channel_.start(quoted, "SHM_DEBUG=1")) return false;
 
-    // The program names its files and then says it is ready. Which number a
-    // file has depends on which files the compiler was given, so this is the
-    // only place the mapping can come from.
     for (;;) {
         bool alive = true;
         std::string line = channel_.hear(5000, &alive);
@@ -94,7 +82,7 @@ bool Session::start(const std::string& executable) {
             files_[unit] = line.substr(at);
             continue;
         }
-        if (line.empty()) return false;   // said nothing for five seconds
+        if (line.empty()) return false;
     }
 }
 
@@ -126,7 +114,7 @@ bool Session::breakAt(const std::string& file, size_t line) {
     wanted_.push_back(std::make_pair(file, line));
     if (!channel_.running()) return true;
     const int unit = unitFor(file);
-    if (unit < 0) return false;   // not a file this program was made of
+    if (unit < 0) return false;
     char command[64];
     std::snprintf(command, sizeof command, "b %d %d", unit, static_cast<int>(line));
     return channel_.say(command);
@@ -156,10 +144,6 @@ void Session::sendWanted() {
     }
 }
 
-// A program under a session may sit for as long as it likes between stops -
-// it is a program, and the one it is standing in the middle of may be doing
-// real work. Long enough that a slow loop is not mistaken for a hang, short
-// enough that a hang is not waited on for ever.
 editor::Stop Session::listen(int timeoutMs) {
     editor::Stop where;
     for (;;) {
@@ -190,8 +174,7 @@ editor::Stop Session::listen(int timeoutMs) {
             return where;
         }
         if (line.empty() && !alive) {
-            // It ended without saying so, which a program killed from outside
-            // does. Its printing is still worth having.
+
             exited_ = true;
             where.exited = true;
             where.status = status_;
@@ -200,7 +183,7 @@ editor::Stop Session::listen(int timeoutMs) {
         }
         if (line.empty()) {
             where.said = channel_.printed();
-            return where;   // neither stopped nor exited: it is thinking
+            return where;
         }
     }
 }
@@ -233,8 +216,7 @@ std::vector<editor::StackFrame> Session::frames() {
     editor::StackFrame here;
     here.file = fileFor(unit_);
     here.line = line_;
-    // The name of the function would need a table the compiler does not emit
-    // yet. Saying how deep it is, is true; inventing a name would not be.
+
     char said[48];
     std::snprintf(said, sizeof said, "%d call%s deep", depth_, depth_ == 1 ? "" : "s");
     here.function = said;
@@ -242,4 +224,4 @@ std::vector<editor::StackFrame> Session::frames() {
     return stack;
 }
 
-}  // namespace shalimar
+}

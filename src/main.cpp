@@ -9,11 +9,6 @@
 #include "symbols.h"
 #include "workspace.h"
 
-// What this copy of the editor is called where it is installed. There is one
-// terminal editor and two names for what is built from it - RStudio.exe on
-// Linux and macOS, RStudioConsole.exe on Windows - and whatever anyone renames
-// it to after that, so the name is taken from the command rather than written
-// down in the messages.
 static std::string calledIt(const char* argv0) {
     std::string name = (argv0 == 0 || *argv0 == 0) ? "RStudio" : argv0;
     size_t slash = name.find_last_of("/\\");
@@ -130,81 +125,30 @@ int main(int argc, char** argv) {
 
     editor::Editor ed;
 
-    // **Opening a file does not make a project out of the directory it is in.**
-    //
-    // It used to. The pane opened on the file's own directory, and a directory
-    // with no RStudio.json gets one written from what is in it - so asking to look
-    // at one file left a project file on somebody's disk, listing everything
-    // that happened to be beside it. Editing a file is not asking for a
-    // project, and writing into a directory is not something to do on the way
-    // to reading from it.
-    //
-    // A file that *is* in a project still opens that project, which is the
-    // half of the old behaviour worth keeping and the common case: the
-    // RStudio.json is already there, so nothing is written and the pane says what
-    // the project says. A file anywhere else opens on its own, and the pane
-    // shows the files you have open - which is what it now does whenever there
-    // is no project.
-    // **A directory named on its own is the project, not a file.** `RStudio .`
-    // is how anybody opens a tree, and it used to work only by accident: the
-    // argument became `file`, its "directory" was itself, and the pane opened
-    // there while the editor tried to load a directory into a buffer. Saying
-    // it properly is also what keeps it working now that a *file* no longer
-    // makes a project out of what is around it.
     if (!file.empty() && project.empty() && editor::path::isDirectory(file)) {
         project = file;
         file.clear();
     }
 
-    // Three cases, and only one of them ends with nothing opened.
     bool onItsOwn = false;
     if (project.empty() && !file.empty()) {
         size_t at = file.find_last_of("/\\");
         std::string beside = (at == std::string::npos) ? std::string(".") : file.substr(0, at);
 
-        // **Made absolute before anything is asked of it.** parent() of a
-        // relative one-word directory is the empty string - parent("src") is
-        // "" - and an empty answer here does not mean "no project", it means
-        // "the directory the editor was started in", which fileIn() then
-        // happily finds a project in. The result was `project` set to "", which
-        // reads as *nothing named at all* two lines below, so opening
-        // src/alpha.c from a project's own root quietly opened the last project
-        // instead - or the demo. The pane then had nothing to do with the file
-        // in the edit view, which is how this was noticed.
         beside = editor::path::absolute(beside);
 
-        // Beside the file, then one directory up. Two levels because that is
-        // how deep a project path is allowed to be - a file lives in the root
-        // or one directory under it - so src/one.c belongs to the project in
-        // the directory holding src, and looking only beside the file would
-        // miss every project laid out that way, which is most of them.
         std::string up = editor::path::parent(beside);
         if (!editor::Project::fileIn(beside).empty()) project = beside;
         else if (!up.empty() && !editor::Project::fileIn(up).empty()) project = up;
         else onItsOwn = true;
     }
 
-    // Nothing named at all: the project you were last in, and failing that a
-    // small one made for the purpose. Opening on "." was what this did before,
-    // and it meant a first run showed whatever directory you happened to be
-    // standing in, which is rarely a project and never a welcome.
-    //
-    // A file named with no project around it does *not* come here. Falling
-    // through to the last project would put somebody else's pane behind the
-    // file you asked for, which is worse than an empty one.
     if (project.empty() && !onItsOwn) {
         project = editor::settings::lastProject();
         if (project.empty()) project = editor::demoDirectory();
         if (project.empty()) project = ".";
     }
 
-    // Read first, so that anything named on the command line below overrides
-    // it. The project file is what this project always does; a flag is what
-    // today needs.
-    //
-    // Skipped entirely for a file on its own: openProject writes an RStudio.json
-    // for a directory that has none, and that is the whole of what this change
-    // is about.
     if (!project.empty()) ed.openProject(project);
 
     if (toolchain == "msvc" || toolchain == "cl") ed.setToolchain(editor::ToolMsvc);
@@ -214,10 +158,6 @@ int main(int argc, char** argv) {
              toolchain == "clang++") ed.setToolchain(editor::hostCppToolchain());
     else if (toolchain == "auto") ed.setToolchain(editor::ToolAuto);
 
-    // Debug or release comes from this machine's settings now, not from the
-    // project file - it is what you are doing today rather than what the
-    // program is - and --config still wins for this run, the same way the
-    // frame below does.
     if (config == "release") ed.setConfig(editor::ConfigRelease);
     else if (config == "debug") ed.setConfig(editor::ConfigDebug);
     else if (!config.empty()) {
@@ -228,7 +168,7 @@ int main(int argc, char** argv) {
         ed.setConfig(editor::ConfigRelease);
 
     if (width > 0) ed.setIndentWidth(static_cast<size_t>(width));
-    // What was chosen last time, unless this run says otherwise.
+
     if (plain || editor::settings::plainFrame()) ed.setPlainFrame(true);
     if (tabs >= 0) ed.setTabs(true);
     if (caseIndent >= 0) ed.setCaseIndent(1);
@@ -237,8 +177,7 @@ int main(int argc, char** argv) {
     if (!cl.empty()) ed.setCl(cl);
     if (!shc.empty()) ed.setShc(shc);
     if (!c2s.empty()) ed.setConverter(c2s);
-    // $CXX before --cxx, so the flag wins - the same order the other three
-    // keep, and the same order anybody who has used make expects.
+
     if (cxx.empty()) {
         const char* fromEnv = std::getenv("CXX");
         if (fromEnv && *fromEnv) cxx = fromEnv;
@@ -246,7 +185,7 @@ int main(int argc, char** argv) {
     if (!cxx.empty()) ed.setCxx(cxx);
 
     if (!file.empty()) ed.open(file);
-    else ed.openFirstFile();   // something in it, rather than an empty sheet
+    else ed.openFirstFile();
     ed.run();
     return 0;
 }

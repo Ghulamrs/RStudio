@@ -36,35 +36,15 @@ Menu::Menu() : active_(false), dropped_(false), column_(0), item_(0) {
     edit.items.push_back({"Plain frame", "", ActionTogglePlain});
     columns_.push_back(edit);
 
-    // Everything that changes what the project holds, in one place. The file
-    // commands act on whatever the project pane is standing on, or on the file
-    // being edited when it is not.
     MenuColumn project;
     project.title = "Project";
-    // No item here says "project". The column is called Project, and an item
-    // under it repeating the word is the menu saying it twice - "Project >
-    // Save as project file" for what is plainly Project > Save as. The File
-    // menu carries the same five words for files, and which is meant is said
-    // by which column it was opened from.
+
     project.items.push_back({"New", "", ActionProjectNew});
     project.items.push_back({"Open...", "", ActionProjectOpen});
     project.items.push_back({"Save", "", ActionProjectSave});
     project.items.push_back({"Save as...", "", ActionProjectSaveAs});
     project.items.push_back({"Close", "", ActionProjectClose});
-    // The five above are the project itself; the two below are its list of
-    // files - what is in the project, and nothing about what is on the disk.
-    // A rule costs nothing to walk past - stepTo skips whatever is not
-    // selectable - so this separates them without moving any of them further
-    // from the keyboard.
-    //
-    // New File makes one and puts it in; Add File takes one that is already on
-    // the disk; Remove File takes it back out and leaves it there.
-    //
-    // Rename..., Move to group... and Delete... stood here until 2026-08-24 and
-    // were taken out on the user's instruction: this menu is the project, and
-    // those three are things done to a file rather than to the list.
-    // Editor::renameFile, regroupFile and deleteFile are all still here, so
-    // putting any of them back is one line.
+
     project.items.push_back(separator());
     project.items.push_back({"New File", "", ActionFileCreate});
     project.items.push_back({"Add File", "", ActionProjectAdd});
@@ -84,9 +64,6 @@ Menu::Menu() : active_(false), dropped_(false), column_(0), item_(0) {
     build.items.push_back({"Assembly", "", ActionShowAssembly});
     columns_.push_back(build);
 
-    // Stopping the program and walking through it. Its own column because it is
-    // a mode rather than a command: once it has started, most of what the
-    // editor does next is one of these.
     MenuColumn debug;
     debug.title = "Debug";
     debug.items.push_back({"Start / continue", "F8", ActionDebug});
@@ -96,10 +73,7 @@ Menu::Menu() : active_(false), dropped_(false), column_(0), item_(0) {
     debug.items.push_back({"Step over", "F7", ActionStepOver});
     debug.items.push_back({"Step into", "F6", ActionStepInto});
     debug.items.push_back({"Step out", "", ActionStepOut});
-    // Starting it, walking it, looking at it, leaving it. The third group is
-    // also - by coincidence rather than design - exactly what a Shalimar
-    // program cannot do: it reports where it is and how deep, not what called
-    // it or what is in it, so those three grey out while one is stopped.
+
     debug.items.push_back(separator());
     debug.items.push_back({"Up the stack", "Ctrl-Up", ActionFrameUp});
     debug.items.push_back({"Down the stack", "Ctrl-Down", ActionFrameDown});
@@ -108,16 +82,6 @@ Menu::Menu() : active_(false), dropped_(false), column_(0), item_(0) {
     debug.items.push_back({"Stop debugging", "", ActionDebugStop});
     columns_.push_back(debug);
 
-
-    // What the file is read as. Normally the suffix answers this and nobody
-    // has to; the menu is for the file whose suffix is wrong, missing, or
-    // borrowed - a .txt holding a program, a header with C++ in it, or a
-    // Shalimar program the phone app saved as .shm, which this editor stopped
-    // reading as Shalimar on 2026-08-23 and which this menu is now the way to
-    // read without renaming it first.
-    //
-    // It sets the highlighting, the layout rules and, through 'By language',
-    // the compiler - so it is one choice rather than three.
     MenuColumn language;
     language.title = "Language";
     language.items.push_back({"By extension", "", ActionLangAuto});
@@ -126,36 +90,14 @@ Menu::Menu() : active_(false), dropped_(false), column_(0), item_(0) {
     language.items.push_back({"Shalimar", "", ActionLangShalimar});
     language.items.push_back({"JSON", "", ActionLangJson});
     language.items.push_back({"Plain text", "", ActionLangText});
-    // The other thing one can do about which language a file is in: not read
-    // it as another one, but turn it into another one. c2s writes the
-    // converted file beside the original and it is opened here, so the two
-    // are on screen together - a conversion is something to read and finish,
-    // not something to take on trust.
-    //
-    // One item and not two, because which way round it goes is not a choice:
-    // it is what the file already is. C goes to Shalimar and Shalimar comes
-    // back to C, and the column above is what says which of those this file
-    // is - normally by its extension, and by hand for the file whose suffix
-    // is wrong. So a .txt holding C is converted by setting C here first,
-    // which is the same answer this column gives to every other question.
+
     language.items.push_back(separator());
     language.items.push_back({"Convert (c2s / s2c)", "", ActionConvert});
     columns_.push_back(language);
 
-    // Which compiler is driven. cc1 is what this was written for; cl is here
-    // because the machine it runs on already has it; shc is here because
-    // 'By language' is the answer rather than a preference for two of the
-    // three languages: Shalimar goes to shc because nothing else reads it, and
-    // C++ goes to the machine's C++ compiler because that is what one is for.
-    // C is the only one with a real choice in it - cc1, which this editor was
-    // written for, or the host's - and the rest of this column is mostly for
-    // saying so.
     MenuColumn tools;
     tools.title = "Tools";
-    // Ours first, then the machine's. cc1 and shc are the two compilers this
-    // family wrote; cl and the host's C++ are what the machine already had.
-    // That is the division a reader of this menu actually has in their head,
-    // and it puts the two that are named the same way next to each other.
+
     tools.items.push_back({"By language", "Ctrl-K", ActionToolAuto});
     tools.items.push_back({"cc1", "", ActionToolCc1});
     tools.items.push_back({"shc", "", ActionToolShc});
@@ -163,8 +105,6 @@ Menu::Menu() : active_(false), dropped_(false), column_(0), item_(0) {
     tools.items.push_back({"C++ (host)", "", ActionToolCxx});
     columns_.push_back(tools);
 
-    // The three cc1 generates for. Two of them reach -S and no further on any
-    // given machine, which is the whole reason the assembly tab exists.
     MenuColumn target;
     target.title = "Target";
     target.items.push_back({"x86_64-windows", "", ActionArchWindows});
@@ -182,9 +122,6 @@ Menu::Menu() : active_(false), dropped_(false), column_(0), item_(0) {
 
 namespace {
 
-// The next item that can actually be landed on, walking in `by`. Wraps, and
-// gives back where it started if nothing in the column can be selected - which
-// cannot happen today and is not worth crashing over if it ever does.
 size_t stepTo(const MenuColumn& col, const Menu& menu, size_t from, int by) {
     const size_t count = col.items.size();
     if (count == 0) return from;
@@ -196,7 +133,6 @@ size_t stepTo(const MenuColumn& col, const Menu& menu, size_t from, int by) {
     return from;
 }
 
-// The first one that can be landed on, for opening a column or pressing Home.
 size_t firstSelectable(const MenuColumn& col, const Menu& menu) {
     for (size_t i = 0; i < col.items.size(); ++i)
         if (menu.selectable(col.items[i])) return i;
@@ -209,15 +145,12 @@ size_t lastSelectable(const MenuColumn& col, const Menu& menu) {
     return col.items.empty() ? 0 : col.items.size() - 1;
 }
 
-}  // namespace
+}
 
 void Menu::open() {
     active_ = true;
     dropped_ = true;
-    // The first item that can be landed on, which is item 0 in every column
-    // that has no rule at the top and nothing disabled - so this is the same
-    // "resets the item to 0" it always was, except where that would put the
-    // cursor on a line or on something greyed.
+
     item_ = firstSelectable(columns_[column_], *this);
 }
 
@@ -238,7 +171,6 @@ size_t Menu::barWidth() const {
     return columns_.empty() ? 0 : titleAt(columns_.size());
 }
 
-
 MenuItem separator() {
     MenuItem line;
     line.rule = true;
@@ -256,7 +188,6 @@ bool Menu::disabled(Action action) const {
 bool Menu::selectable(const MenuItem& item) const {
     return !item.rule && !disabled(item.action);
 }
-
 
 Action Menu::key(int k) {
     if (!active_) return ActionNone;
@@ -305,8 +236,6 @@ Action Menu::key(int k) {
             break;
     }
 
-    // A letter jumps to the column whose title begins with it, which is how a
-    // menu bar has always been driven.
     if (k >= 32 && k < 127) {
         char want = static_cast<char>(k);
         if (want >= 'A' && want <= 'Z') want = static_cast<char>(want - 'A' + 'a');
@@ -324,4 +253,4 @@ Action Menu::key(int k) {
     return ActionNone;
 }
 
-}  // namespace editor
+}
