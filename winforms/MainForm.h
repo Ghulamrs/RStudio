@@ -1,12 +1,5 @@
 #pragma once
 
-// The Windows Forms front end.
-//
-// It includes bridge.h and nothing else of ours. No <string>, no <vector>, no
-// editor headers - because a /clr translation unit that instantiates the same
-// templates the native files instantiate corrupts the heap before main runs.
-// Everything below talks to the editor through plain C.
-
 #include "bridge.h"
 
 namespace rstudiogui {
@@ -14,9 +7,6 @@ namespace rstudiogui {
 using namespace System;
 using namespace System::Windows::Forms;
 
-// One open file. The box keeps its own text, caret, scroll position and undo
-// history, so switching tabs puts all of that back without the form having to
-// remember any of it.
 ref class Sheet {
 public:
     String^ path;
@@ -25,18 +15,11 @@ public:
     TabPage^ page;
 };
 
-// The numbers down the left are repainted on every keystroke, and a plain
-// Panel clears itself to its background before the Paint handler is called -
-// which is the blink. This one draws the strip off screen and puts it down in
-// one go.
 ref class Gutter : public Panel {
 public:
     Gutter() { DoubleBuffered = true; }
 };
 
-// Where a text box is scrolled to. Windows Forms does not say, and colouring
-// has to put it back: selecting a run scrolls that run into view, and
-// colouring a file selects every run in it.
 value struct Spot {
     int x;
     int y;
@@ -51,22 +34,7 @@ public:
     }
 
 protected:
-    // The text is what a person came to type in, so that is what has the
-    // keyboard - but only once the window exists. Asked for in the constructor
-    // it does nothing at all, because there is nothing yet to give it to.
-    // Every sheet with unsaved work is asked about before the window goes,
-    // and any Cancel stops it. File > Exit and the close button both arrive
-    // here. Protected because what it overrides is: a managed override may not
-    // be less accessible than the method it replaces.
-    // Ctrl+D, Ctrl+K and Ctrl+T do not belong to one menu item: they move
-    // between several, the way the terminal's do. A ToolStripMenuItem can own
-    // only one meaning, and a key bound to two items goes to whichever menu was
-    // built first while the other advertises a key that does nothing - which is
-    // exactly what happened to F7 and Step over. So these are caught here and
-    // shown on every item they move between with ShortcutKeyDisplayString.
-    // Protected because what it overrides is.
-    // The view moves when the window does, so the bar over the stopped line is
-    // put back afterwards. Protected because what it overrides is.
+
     virtual void OnResize(EventArgs^ e) override {
         Form::OnResize(e);
         if (stopBar_ != nullptr) PlaceStopBar();
@@ -100,34 +68,12 @@ protected:
         text_->Focus();
         Recolour();
 
-        // The window has a handle now. Anything opened before it had one - the
-        // project's first file, or a file named on the command line - settled
-        // its modified flag only at this moment, and nothing has been typed
-        // yet, so none of it has changes.
         for (int i = 0; i < sheets_->Count; ++i) {
             sheets_[i]->box->Modified = false;
             MarkTab(sheets_[i]);
         }
     }
 
-    // What the pair of programs is called, and - since 2026-08-22 - what the
-    // binaries are called too. They were ed1 and ed1gui, on the grounds that
-    // the product name belonged to the pair and each binary kept its own; that
-    // is reversed, and there is one name now: RStudio and RStudioGui.
-    //
-    // The C++ namespace and the C entry points followed on 2026-08-23. They
-    // had been left alone as code identity rather than a name anybody sees,
-    // which was true and was still the last place the old name lived. It is
-    // `rstudiogui` and `rstudio_` now, and nothing is called ed1 any more
-    // except the temporary files a build leaves in the system temp directory.
-    //
-    // It is not CC1 Studio, which is the VS Code extension for the same
-    // compiler.
-    //
-    // A function rather than a static string, because a global or static of a
-    // managed type is refused outright - C3145 - since there would be nothing
-    // rooting it for the collector. That is a fourth mixed-mode hazard to put
-    // beside the three in the README.
     static String^ ProductName() { return "RStudio"; }
 
     ~MainForm() { this->!MainForm(); }
@@ -136,9 +82,7 @@ protected:
             rstudio_project_free(project_);
             project_ = nullptr;
         }
-        // A debugger left running would outlive the window that started it,
-        // and the program it is attached to would be left in the temporary
-        // directory. Freeing the handle removes both.
+
         if (built_ != nullptr) {
             rstudio_program_free(built_);
             built_ = nullptr;
@@ -156,8 +100,6 @@ protected:
 private:
     RStudioProject* project_;
 
-    // Everything the core needs to be told is kept as managed text and handed
-    // over as UTF-8 at the moment of the call.
     String^ arch_;
     String^ cc1_;
     String^ cl_;
@@ -168,104 +110,65 @@ private:
     int indentTabs_;
     int indentCase_;
 
-    // Stopping the program and walking through it. The breakpoints are the
-    // editor's own note and are kept by file, so they survive a file being
-    // closed and opened again; the debugger and the program it is attached to
-    // are native and are freed in OnFormClosed.
     RStudioDebugger* debugger_;
     RStudioProgram* built_;
-    // The three Debug items that need a stack or a variable, kept so that they
-    // can be greyed while a Shalimar program is the thing that is stopped.
+
     ToolStripMenuItem^ upTheStack_;
     ToolStripMenuItem^ downTheStack_;
     ToolStripMenuItem^ watchItem_;
-    bool busy_;             // something slow is on another thread
-    int pending_;           // which slow thing
-    int workResult_;        // what it came back with
-    int workKind_;          // and the compiler and language it was told to use
+    bool busy_;
+    int pending_;
+    int workResult_;
+    int workKind_;
     int workLanguage_;
-    // What the debugger is to attach to, chosen before the slow part starts: a
-    // single file's temporary program, or the project's own. The project's is
-    // built where the project keeps it and is not the editor's to remove.
+
     String^ workProgram_;
-    // A project build's result. Not an RStudioProgram, and the difference matters:
-    // freeing one of those removes the program with it, which is right for the
-    // temporary thing a single file makes and quite wrong for the project's.
+
     RStudioBuild* targetBuilt_;
-    // Breakpoints, filed under OneName so that one file has one set of them
-    // however its path was spelled - the same rule that keeps one file to one
-    // tab. breakNames_ holds the spelling to hand a debugger, since OneName is
-    // flattened and lower-cased and is for finding things, never for showing
-    // or for passing on. Editor::renameFile keeps the same pair in the core.
+
     System::Collections::Generic::Dictionary<String^,
         System::Collections::Generic::List<int>^>^ breaks_;
     System::Collections::Generic::Dictionary<String^, String^>^ breakNames_;
-    // The last error a build reported, kept so it can be gone back to. The
-    // window already jumps there when the build fails; this is for afterwards,
-    // once you have moved away - which is what Enter on the console does in the
-    // terminal. errorFile_ is null when the error is in the file that was
-    // built, and named when a project build found it somewhere else.
+
     int errorLine_;
     int errorColumn_;
     String^ errorMessage_;
     String^ errorFile_;
     String^ stopFile_;
-    String^ stopFunction_;   // what it stopped in, for writing the tab again
-    String^ lookingFile_;    // and the frame being looked at, when it is not that one
+    String^ stopFunction_;
+    String^ lookingFile_;
     int lookingLine_;
     int stopLine_;
-    // The row wearing the stopped-here bar, so it can be taken off again. -1
-    // when no line has one.
+
     int highlightRow_;
-    // The bar itself: a strip laid over the line, the width of the view. A
-    // RichTextBox will not colour past the end of a line's text - it paints its
-    // own background and the only per-range colour it draws is behind
-    // characters - so the bar is not asked of it. It is a window of our own,
-    // made translucent and click-through, sitting on top.
+
     Panel^ stopBar_;
-    // The font code is drawn in. One font for every tab: a file does not have
-    // a typeface, the person reading it does. The gutter draws its numbers with
-    // the box's own font, so it follows this without being told.
-    System::Drawing::Font^ codeFont_;          // 0 when the program is not standing still
+
+    System::Drawing::Font^ codeFont_;
 
     String^ path_;
     String^ projectDirectory_;
-    String^ needle_;      // what was last searched for
+    String^ needle_;
     bool colouring_;
 
-    // The lexer's state at the start of one line, kept so that typing on that
-    // line does not lex the whole file above it again for every character.
-    // Typing on a line cannot change the state it began with; moving to
-    // another line can, and OnCaretMoved throws it away.
     bool stateGood_;
     int stateRow_;
     int stateAt_;
 
-    // Fires when typing stops. Colouring the line you are on keeps up with the
-    // keyboard; what a typed quote or /* does to the lines below it can wait a
-    // quarter of a second for this.
     Timer^ settle_;
 
-    // Kept as fields because their proportions are set once the window has a
-    // size, not while it is being built - see Arrange.
     SplitContainer^ outer_;
     SplitContainer^ upper_;
 
     TreeView^ tree_;
     TabControl^ files_;
     System::Collections::Generic::List<Sheet^>^ sheets_;
-    // The box of whichever tab is in front. Kept as a field so that everything
-    // written when there was only ever one file still reads the same.
+
     RichTextBox^ text_;
     TabControl^ panel_;
-    // The three things View can hide, and the ticks that say which are showing.
-    // numbers_ is the gutter as a whole - the line numbers, the breakpoint dots
-    // and the arrow together - which is what Ctrl-L takes away in the terminal
-    // too, rather than the digits alone.
+
     bool numbers_;
-    // The radio choices, kept so their ticks can say which one is in force.
-    // The terminal puts all three on its status bar and never has to be asked;
-    // here the answer lives where the choice is made.
+
     System::Collections::Generic::List<ToolStripMenuItem^>^ targetItems_;
     ToolStripMenuItem^ toolAutoItem_;
     ToolStripMenuItem^ toolCc1Item_;
@@ -277,6 +180,7 @@ private:
     ToolStripMenuItem^ langShalimarItem_;
     ToolStripMenuItem^ langJsonItem_;
     ToolStripMenuItem^ langTextItem_;
+    ToolStripMenuItem^ convertItem_;
     ToolStripMenuItem^ debugConfigItem_;
     ToolStripMenuItem^ releaseConfigItem_;
     ToolStripMenuItem^ numbersItem_;
@@ -289,11 +193,8 @@ private:
     ToolStripStatusLabel^ build_;
     ToolStripStatusLabel^ where_;
     ToolStripStatusLabel^ what_;
-    ToolStripStatusLabel^ root_;   // which directory the project is in
+    ToolStripStatusLabel^ root_;
 
-    // ---- the seam ----------------------------------------------------------
-
-    // UTF-8 and null-terminated, so it can be pinned and passed straight in.
     static array<Byte>^ Utf8Of(String^ text) {
         array<Byte>^ raw = System::Text::Encoding::UTF8->GetBytes(text == nullptr ? "" : text);
         array<Byte>^ out = gcnew array<Byte>(raw->Length + 1);
@@ -313,23 +214,16 @@ private:
         return System::Text::Encoding::UTF8->GetString(bytes);
     }
 
-    // A char* the core allocated, taken as a string and handed back to it.
     static String^ TakeUtf8(char* text) {
         String^ out = FromUtf8(text);
         rstudio_free(text);
         return out;
     }
 
-    // ---- building the window ----------------------------------------------
-
     void Start(String^ projectDirectory, array<String^>^ files) {
         project_ = rstudio_project_new();
         arch_ = "x86_64-windows";
 
-        // Beside the editor first, which is where the product puts cc1.exe,
-        // and then PATH. $CC1 and $CL name one outright, as they do for the
-        // terminal half: it reads them and this did not, so the same machine
-        // could build from one and not from the other.
         cc1_ = Named("CC1", "cc1");
         cl_ = Named("CL", "cl");
         shc_ = Named("SHC", "shc");
@@ -363,10 +257,6 @@ private:
 
         Lay();
 
-        // Told nothing, this used to open on an empty pane. The terminal half
-        // opens on the project it was last in, and failing that makes a small
-        // one in your own files - both of which the core does; only the asking
-        // was missing here.
         if (projectDirectory == nullptr) {
             String^ last = FromUtf8(rstudio_last_project());
             if (last->Length == 0) last = FromUtf8(rstudio_demo_directory());
@@ -384,9 +274,6 @@ private:
                     anyNamed = true;
                 }
 
-        // Nothing named on the command line: the project's own first file,
-        // which is what the terminal half opens. A window on an empty untitled
-        // sheet, with the project listed beside it, is an odd place to start.
         if (!anyNamed) OpenFirstOfProject();
     }
 
@@ -411,12 +298,7 @@ private:
         ToolStripMenuItem^ file = gcnew ToolStripMenuItem("&File");
         file->DropDownItems->Add("New", nullptr,
                                  gcnew EventHandler(this, &MainForm::OnNewBuffer));
-        // New file..., New project... and Open project... stood here until
-        // 2026-08-24. Taken out on the user's instruction: nothing about a
-        // project belongs on the File menu, and the two project ones were the
-        // same handlers the Project menu already offers. The terminal front end
-        // never carried them, so this is the two halves agreeing rather than
-        // the window losing something.
+
         file->DropDownItems->Add(gcnew ToolStripSeparator());
         file->DropDownItems->Add("Open file...", nullptr,
                                  gcnew EventHandler(this, &MainForm::OnOpenFile));
@@ -429,9 +311,7 @@ private:
         file->DropDownItems->Add(
             Item("Close", Keys::Control | Keys::W, gcnew EventHandler(this, &MainForm::OnCloseFile)));
         file->DropDownItems->Add(gcnew ToolStripSeparator());
-        // Ctrl+PageDown and Ctrl+PageUp rather than the terminal's F3 and F2,
-        // which are Find next and Rename here. The user's call: the Windows
-        // convention, and nothing already bound has to move for it.
+
         file->DropDownItems->Add(
             Item("Next file", Keys::Control | Keys::PageDown,
                  gcnew EventHandler(this, &MainForm::OnNextFile)));
@@ -463,15 +343,8 @@ private:
             Item("Re-indent", Keys::Control | Keys::L, gcnew EventHandler(this, &MainForm::OnLayOut)));
         bar->Items->Add(edit);
 
-        // Everything that changes what the project holds. Each of these asks a
-        // question and then hands the answer to the core, which does the disk
-        // work, keeps the list in step and writes the project back - the same
-        // code the terminal front end calls.
         ToolStripMenuItem^ project = gcnew ToolStripMenuItem("&Project");
-        // No item here says "project" - the column already does, and an item
-        // repeating it is the menu saying the word twice. The dialog titles
-        // below still say it, deliberately: once a file picker is open there is
-        // no menu on screen to say which kind of file it wants.
+
         project->DropDownItems->Add("New...", nullptr,
                                     gcnew EventHandler(this, &MainForm::OnNewProject));
         project->DropDownItems->Add("Open...", nullptr,
@@ -482,24 +355,7 @@ private:
                                     gcnew EventHandler(this, &MainForm::OnSaveProjectAs));
         project->DropDownItems->Add("Close", nullptr,
                                     gcnew EventHandler(this, &MainForm::OnCloseProject));
-        // The five above are the project itself; the two below are its list of
-        // files. Nothing here touches the disk - Add File and Remove File both
-        // only say what the project contains.
-        //
-        // New File makes one and puts it in; Add File takes one that is already
-        // on the disk; Remove File takes it back out and leaves it there.
-        //
-        // New File carries Ctrl+N for real now, rather than the display string
-        // it used to have. The working binding was on the File menu's copy, and
-        // that copy went on 2026-08-24 - so without this the shortcut would have
-        // gone with it, a shortcut being a property of the item that holds it.
-        //
-        // Rename..., Move to group... and Delete... stood below this rule until
-        // the same day and were taken out on the user's instruction, the
-        // terminal half losing the same three. OnRenameFile, OnMoveToGroup and
-        // OnDeleteFile all still work, so any of them is one line away from
-        // coming back - but note Rename lost F2 with its item, for the reason
-        // just given about Ctrl+N.
+
         project->DropDownItems->Add(gcnew ToolStripSeparator());
         project->DropDownItems->Add(
             Item("New File", Keys::Control | Keys::N,
@@ -513,10 +369,7 @@ private:
         ToolStripMenuItem^ build = gcnew ToolStripMenuItem("&Build");
         ToolStripMenuItem^ compile = gcnew ToolStripMenuItem(
             "Compile", nullptr, gcnew EventHandler(this, &MainForm::OnCompile));
-        // Ctrl-B, not F7: F7 is Step over on the Debug menu, and a shortcut
-        // bound twice goes to whichever menu was built first - so Compile took
-        // it and Step over never saw a key it advertised. Ctrl-B is what the
-        // terminal half compiles with anyway.
+
         compile->ShortcutKeys = static_cast<Keys>(Keys::Control | Keys::B);
         build->DropDownItems->Add(compile);
         ToolStripMenuItem^ runIt = gcnew ToolStripMenuItem(
@@ -524,9 +377,6 @@ private:
         runIt->ShortcutKeys = Keys::F5;
         build->DropDownItems->Add(runIt);
 
-        // The project's program, as against the file in front of you. Two
-        // commands and no guessing: which one you meant is the one you pick,
-        // and compiling a single file never needs the project shut.
         build->DropDownItems->Add(gcnew ToolStripSeparator());
         build->DropDownItems->Add(
             Item("Build project", Keys::F4,
@@ -535,9 +385,7 @@ private:
                                   gcnew EventHandler(this, &MainForm::OnRunProject));
         debugConfigItem_ = gcnew ToolStripMenuItem(
             "Debug build", nullptr, gcnew EventHandler(this, &MainForm::OnDebugConfig));
-        // Shown, not bound: Ctrl+D moves between these two and belongs to
-        // neither, so it is caught in ProcessCmdKey. Both say so, as both of
-        // the terminal's own say Ctrl-D.
+
         debugConfigItem_->ShortcutKeyDisplayString = "Ctrl+D";
         build->DropDownItems->Add(debugConfigItem_);
         releaseConfigItem_ = gcnew ToolStripMenuItem(
@@ -546,19 +394,13 @@ private:
         build->DropDownItems->Add(releaseConfigItem_);
         bar->Items->Add(build);
 
-        // Its own column, as in the other front end: once the program has
-        // stopped, most of what you do next is one of these.
         ToolStripMenuItem^ debug = gcnew ToolStripMenuItem("&Debug");
         debug->DropDownItems->Add(Item("Start / continue", Keys::F8,
                                        gcnew EventHandler(this, &MainForm::OnDebug)));
-        // Under it and with no key of its own, as in the terminal: the project's
-        // own program rather than the file in front of you. Which of the two you
-        // meant is said by which one you asked for, never guessed - the same
-        // choice Ctrl-B and F4 offer for building.
+
         debug->DropDownItems->Add("Debug project", nullptr,
                                   gcnew EventHandler(this, &MainForm::OnDebugProject));
-        // Starting it, walking it, looking at it, leaving it. The terminal's
-        // Debug menu is grouped the same way and by the same four ideas.
+
         debug->DropDownItems->Add(gcnew ToolStripSeparator());
         debug->DropDownItems->Add(Item("Toggle breakpoint", Keys::F9,
                                        gcnew EventHandler(this, &MainForm::OnToggleBreak)));
@@ -570,9 +412,6 @@ private:
                                   gcnew EventHandler(this, &MainForm::OnStepOut));
         debug->DropDownItems->Add(gcnew ToolStripSeparator());
 
-        // Windows Forms will not take an arrow as a menu shortcut, so these
-        // two are caught in ProcessCmdKey with Ctrl-D, Ctrl-K and Ctrl-T, and
-        // say their key here themselves - as those three do.
         upTheStack_ = gcnew ToolStripMenuItem(
             "Up the stack", nullptr, gcnew EventHandler(this, &MainForm::OnFrameUp));
         upTheStack_->ShortcutKeyDisplayString = "Ctrl+Up";
@@ -585,11 +424,6 @@ private:
             "Watch expression...", nullptr, gcnew EventHandler(this, &MainForm::OnWatch));
         debug->DropDownItems->Add(watchItem_);
 
-        // This third group - looking at it - is exactly what a Shalimar
-        // program cannot do, so it is drawn faint while one is stopped rather
-        // than offered and then refused. Asked of the core as the menu opens,
-        // which is the same moment and the same question the terminal's own
-        // menu asks: the answer is never kept anywhere that could go stale.
         debug->DropDownOpening +=
             gcnew EventHandler(this, &MainForm::OnDebugMenuOpening);
 
@@ -598,11 +432,8 @@ private:
                                   gcnew EventHandler(this, &MainForm::OnDebugStop));
         bar->Items->Add(debug);
 
-        // The panel's three tabs, reachable without the mouse.
         ToolStripMenuItem^ view = gcnew ToolStripMenuItem("&View");
-        // The pane was reachable by mouse and by nothing else: Tab belongs to
-        // the text box, which lays a line out with it. Zero, before the three
-        // that pick the panels, because it is the pane before them.
+
         view->DropDownItems->Add(Item("Project pane", Keys::Control | Keys::D0,
                                       gcnew EventHandler(this, &MainForm::OnFocusTree)));
         view->DropDownItems->Add(Item("The file", Keys::Control | Keys::D4,
@@ -616,11 +447,6 @@ private:
                                       gcnew EventHandler(this, &MainForm::OnShowAssembly)));
         view->DropDownItems->Add(gcnew ToolStripSeparator());
 
-        // What is showing, rather than what to look at. Ctrl+P and Ctrl+E are
-        // free here and are the terminal's own keys for these two. Ctrl+L is
-        // not free - it is Re-indent in this window - so line numbers are on
-        // the menu and nowhere else. The ticks are how anybody finds out these
-        // can be turned off at all.
         numbersItem_ = Item("Show line numbers", Keys::None,
                             gcnew EventHandler(this, &MainForm::OnToggleNumbers));
         numbersItem_->Checked = true;
@@ -643,23 +469,11 @@ private:
         for (int i = 0; i < 3; ++i) {
             ToolStripMenuItem^ one = gcnew ToolStripMenuItem(
                 FromUtf8(rstudio_arch(i)), nullptr, gcnew EventHandler(this, &MainForm::OnTarget));
-            one->ShortcutKeyDisplayString = "Ctrl+T";   // shown, not bound - see ProcessCmdKey
+            one->ShortcutKeyDisplayString = "Ctrl+T";
             targetItems_->Add(one);
             target->DropDownItems->Add(one);
         }
-        // Added after Tools, not here. The three settings menus read as one
-        // chain - what the file is, which compiler reads it, which machine the
-        // output runs on - and Target is the most downstream of the three. The
-        // column is built here and put on the bar below, which is the smaller
-        // change and keeps this block where the rest of its construction is.
 
-        // What the file is read as. The suffix answers it normally; this is
-        // for the file whose suffix is wrong, missing, or borrowed - a .txt
-        // holding a program, or a Shalimar program the phone app saved as
-        // .shm, which is no longer read as Shalimar by its name and which this
-        // menu is the way to read without renaming it. It sets the colouring,
-        // the layout rules and, through 'By language', the compiler, so it is
-        // one choice rather than three.
         ToolStripMenuItem^ language = gcnew ToolStripMenuItem("Lan&guage");
         langAutoItem_ = gcnew ToolStripMenuItem(
             "By extension", nullptr, gcnew EventHandler(this, &MainForm::OnLangAuto));
@@ -679,25 +493,22 @@ private:
         langTextItem_ = gcnew ToolStripMenuItem(
             "Plain text", nullptr, gcnew EventHandler(this, &MainForm::OnLangText));
         language->DropDownItems->Add(langTextItem_);
+        language->DropDownItems->Add(gcnew ToolStripSeparator());
+        convertItem_ = gcnew ToolStripMenuItem(
+            "Convert (c2s / s2c)", nullptr, gcnew EventHandler(this, &MainForm::OnConvert));
+        language->DropDownItems->Add(convertItem_);
         bar->Items->Add(language);
 
         ToolStripMenuItem^ tools = gcnew ToolStripMenuItem("Too&ls");
         toolAutoItem_ = gcnew ToolStripMenuItem(
             "By language", nullptr, gcnew EventHandler(this, &MainForm::OnToolAuto));
-        toolAutoItem_->ShortcutKeyDisplayString = "Ctrl+K";   // shown, not bound
+        toolAutoItem_->ShortcutKeyDisplayString = "Ctrl+K";
         tools->DropDownItems->Add(toolAutoItem_);
         toolCc1Item_ = gcnew ToolStripMenuItem(
             "cc1", nullptr, gcnew EventHandler(this, &MainForm::OnToolCc1));
         toolCc1Item_->ShortcutKeyDisplayString = "Ctrl+K";
         tools->DropDownItems->Add(toolCc1Item_);
-        // shc before cl: cc1 and shc are the two compilers this family wrote and
-        // cl is what the machine already had, which is the division a reader
-        // has in their head. The terminal's Tools menu is in this same order,
-        // and Ctrl+K walks both the same way.
-        //
-        // There is no "C++ (host)" here, and that is right rather than
-        // missing: on Windows the host's C++ compiler *is* cl, so the item
-        // would name the same thing twice.
+
         toolShcItem_ = gcnew ToolStripMenuItem(
             "shc", nullptr, gcnew EventHandler(this, &MainForm::OnToolShc));
         toolShcItem_->ShortcutKeyDisplayString = "Ctrl+K";
@@ -707,8 +518,7 @@ private:
         toolClItem_->ShortcutKeyDisplayString = "Ctrl+K";
         tools->DropDownItems->Add(toolClItem_);
         tools->DropDownItems->Add(gcnew ToolStripSeparator());
-        // Here rather than on View: View is what is shown at this moment, and
-        // this is a choice made once and kept, like the compiler above it.
+
         tools->DropDownItems->Add("Font...", nullptr,
                                   gcnew EventHandler(this, &MainForm::OnFont));
         bar->Items->Add(tools);
@@ -725,13 +535,6 @@ private:
         Controls->Add(bar);
         ShowChoices();
 
-        // The same four regions as the terminal one: project, text, panel and
-        // status - by splitters here instead of by counting rows.
-        // The splitter is the only line drawn between the panes: each control
-        // fills its side completely, so the container's own colour shows in
-        // that gap and nowhere else. Sunken borders around each pane put a
-        // second line beside that one and a sliver of grey outside the tree,
-        // which is what made the left edge look like an accident.
         outer_ = gcnew SplitContainer();
         outer_->Dock = DockStyle::Fill;
         outer_->Orientation = Orientation::Horizontal;
@@ -757,8 +560,7 @@ private:
         tree_->Indent = 16;
         tree_->NodeMouseDoubleClick +=
             gcnew TreeNodeMouseClickEventHandler(this, &MainForm::OnTreeOpen);
-        // A double-click was the only way in, so the pane could not be used
-        // from the keyboard at all - where the terminal half opens on Enter.
+
         tree_->KeyDown += gcnew KeyEventHandler(this, &MainForm::OnTreeKey);
         upper->Panel1->Controls->Add(tree_);
 
@@ -774,14 +576,11 @@ private:
         panel_->Dock = DockStyle::Fill;
 
         console_ = ReadOnlyBox();
-        // Enter on the compiler's words goes to what they are about, as Enter
-        // on the terminal's console does. Double-click for the same, since a
-        // console is a thing people click at.
+
         console_->KeyDown += gcnew KeyEventHandler(this, &MainForm::OnConsoleKey);
         console_->DoubleClick += gcnew EventHandler(this, &MainForm::OnConsoleDoubleClick);
         debug_ = ReadOnlyBox();
-        // A frame in the Debug tab is gone to the way an error in the Console
-        // is: double-click it, or put the caret on it and press enter.
+
         debug_->KeyDown += gcnew KeyEventHandler(this, &MainForm::OnDebugKey);
         debug_->DoubleClick += gcnew EventHandler(this, &MainForm::OnDebugDoubleClick);
         assembly_ = gcnew RichTextBox();
@@ -805,16 +604,11 @@ private:
         Controls->Add(outer);
         outer->BringToFront();
 
-        // The line along the bottom: what happened on the left, then the
-        // directory the project is in - asked for once too often to be left
-        // out - and the caret's line and column at the right.
         status_ = gcnew StatusStrip();
         what_ = gcnew ToolStripStatusLabel("no file");
         what_->Spring = true;
         what_->TextAlign = System::Drawing::ContentAlignment::MiddleLeft;
-        // What the next build will use, the way the terminal's status bar has
-        // always carried it. The ticks in the menus answer the same question,
-        // but only when a menu is open; this answers it at a glance.
+
         build_ = gcnew ToolStripStatusLabel("");
         build_->BorderSides = ToolStripStatusLabelBorderSides::Left;
         build_->ToolTipText =
@@ -830,32 +624,16 @@ private:
         status_->Items->Add(root_);
         status_->Items->Add(where_);
         Controls->Add(status_);
-        SayBuild();   // ShowChoices ran before this strip existed
+        SayBuild();
 
-        // If the settings would not parse they have been kept and replaced, and
-        // that is worth one line: the font and the last project have gone back
-        // to their defaults, and somebody should know why.
         String^ kept = FromUtf8(rstudio_settings_set_aside());
         if (kept != nullptr && kept->Length > 0)
             what_->Text = "bad configuration file - kept as " +
                           System::IO::Path::GetFileName(kept) + ", a new one made";
 
-        // FixedPanel is the rule the terminal front end already follows: the
-        // project pane takes 22 columns and the bottom panel takes 7 rows -
-        // "the command, and a few lines of what it said" - and the code gets
-        // everything that is left, including everything the window gains when
-        // it is made larger.
         upper->FixedPanel = FixedPanel::Panel1;
         outer->FixedPanel = FixedPanel::Panel2;
 
-        // How much each of them takes is settled in Arrange, once the window
-        // has a size. SplitterDistance is refused while a control has none,
-        // and quietly leaves both panes at half - which is a third of the
-        // width for short filenames and half the height for a dozen lines of
-        // output.
-
-        // There is always a sheet, even before a file is opened, so nothing
-        // below has to ask whether there is somewhere to type.
         Sheet^ first = MakeSheet(nullptr, "");
         text_ = first->box;
 
@@ -864,17 +642,9 @@ private:
         SayWhere();
     }
 
-    // The proportions and the smallest each pane may be dragged to, in one
-    // place and applied once the window has a size to divide.
-    //
-    // Both belong here rather than where the containers are made, and for the
-    // same reason: a minimum is checked against the size the container has at
-    // that moment, and a SplitContainer that is not in a window yet is 150 by
-    // 100. Asking for a 240-pixel minimum there is not refused quietly - it
-    // throws where it stands, and the window never appears at all.
     void Arrange() {
-        const int forTree = 120;    // the narrowest the project pane may be
-        const int forCode = 240;    // and the narrowest the text beside it
+        const int forTree = 120;
+        const int forCode = 240;
         const int forUpper = 160;
         const int forPanel = 80;
 
@@ -890,8 +660,6 @@ private:
             outer_->Panel1MinSize = forUpper;
             outer_->Panel2MinSize = forPanel;
 
-            // A quarter of the window for the output, between about eight
-            // lines and about twenty.
             int deep = Math::Max(120, Math::Min(220, outer_->Height / 4));
             int distance = outer_->Height - deep - outer_->SplitterWidth;
             int most = outer_->Height - forPanel - outer_->SplitterWidth;
@@ -899,7 +667,6 @@ private:
         }
     }
 
-    // The first file the project lists, if it lists one.
     void OpenFirstOfProject() {
         int groups = rstudio_project_groups(project_);
         for (int group = 0; group < groups; ++group) {
@@ -915,8 +682,6 @@ private:
         }
     }
 
-    // Which directory the project is in, where it can be read. "Where would a
-    // new file go" is not a question the window should leave anyone asking.
     String^ RootNow() {
         String^ root = FromUtf8(rstudio_project_root(project_));
         if (root == nullptr || root->Length == 0) root = projectDirectory_;
@@ -928,33 +693,17 @@ private:
         root_->Text = root == nullptr || root->Length == 0 ? "no project" : root;
     }
 
-    // The console holds what a build said and then what the program said, and
-    // the second is the part somebody is waiting for - so the box is left
-    // showing its end rather than its beginning. The terminal front end has
-    // always done this by moving panelOff_; a text box has to be told.
     void ShowConsoleEnd() {
         console_->SelectionStart = console_->TextLength;
         console_->SelectionLength = 0;
         console_->ScrollToCaret();
     }
 
-    // A text box wants CRLF; a debugger writes whatever it writes. Normalised
-    // rather than assumed, since cdb and lldb do not agree about it.
     static String^ Lines(String^ text) {
         if (String::IsNullOrEmpty(text)) return text;
         return text->Replace("\r\n", "\n")->Replace("\r", "\n")->Replace("\n", "\r\n");
     }
 
-    // What the environment says a compiler is; failing that the one sitting
-    // beside the editor; failing that the bare name, for PATH to answer.
-    //
-    // The middle one is why this is more than a getenv. The product directory
-    // holds RStudioGui.exe and cc1.exe side by side, and this used to reach that
-    // cc1.exe only when the editor happened to have been started in that
-    // directory - so the installed copy, started from a shortcut or the Start
-    // menu, reported a compiler that was standing right next to it. Beside the
-    // editor is looked at before PATH on purpose: a compiler shipped with this
-    // copy of the editor is the one that copy is meant to drive.
     static String^ Named(String^ variable, String^ orElse) {
         String^ said = Environment::GetEnvironmentVariable(variable);
         if (said != nullptr && said->Length != 0) return said;
@@ -966,9 +715,6 @@ private:
         return orElse;
     }
 
-    // A menu item with its key, since there are a dozen of them now. The
-    // handler arrives already made: a managed member function has no address
-    // to take, so the delegate is built at the call.
     [System::Runtime::InteropServices::DllImport("user32.dll", SetLastError = true)]
     static int GetWindowLong(System::IntPtr window, int index);
     [System::Runtime::InteropServices::DllImport("user32.dll", SetLastError = true)]
@@ -977,10 +723,6 @@ private:
     static bool SetLayeredWindowAttributes(System::IntPtr window, int key, unsigned char alpha,
                                            int flags);
 
-    // "Courier New 11.5" - the name, then the size, which is what the last
-    // space separates. Anything this machine cannot make is quietly the
-    // default: a settings file carried from another machine may name a font
-    // that is not here, and that is not worth a complaint on startup.
     System::Drawing::Font^ RememberedFont() {
         String^ said = FromUtf8(rstudio_code_font());
         if (said != nullptr && said->Length > 0) {
@@ -995,8 +737,7 @@ private:
                     try {
                         System::Drawing::Font^ made =
                             gcnew System::Drawing::Font(name, (float)points);
-                        // A name it does not have gives back something else
-                        // entirely, so ask what it made rather than trust it.
+
                         if (made->FontFamily->Name == name) return made;
                     } catch (Exception^) { }
                 }
@@ -1011,12 +752,8 @@ private:
         return item;
     }
 
-    // There is no input box in Windows Forms, so here is one.
     String^ Ask(String^ title, String^ initial) { return Ask(title, nullptr, initial); }
 
-    // The same one, with a line above the entry for what the title has no room
-    // to say - which directory a name will be taken as relative to, most of
-    // the time, since that is the thing nobody can otherwise see.
     String^ Ask(String^ title, String^ note, String^ initial) {
         Form^ box = gcnew Form();
         box->Text = title;
@@ -1076,13 +813,10 @@ private:
         return text_->SelectionStart - text_->GetFirstCharIndexFromLine(CaretRow());
     }
 
-    // The core counts columns in UTF-8 bytes and the box counts them in
-    // characters. For ASCII they agree and for anything else they do not, so
-    // the two are converted rather than assumed equal.
     int CharacterColumn(int row, int byteColumn) {
         if (row < 0 || row >= text_->Lines->Length) return 0;
         array<Byte>^ bytes = Utf8Of(text_->Lines[row]);
-        int usable = bytes->Length - 1;   // without the terminator
+        int usable = bytes->Length - 1;
         if (byteColumn > usable) byteColumn = usable;
         if (byteColumn <= 0) return 0;
         return System::Text::Encoding::UTF8->GetString(bytes, 0, byteColumn)->Length;
@@ -1096,8 +830,6 @@ private:
         return System::Text::Encoding::UTF8->GetByteCount(line->Substring(0, characterColumn));
     }
 
-    // The whole document as the core wants it: one string, lines separated by
-    // a single newline.
     array<Byte>^ WholeText() { return Utf8Of(text_->Text->Replace("\r\n", "\n")); }
 
     Sheet^ Current() {
@@ -1106,19 +838,13 @@ private:
         return sheets_[at];
     }
 
-    // One file has more than one spelling. The project pane hands out paths
-    // with forward slashes, because that is how the project writes them; the
-    // command line and the open dialog give backslashes. Comparing the text
-    // meant a file opened from the pane while already open opened a *second*
-    // time, showing what was on disk - so the changes in the first tab looked
-    // as though they had been thrown away.
     static String^ OneName(String^ path) {
         if (path == nullptr) return nullptr;
         String^ full = path;
         try {
             full = System::IO::Path::GetFullPath(path);
         } catch (Exception^) {
-            // Not a path this machine can resolve; the text will have to do.
+
         }
         return full->Replace('/', '\\')->TrimEnd('\\')->ToLowerInvariant();
     }
@@ -1134,7 +860,6 @@ private:
         return nullptr;
     }
 
-    // A tab, a box, and the numbers down its left.
     Sheet^ MakeSheet(String^ path, String^ contents) {
         Sheet^ sheet = gcnew Sheet();
         sheet->path = path;
@@ -1159,7 +884,7 @@ private:
         sheet->gutter->BackColor = System::Drawing::Color::FromArgb(245, 245, 245);
         sheet->gutter->Tag = sheet->box;
         sheet->gutter->Paint += gcnew PaintEventHandler(this, &MainForm::OnGutterPaint);
-        sheet->gutter->Visible = numbers_;   // a tab opened while they are off has none either
+        sheet->gutter->Visible = numbers_;
         sheet->box->Tag = sheet->gutter;
 
         sheet->page = gcnew TabPage(path == nullptr
@@ -1189,24 +914,16 @@ private:
                           : System::IO::Path::GetFileName(path_) + "  " +
                                 text_->Lines->Length + " lines";
         text_->Focus();
-        SayBuild();   // the language is the file's, so it arrives with the tab
+        SayBuild();
         PlaceStopBar();
         sheet->gutter->Invalidate();
 
-        // Each tab keeps its own text, so the one coming forward is coloured
-        // for where it is scrolled to.
         Recolour();
     }
 
-    // ---- what Windows Forms does not say ----------------------------------
-
-    // Three messages, because there is no other way to say any of them. A box
-    // that is drawing repaints on every one of the hundreds of selections
-    // colouring makes, and it scrolls itself to each of them; frozen, it does
-    // neither, and its scroll position is read before and put back after.
-    literal int kDrawing = 0x000B;        // WM_SETREDRAW
-    literal int kWhereScrolled = 0x04DD;  // EM_GETSCROLLPOS
-    literal int kScrollTo = 0x04DE;       // EM_SETSCROLLPOS
+    literal int kDrawing = 0x000B;
+    literal int kWhereScrolled = 0x04DD;
+    literal int kScrollTo = 0x04DE;
 
     [System::Runtime::InteropServices::DllImport("user32.dll", EntryPoint = "SendMessageW")]
     static IntPtr Tell(IntPtr window, int message, IntPtr one, IntPtr two);
@@ -1214,9 +931,6 @@ private:
     [System::Runtime::InteropServices::DllImport("user32.dll", EntryPoint = "SendMessageW")]
     static IntPtr Tell(IntPtr window, int message, IntPtr one, Spot% where);
 
-    // Stopping and starting drawing are not symmetrical: nothing that happened
-    // while it was stopped is on the screen, so the box has to be told to paint
-    // itself once it is allowed to again.
     static void Drawing(Control^ box, bool allowed) {
         Tell(box->Handle, kDrawing, IntPtr(allowed ? 1 : 0), IntPtr::Zero);
         if (allowed) {
@@ -1225,37 +939,21 @@ private:
         }
     }
 
-    // ---- the numbers down the left ----------------------------------------
-
     void OnTextChanged(Object^ sender, EventArgs^) {
-        // Colouring raises this. A RichTextBox reports a formatting change as
-        // a text change, so every pass that paints a keyword blue came through
-        // here and marked the file modified - which is why a file just opened
-        // and coloured wore a star that nobody had earned. Nothing about the
-        // text has changed while this flag is up.
+
         if (colouring_) return;
 
         Sheet^ sheet = Current();
         if (sheet == nullptr) return;
 
-        // Wide enough for the last line, and it does not shrink back as you
-        // scroll - a gutter that changed width would take the text with it.
         int digits = sheet->box->Lines->Length < 1 ? 1
                                                    : sheet->box->Lines->Length.ToString()->Length;
         int wanted = 22 + 9 * digits;
         if (wanted > sheet->gutter->Width) sheet->gutter->Width = wanted;
         sheet->gutter->Invalidate();
 
-        // What has just been typed is coloured as it is typed, which costs
-        // what a screenful costs. The box a file is being read into is not the
-        // box in front yet, and colouring it would use the language of
-        // whatever is - so only the one in front is coloured here.
         if (sender == text_) {
-            // The line being typed on, and nothing else. Recolour freezes the
-            // box and repaints all of it, which is right when a file arrives
-            // or the view moves and is far too much for one keystroke - it was
-            // the whole text area redrawn per character, which is what made
-            // the numbers down the side judder.
+
             RecolourLine(CaretRow());
             settle_->Stop();
             settle_->Start();
@@ -1267,7 +965,7 @@ private:
         PlaceStopBar();
         Sheet^ sheet = Current();
         if (sheet == nullptr) return;
-        // What has just come into view is coloured now that it can be seen.
+
         Recolour();
         sheet->gutter->Invalidate();
     }
@@ -1277,8 +975,6 @@ private:
         RichTextBox^ box = safe_cast<RichTextBox^>(panel->Tag);
         if (box == nullptr) return;
 
-        // A hairline where the numbers stop, so the gutter reads as a margin
-        // rather than as a stripe of a different colour.
         System::Drawing::Pen^ edge =
             gcnew System::Drawing::Pen(System::Drawing::Color::FromArgb(228, 228, 228));
         e->Graphics->DrawLine(edge, panel->Width - 1, 0, panel->Width - 1, panel->Height);
@@ -1295,8 +991,6 @@ private:
         System::Drawing::Brush^ here =
             gcnew System::Drawing::SolidBrush(System::Drawing::Color::FromArgb(60, 60, 60));
 
-        // Which file this gutter belongs to, so that its breakpoints can be
-        // found. The sheet knows; the panel only knows its box.
         String^ file = nullptr;
         for each (Sheet^ sheet in sheets_)
             if (sheet->gutter == panel) file = sheet->path;
@@ -1312,8 +1006,7 @@ private:
             gcnew System::Drawing::SolidBrush(System::Drawing::Color::FromArgb(200, 60, 60));
         System::Drawing::Brush^ stopMark =
             gcnew System::Drawing::SolidBrush(System::Drawing::Color::FromArgb(40, 150, 60));
-        // The same arrow, not filled in: the program is not standing on that
-        // line, you are only looking at it.
+
         System::Drawing::Pen^ lookMark =
             gcnew System::Drawing::Pen(System::Drawing::Color::FromArgb(40, 150, 60));
 
@@ -1327,16 +1020,6 @@ private:
             System::Drawing::Point where = box->GetPositionFromCharIndex(at);
             if (where.Y > panel->Height) break;
 
-            // The left of the gutter is the debugger's: a breakpoint waiting,
-            // and an arrow on the line the program is standing on. The numbers
-            // are right-aligned away from it, so nothing moves when one appears.
-            //
-            // One column, one mark. Where the program is outranks where you
-            // are looking, which outranks a breakpoint: the first two are
-            // about now, and a breakpoint is about every run of the program.
-            // Drawing more than one is not a matter of taste at this size -
-            // an outlined arrow over the dot is a red blob with a green line
-            // through it, which was what it looked like before this.
             float top = static_cast<float>(where.Y) + 3.0f;
             bool standingHere = sameFile && stopLine_ == row + 1;
             bool lookingHere = sameLookFile && lookingLine_ == row + 1;
@@ -1371,10 +1054,6 @@ private:
         return box;
     }
 
-    // What the build produced, read out of its own assembly - the same reader
-    // the terminal front end uses, and now the same words too. They used to be
-    // written out here as well, and that copy went stale the day cc1 started
-    // writing DWARF; it says whatever the core says.
     void SayDebugTab(String^ assembly) {
         array<Byte>^ bytes = Utf8Of(assembly == nullptr ? "" : assembly);
         pin_ptr<Byte> pinned = &bytes[0];
@@ -1392,17 +1071,10 @@ private:
                                  found->Replace("\n", "\r\n")});
     }
 
-    // Said again about the same assembly, because what is said about it depends
-    // on the target and the compiler, and both can be changed after a build.
     void RefreshDebugTab() {
         SayDebugTab(assembly_->Text->Replace("\r\n", "\n"));
     }
 
-    // ---- laying out and colouring -----------------------------------------
-
-    // What the Language menu was told, or -1 for 'by extension'. It outlives
-    // a file being closed on purpose: someone who says a .txt is Shalimar is
-    // usually about to open another one.
     int languageChoice_;
 
     int LanguageNow() {
@@ -1412,15 +1084,8 @@ private:
         return rstudio_language_for(reinterpret_cast<const char*>(pinned));
     }
 
-    // Shalimar is not C with fewer rules: ':' is its assignment where C reads
-    // a label, and laying one out as the other walks every assignment left.
     int DialectNow() { return rstudio_dialect_for(LanguageNow()); }
 
-    // Lay out what is selected, or the whole file when nothing is - the same
-    // rule the terminal half follows, and for the same reason: the whole file
-    // is laid out either way, because indentation is a property of everything
-    // above a line and not of the line. What a selection decides is which
-    // lines are written back.
     void OnLayOut(Object^, EventArgs^) {
         array<Byte>^ bytes = Utf8Of(text_->Text->Replace("\r\n", "\n"));
         pin_ptr<Byte> pinned = &bytes[0];
@@ -1434,7 +1099,7 @@ private:
 
         array<String^>^ was = text_->Lines;
         array<String^>^ now = laid->Split('\n');
-        // Split leaves an empty piece after a trailing newline; Lines does not.
+
         int howManyNow = now->Length;
         if (howManyNow > 0 && now[howManyNow - 1]->Length == 0) --howManyNow;
 
@@ -1471,8 +1136,6 @@ private:
             int lead = 0;
             while (lead < line->Length && (line[lead] == ' ' || line[lead] == '\t')) ++lead;
 
-            // In the leading space, tab means 'put this line where it belongs'
-            // rather than 'add a step'. Anywhere else it is an ordinary indent.
             if (column <= lead) {
                 Realign(row);
                 text_->SelectionStart = text_->GetFirstCharIndexFromLine(row) +
@@ -1494,8 +1157,6 @@ private:
         array<Byte>^ bytes = Utf8Of(text_->Text->Replace("\r\n", "\n"));
         pin_ptr<Byte> pinned = &bytes[0];
 
-        // The indentation is decided by the same function the terminal editor
-        // calls, on the same text.
         String^ lead = TakeUtf8(rstudio_indent_after_newline(
             reinterpret_cast<const char*>(pinned), row, column, indentWidth_, indentTabs_,
             indentCase_, DialectNow()));
@@ -1504,24 +1165,6 @@ private:
         text_->SelectedText = "\r\n" + lead;
     }
 
-    // Colouring is done to what is on the screen and a screenful either side of
-    // it, not to the whole file. The lexer still runs from the top - it has to,
-    // since a comment opened on line 3 colours line 900 - but that part is
-    // native and costs nothing worth counting. What costs is the box: every
-    // coloured run is a selection, and a file the size of a parser has tens of
-    // thousands of them.
-    //
-    // The box is frozen while it happens and its scroll position is put back
-    // afterwards, because a selection scrolls itself into view. Without that,
-    // opening a long file walks visibly down to its last line - which is what
-    // it used to do.
-    // Colouring is done *to* the box, and Rich Edit records what is done to the
-    // box twice over: as a text change, and in its undo buffer. colouring_ has
-    // always kept the first out of OnTextChanged. The second went unnoticed
-    // until Ctrl+Z on a file nobody had touched undid a colour, jumped the
-    // caret to it and put a star on the tab. Suspending the recording keeps
-    // colour out of the undo stack, so Ctrl+Z undoes your typing - and, when
-    // there is none, says there is none.
     void BeginColouring() {
         colouring_ = true;
         if (text_ != nullptr && text_->IsHandleCreated)
@@ -1534,28 +1177,11 @@ private:
         colouring_ = false;
     }
 
-    // The line the program is standing on, washed in light blue across its
-    // whole width. The gutter has an arrow for it, but the eye finds a bar
-    // through the line sooner than a mark beside it.
-    //
-    // Only the background: the syntax colours on that line are left as they
-    // are. And done the way the colouring passes are done - the caret put back,
-    // the Modified flag put back, and undo recording suspended - because to a
-    // RichTextBox this is formatting like any other, which means a text change
-    // and an undo entry unless both are held off.
-    // The wash stops where the line's text stops, and cannot be made to run to
-    // the edge of the view. A RichTextBox paints its own background and renders
-    // exactly one kind of per-range colour, which is behind characters. Both
-    // other roads were tried and are closed: including the line break in the
-    // selection extends nothing once the selection moves away, and Rich Edit
-    // stores paragraph shading for RTF's sake without ever drawing it. An
-    // edge-to-edge bar wants an owner-drawn edit control, which is a different
-    // project from this one.
     void PaintRow(int row, bool on) {
         if (text_ == nullptr || row < 0 || row >= text_->Lines->Length) return;
         int start = text_->GetFirstCharIndexFromLine(row);
         int length = text_->Lines[row]->Length;
-        if (row < text_->Lines->Length - 1) length += 1;   // take the line break too
+        if (row < text_->Lines->Length - 1) length += 1;
         int caret = text_->SelectionStart;
         int chosen = text_->SelectionLength;
         bool touched = text_->Modified;
@@ -1578,23 +1204,6 @@ private:
         PlaceStopBar();
     }
 
-    // Made once, on the form rather than inside the text box, so it can reach
-    // the edge of the view.
-    //
-    // It covers no text, and so needs no transparency: the line's own
-    // characters already carry the blue behind them, and this fills only the
-    // empty part of the line from where the code stops to the right-hand edge.
-    // The two meet and read as one band. A translucent strip over the whole
-    // line was tried first and the text went dim behind it - the form is
-    // double-buffered, so it composites its children itself and a layered
-    // child's alpha never applies.
-    //
-    // No WS_EX_TRANSPARENT, though click-through would have been nice: on a
-    // child window that flag means "do not paint your own background", and the
-    // strip simply never appeared. It is a plain panel now. What it costs is
-    // that a click in the empty space to the right of the stopped line lands on
-    // the strip instead of putting the caret at the end of that line - dead
-    // space, and only while the program is stopped there.
     void MakeStopBar() {
         if (stopBar_ != nullptr) return;
         stopBar_ = gcnew Panel();
@@ -1605,18 +1214,13 @@ private:
         stopBar_->BringToFront();
     }
 
-    // Where the bar goes, in the form's own coordinates: the text box tells us
-    // where the line is, and the answer is turned into the form's frame because
-    // that is where the bar lives. Hidden when the line has scrolled out of the
-    // view, or there is no stop to show.
     void PlaceStopBar() {
         MakeStopBar();
         if (text_ == nullptr || highlightRow_ < 0 || !text_->IsHandleCreated) {
             stopBar_->Visible = false;
             return;
         }
-        // Only over the file the program is actually stopped in - another tab
-        // has its own line 12 and the program is not on it.
+
         if (path_ == nullptr || stopFile_ == nullptr ||
             System::IO::Path::GetFileName(stopFile_) != System::IO::Path::GetFileName(path_)) {
             stopBar_->Visible = false;
@@ -1629,15 +1233,13 @@ private:
         int height = System::Windows::Forms::TextRenderer::MeasureText("Ay", text_->Font).Height;
 
         if (where.Y < -height || where.Y > text_->ClientSize.Height) {
-            stopBar_->Visible = false;   // scrolled out of sight
+            stopBar_->Visible = false;
             return;
         }
 
-        // Where the code on that line stops - the caret's place at the end of
-        // it - is where this begins.
         int after = index + text_->Lines[highlightRow_]->Length;
         System::Drawing::Point ends = text_->GetPositionFromCharIndex(after);
-        int from = ends.Y == where.Y ? ends.X : where.X;   // a wrapped line: give up and fill
+        int from = ends.Y == where.Y ? ends.X : where.X;
 
         System::Drawing::Point corner =
             PointToClient(text_->PointToScreen(System::Drawing::Point(from, where.Y)));
@@ -1657,8 +1259,6 @@ private:
         array<String^>^ all = text_->Lines;
         int language = LanguageNow();
 
-        // What can be seen now, and as much again above and below it, so that
-        // the wheel has somewhere coloured to travel before this runs again.
         int top = text_->GetLineFromCharIndex(
             text_->GetCharIndexFromPosition(System::Drawing::Point(1, 1)));
         int bottom = text_->GetLineFromCharIndex(text_->GetCharIndexFromPosition(
@@ -1667,8 +1267,6 @@ private:
         int from = Math::Max(0, top - deep);
         int to = Math::Min(all->Length - 1, bottom + deep);
 
-        // Formatting sets the box's own modified flag, and a file that has only
-        // been looked at has not been modified.
         bool touched = text_->Modified;
         int caret = text_->SelectionStart;
         int length = text_->SelectionLength;
@@ -1678,7 +1276,6 @@ private:
         Tell(text_->Handle, kWhereScrolled, IntPtr::Zero, scrolled);
         Drawing(text_, false);
 
-        // Above the window: the lexer only, for the state it carries down.
         int state = 0;
         for (int row = 0; row < from; ++row) {
             array<Byte>^ above = Utf8Of(all[row]);
@@ -1689,8 +1286,6 @@ private:
                           ignoredPin, ignored->Length);
         }
 
-        // A run that stops being a keyword has to stop being blue, so the
-        // window goes back to black before it is coloured again.
         if (from <= to) {
             int start = text_->GetFirstCharIndexFromLine(from);
             int end = to + 1 < all->Length ? text_->GetFirstCharIndexFromLine(to + 1)
@@ -1714,8 +1309,6 @@ private:
             int at = text_->GetFirstCharIndexFromLine(row);
             if (at < 0) break;
 
-            // The kinds are one per byte and the box counts characters, so each
-            // run of one kind is measured by decoding just that run.
             int column = 0;
             int byte = 0;
             while (byte < howMany) {
@@ -1742,16 +1335,11 @@ private:
         EndColouring();
     }
 
-    // A quarter of a second after the last keystroke, colour what is on the
-    // screen properly: a quote or a /* just typed changes the lines below it,
-    // and that is the pass which notices.
     void OnSettled(Object^, EventArgs^) {
         settle_->Stop();
         Recolour();
     }
 
-    // One line, coloured where it sits. No freezing and no full repaint: the
-    // line is on the screen already, so the box redraws it and nothing else.
     void RecolourLine(int row) {
         if (colouring_ || text_ == nullptr || !text_->IsHandleCreated) return;
 
@@ -1832,13 +1420,8 @@ private:
         }
     }
 
-    // These three said nothing when there was nothing to do, where the terminal
-    // has a word for each. A command that appears to have been ignored is worse
-    // than one that says why it did nothing - and the box gives no sign of its
-    // own either way, since the text simply does not change.
     void OnUndo(Object^, EventArgs^) {
-        // The box keeps its own history, and it is the one the typing went
-        // into - there is no sense in keeping a second one beside it.
+
         if (!text_->CanUndo) { what_->Text = "nothing to undo"; return; }
         text_->Undo();
     }
@@ -1849,9 +1432,7 @@ private:
     void OnCut(Object^, EventArgs^) { text_->Cut(); }
     void OnCopy(Object^, EventArgs^) { text_->Copy(); }
     void OnPaste(Object^, EventArgs^) {
-        // Asked about text rather than about the clipboard in general: this is
-        // a source file, and an image or a page of RTF on the clipboard is
-        // nothing to paste into one whatever the box would make of it.
+
         if (!text_->CanPaste(DataFormats::GetFormat(DataFormats::Text))) {
             what_->Text = "there is nothing to paste";
             return;
@@ -1861,13 +1442,9 @@ private:
     }
     void OnSelectAll(Object^, EventArgs^) { text_->SelectAll(); }
 
-    // ---- finding ----------------------------------------------------------
-
     void OnFind(Object^, EventArgs^) {
         String^ want = Ask("Find", needle_);
-        // Nothing asked for, whether the box was cleared or the question was
-        // cancelled - and said out loud, where this used to close and leave no
-        // trace of having been opened. Editor::findPrompt answers the same.
+
         if (want == nullptr || want->Length == 0) {
             what_->Text = "nothing looked for";
             return;
@@ -1908,19 +1485,14 @@ private:
                  CharacterColumn(foundRow, foundColumn);
         text_->Select(at, needle_->Length);
         text_->ScrollToCaret();
-        // A jump of hundreds of lines lands past whatever was coloured last,
-        // and scrolling done in code raises no scroll event to notice it.
+
         Recolour();
         text_->Focus();
         what_->Text = String::Format("{0} - line {1}", needle_, foundRow + 1);
     }
 
     void OnReplace(Object^, EventArgs^) {
-        // Both ways out are said out loud, as Editor::replacePrompt says them:
-        // the box closing with nothing on the message line reads as a command
-        // that did not work, rather than one that was called off. The second
-        // question takes an empty answer, which is how a word is deleted
-        // everywhere it appears - only cancelling it means nothing.
+
         String^ want = Ask("Replace what", needle_);
         if (want == nullptr || want->Length == 0) {
             what_->Text = "nothing replaced";
@@ -1958,10 +1530,6 @@ private:
                                      howMany == 1 ? "" : "s");
     }
 
-    // ---- laying one line out ----------------------------------------------
-
-    // The leading space a line should have, put there without disturbing the
-    // rest of it.
     void Realign(int row) {
         if (row < 0 || row >= text_->Lines->Length) return;
 
@@ -1986,8 +1554,7 @@ private:
     }
 
     void OnKeyUp(Object^, KeyEventArgs^) {
-        // Three characters decide where their own line sits, and only these
-        // three, so nothing moves under the caret unless it had to.
+
         int caret = text_->SelectionStart;
         if (caret <= 0 || caret > text_->TextLength) return;
 
@@ -1999,7 +1566,7 @@ private:
         int column = (caret - 1) - text_->GetFirstCharIndexFromLine(row);
 
         if (just != ':') {
-            // A brace or a hash only moves its line when nothing precedes it.
+
             for (int i = 0; i < column && i < line->Length; ++i)
                 if (line[i] != ' ' && line[i] != '\t') return;
         }
@@ -2007,10 +1574,9 @@ private:
     }
 
     void OnCaretMoved(Object^, EventArgs^) {
-        // Colouring moves the caret to every run it paints. None of those are
-        // the person's caret, and the line and column below are theirs.
+
         if (colouring_) return;
-        stateGood_ = false;   // another line begins in another state
+        stateGood_ = false;
 
         int caret = text_->SelectionStart;
         int row = text_->GetLineFromCharIndex(caret);
@@ -2021,8 +1587,6 @@ private:
         if (sheet != nullptr) sheet->gutter->Invalidate();
     }
 
-    // ---- files and the project --------------------------------------------
-
     void OnOpenProject(Object^, EventArgs^) {
         FolderBrowserDialog^ pick = gcnew FolderBrowserDialog();
         if (pick->ShowDialog() != System::Windows::Forms::DialogResult::OK) {
@@ -2032,16 +1596,11 @@ private:
         LoadProject(pick->SelectedPath);
     }
 
-    // Takes a directory to search, or a named project file to open outright -
-    // the same pair Project::load takes, and for the same reason: a directory
-    // may hold several .pro files and one of them has to be nameable.
     void LoadProject(String^ where) {
-        // A project just opened is a project to look at.
+
         paneMode_ = PaneMode::PaneProject;
         bool named = System::IO::File::Exists(where);
 
-        // The pane, the dialogs and begin-from-what-is-there all want the
-        // directory, never the file.
         String^ directory = named ? System::IO::Path::GetDirectoryName(where) : where;
         projectDirectory_ = directory;
         tree_->Nodes->Clear();
@@ -2057,15 +1616,6 @@ private:
         if (loaded == 0) {
             String^ why = FromUtf8(reinterpret_cast<const char*>(errorPin));
 
-            // Nothing to read is not the same as something that will not read.
-            // A directory with no RStudio.json gets one written from what is in it,
-            // as the terminal half has always done - the window used to show an
-            // empty pane and say so, which is a worse answer to "open this
-            // folder" than the one the core was already able to give.
-            //
-            // A project file that will not *parse* is somebody's work and is
-            // never written over; then the pane shows the directory and the
-            // message says what is wrong with it.
             array<Byte>^ dirBytes = Utf8Of(directory);
             pin_ptr<Byte> dirPin = &dirBytes[0];
             if (why->Length == 0 &&
@@ -2087,8 +1637,6 @@ private:
 
             what_->Text = why->Length > 0 ? why : "no RStudio.json in that directory";
 
-            // No project file still leaves a directory that paths are counted
-            // from, so the file commands work either way.
             rstudio_project_set_root(project_, reinterpret_cast<const char*>(pinned));
             SayWhere();
             return;
@@ -2104,8 +1652,6 @@ private:
         arch_ = FromUtf8(rstudio_project_arch(project_));
         ShowChoices();
 
-        // Remembered, so that starting the window with nothing opens here -
-        // which the terminal half has always done and this never did.
         array<Byte>^ opened = Utf8Of(directory);
         pin_ptr<Byte> openedPin = &opened[0];
         rstudio_remember_project(reinterpret_cast<const char*>(openedPin));
@@ -2116,49 +1662,25 @@ private:
         SayWhere();
     }
 
-    // Rebuilt from the project as it stands, so a change shows without the
-    // file being read again.
-    // A small helper so the two things that change the pane - a tab opening and
-    // a tab closing - do not each have to remember to.
     void PaneFollowsTabs() {
-        // Called from MakeSheet, which runs while the window is still being
-        // built - before LoadProject on a first run, and once more for the
-        // empty sheet that replaces the last closed one. Both of those can
-        // reach here with no project yet, and asking a null one whether it is
-        // loaded is not a question with an answer.
+
         if (project_ == nullptr || tree_ == nullptr) return;
-        // Unconditionally now. This used to refresh only when a project was
-        // loaded, which was right while the pane could draw nothing else; it
-        // draws a flat list of open files too since the two modes landed, and
-        // that list is exactly the one nobody was refreshing.
+
         FillTree();
     }
 
     void FillTree() {
         tree_->Nodes->Clear();
 
-        // Two views, and the pane draws one of them.
-        //
-        // In file mode it is a flat list of what is open, with no headings at
-        // all - the terminal half's showOpenFiles, said in TreeNodes. In
-        // project mode it is the project's own groups, their files indented
-        // under them as children, and nothing else.
-        //
-        // There used to be an "Open files" heading above the groups in both
-        // modes, which meant a file that was open *and* in the project - the
-        // ordinary case - appeared twice, once under each heading. That is
-        // what made the pane read as though it had lost track of itself.
         if (paneMode_ == PaneMode::PaneFiles || rstudio_project_loaded(project_) == 0) {
             for (int i = 0; i < sheets_->Count; ++i) {
                 String^ full = sheets_[i]->path;
-                // Never saved and so nothing to name it by. Said rather than
-                // skipped: File > New would otherwise put nothing in the pane,
-                // which reads as a broken pane and not as a new file.
+
                 String^ shown = (full == nullptr || full->Length == 0)
                                     ? "untitled"
                                     : System::IO::Path::GetFileName(full);
                 TreeNode^ leaf = gcnew TreeNode(shown);
-                leaf->Tag = full;      // nullptr for one never saved, which Open checks
+                leaf->Tag = full;
                 tree_->Nodes->Add(leaf);
             }
             return;
@@ -2194,23 +1716,18 @@ private:
                                      FromUtf8(rstudio_project_name(project_)), groups);
     }
 
-    // What the file commands act on: whatever the project pane is standing on
-    // when that is a file, and the tab in front otherwise.
     String^ TargetFile() {
         if (tree_->SelectedNode != nullptr && tree_->SelectedNode->Tag != nullptr)
             return safe_cast<String^>(tree_->SelectedNode->Tag);
         return path_;
     }
 
-    // The group the pane is standing in, so a file made while looking at a
-    // group lands in it.
     String^ GroupUnderCursor() {
         TreeNode^ node = tree_->SelectedNode;
         while (node != nullptr && node->Tag != nullptr) node = node->Parent;
         return node == nullptr ? "Sources" : node->Text;
     }
 
-    // A native call whose answer is a message either way.
     bool Did(int outcome) {
         what_->Text = FromUtf8(rstudio_outcome_message(project_));
         return outcome != 0;
@@ -2218,8 +1735,6 @@ private:
 
     String^ OutcomePath() { return FromUtf8(rstudio_outcome_path(project_)); }
 
-    // Asked of the core, so the window and the terminal cannot come to differ
-    // about where a header goes.
     String^ GroupForFile(String^ name) {
         if (name == nullptr || name->Length == 0) return "";
         array<Byte>^ leaf = Utf8Of(System::IO::Path::GetFileName(name));
@@ -2238,8 +1753,7 @@ private:
 
         array<Byte>^ relative = Utf8Of(name);
         pin_ptr<Byte> relativePin = &relative[0];
-        // A new .h goes to Headers wherever the pane cursor is standing; the
-        // cursor still decides for anything the rule has no opinion about.
+
         String^ wanted = GroupForFile(name);
         if (wanted->Length == 0) wanted = GroupUnderCursor();
         array<Byte>^ group = Utf8Of(wanted);
@@ -2253,15 +1767,6 @@ private:
         OpenPath(OutcomePath());
     }
 
-    // A blank buffer with no name, as Editor::newFile makes one. MakeSheet
-    // adds the tab and brings it forward, and bringing it forward is what puts
-    // "untitled" on the message line - so what this has to say is said after.
-    // The gutter goes as a whole, as Ctrl-L takes the whole column away in the
-    // terminal: the numbers, the breakpoint dots and the arrow are one thing to
-    // turn off, not three.
-    // Fixed-pitch only: code in a proportional face is not worth offering, and
-    // the gutter's numbers are laid out on the assumption that every character
-    // is the same width.
     void OnFont(Object^, EventArgs^) {
         FontDialog^ pick = gcnew FontDialog();
         pick->Font = codeFont_;
@@ -2286,15 +1791,12 @@ private:
         what_->Text = said;
     }
 
-    // Every tab, not only the one in front, and everything measured from the
-    // font afterwards: the gutter draws its numbers in it, and the bar over the
-    // stopped line is one line high.
     void UseFont(System::Drawing::Font^ chosen) {
         codeFont_ = chosen;
         for each (Sheet^ sheet in sheets_) {
             bool touched = sheet->box->Modified;
             sheet->box->Font = codeFont_;
-            sheet->box->Modified = touched;   // a font is not an edit
+            sheet->box->Modified = touched;
             if (sheet->gutter != nullptr) sheet->gutter->Invalidate();
         }
         Recolour();
@@ -2324,8 +1826,7 @@ private:
     }
 
     void OnNewBuffer(Object^, EventArgs^) {
-        // Out of the project view: a new file has no name yet and so is in no
-        // group. The project stays loaded and stays what Ctrl-B builds.
+
         paneMode_ = PaneMode::PaneFiles;
         MakeSheet(nullptr, "");
         what_->Text = "new file - Ctrl+S names it";
@@ -2334,8 +1835,6 @@ private:
     void OnNextFile(Object^, EventArgs^) { StepFile(1); }
     void OnPreviousFile(Object^, EventArgs^) { StepFile(-1); }
 
-    // Round the ends, as Editor::nextDocument does. Which file arrived is left
-    // to OnSheetChanged, which says it for every other way of changing tab too.
     void StepFile(int by) {
         int count = files_->TabPages->Count;
         if (count < 2) { what_->Text = "only one file is open"; return; }
@@ -2364,26 +1863,20 @@ private:
                                  reinterpret_cast<const char*>(toPin))))
             return;
 
-        // A tab showing that file has to follow its own name, or saving would
-        // write the old one back.
         String^ now = OutcomePath();
         for (int i = 0; i < sheets_->Count; ++i) {
             if (sheets_[i]->path == nullptr) continue;
             if (!SamePath(sheets_[i]->path, target)) continue;
             sheets_[i]->path = now;
-            MarkTab(sheets_[i]);   // the new name, and the star if it still has one
-            PaneFollowsTabs();     // and the pane lists it by name too
+            MarkTab(sheets_[i]);
+            PaneFollowsTabs();
         }
         if (SamePath(path_, target)) {
             path_ = now;
             Text = String::Format("{0} - {1}", ProductName(), System::IO::Path::GetFileName(now));
-            SayBuild();   // a rename can change the suffix, and so the language
+            SayBuild();
         }
 
-        // So do its breakpoints, which are filed under the file's name. Without
-        // this they are left under a name nothing asks for again: the marks go
-        // from the gutter, and a debugger started afterwards is told to stop in
-        // a file that is no longer there. Editor::renameFile does the same.
         String^ wasKey = OneName(target);
         System::Collections::Generic::List<int>^ hadBreaks = nullptr;
         if (breaks_->TryGetValue(wasKey, hadBreaks)) {
@@ -2394,7 +1887,7 @@ private:
             breakNames_[nowKey] = now;
             Sheet^ showing = Current();
             if (showing != nullptr && showing->gutter != nullptr)
-                showing->gutter->Invalidate();   // the marks are drawn, not stored
+                showing->gutter->Invalidate();
         }
 
         FillTree();
@@ -2404,8 +1897,6 @@ private:
         String^ target = TargetFile();
         if (target == nullptr) { what_->Text = "no file to delete"; return; }
 
-        // The one command here that cannot be undone, so it is asked plainly
-        // and the safe answer is the one already chosen.
         System::Windows::Forms::DialogResult answer = MessageBox::Show(
             this, "Delete " + System::IO::Path::GetFileName(target) + " from disk?",
             "Delete", MessageBoxButtons::YesNo, MessageBoxIcon::Warning,
@@ -2428,10 +1919,6 @@ private:
             PaneFollowsTabs();
         }
 
-        // Its breakpoints go with it, as they do in Editor::deleteFile. A file
-        // that is not there cannot be stopped in - and a name can come back, so
-        // leaving them would hand lines set in this file to whatever is written
-        // under the name next.
         String^ key = OneName(target);
         breaks_->Remove(key);
         breakNames_->Remove(key);
@@ -2480,17 +1967,6 @@ private:
             FillTree();
     }
 
-    // The pair to OnAddThisFile. It asks nothing, because there is nothing to
-    // ask: a file is in the project or it is not. Nothing on the disk moves -
-    // that is OnDeleteFile, which asks before it does anything, and which this
-    // is deliberately not spelled like.
-    // Which of the two views the pane draws; the terminal half's PaneMode,
-    // kept the same way for the same reason. File > New and File > Open leave
-    // the project view even while the project stays loaded and stays what
-    // Ctrl-B builds; opening a file from the pane does not.
-    // enum class, not a plain enum: C++/CLI will not define an unmanaged
-    // enum inside a managed ref class (C3277). The terminal half's is plain,
-    // which is why the two are spelled differently for once.
     enum class PaneMode { PaneProject, PaneFiles };
     PaneMode paneMode_;
 
@@ -2507,9 +1983,6 @@ private:
             FillTree();
     }
 
-    // Where a project is made used to be the directory the editor happened to
-    // be started in, which is not a thing anybody can see - so it is asked for,
-    // and the answer is on the status line from then on.
     void OnNewProject(Object^, EventArgs^) {
         FolderBrowserDialog^ pick = gcnew FolderBrowserDialog();
         pick->Description = "Where to put the project";
@@ -2546,10 +2019,8 @@ private:
 
     void OnSaveProject(Object^, EventArgs^) { Did(rstudio_save_project(project_)); }
 
-    // A directory can hold several named projects, and a folder picker cannot
-    // say which one - it selects directories. This one selects the project.
     void OnOpenProjectFile(Object^, EventArgs^) {
-        String^ suffix = FromUtf8(rstudio_project_suffix());   // ".pro"
+        String^ suffix = FromUtf8(rstudio_project_suffix());
 
         OpenFileDialog^ pick = gcnew OpenFileDialog();
         pick->Title = "Open project file";
@@ -2561,14 +2032,9 @@ private:
             return;
         }
 
-        // LoadProject takes either, the same as the core's Project::load: a
-        // directory to search or a project to open outright.
         LoadProject(pick->FileName);
     }
 
-    // Writing the project out under a name of its own, which is how one held
-    // in an older whole-directory file becomes a named project. Nothing
-    // converts a project without being asked, and this is the asking.
     void OnSaveProjectAs(Object^, EventArgs^) {
         if (rstudio_project_loaded(project_) == 0) {
             what_->Text = "there is no project to save";
@@ -2605,18 +2071,6 @@ private:
                       " written - the project is saved there from now on";
     }
 
-    // Closing the project is closing the *view* of it: RStudio.json is not touched,
-    // nothing is taken out of it, and every open tab stays open. What goes is
-    // the pane's claim to be showing a project.
-    //
-    // FillTree is deliberately not called. It would empty the pane correctly -
-    // a closed project has no groups - and then go on to read the indent, the
-    // compiler, the configuration and the target back off a project that is no
-    // longer there, and to write "ready - , 0 groups" on the status line.
-    //
-    // projectDirectory_ is left alone on purpose: it is what the folder dialogs
-    // open on, and the last place you were looking is still the best guess for
-    // the next one.
     void OnCloseProject(Object^, EventArgs^) {
         if (rstudio_project_loaded(project_) == 0) {
             what_->Text = "there is no project open";
@@ -2624,8 +2078,7 @@ private:
         }
         String^ was = FromUtf8(rstudio_project_name(project_));
         rstudio_project_close(project_);
-        // The groups go with the project - there is no project for them to be
-        // the groups of - and the pane falls back to what is open.
+
         paneMode_ = PaneMode::PaneFiles;
         FillTree();
         console_->Text = "";
@@ -2637,8 +2090,6 @@ private:
         OpenPath(safe_cast<String^>(e->Node->Tag));
     }
 
-    // Somewhere to put the keyboard. Without these the pane can be reached
-    // only with a mouse, and once in it there is no way back to the text.
     void OnFocusTree(Object^, EventArgs^) {
         if (tree_->Nodes->Count == 0) { what_->Text = "no project is open"; return; }
         if (tree_->SelectedNode == nullptr) tree_->SelectedNode = tree_->Nodes[0];
@@ -2650,16 +2101,13 @@ private:
         if (text_ != nullptr) text_->Focus();
     }
 
-    // Enter opens what is picked, as it does in the pane of the terminal half.
-    // A group has no file behind it and opens nothing; it folds instead, which
-    // is what Enter on a heading should do.
     void OnTreeKey(Object^, KeyEventArgs^ e) {
         if (e->KeyCode != Keys::Return) return;
         TreeNode^ node = tree_->SelectedNode;
         if (node == nullptr) return;
 
         e->Handled = true;
-        e->SuppressKeyPress = true;   // or the box beeps at a key it did not use
+        e->SuppressKeyPress = true;
 
         if (node->Tag == nullptr) {
             if (node->IsExpanded) node->Collapse();
@@ -2670,9 +2118,7 @@ private:
     }
 
     void OnOpenFile(Object^, EventArgs^) {
-        // Asking the File menu for a file is asking about files. Opening one
-        // from the pane is not, and leaves the project showing. Nothing here
-        // looks at the suffix: a .pro opened this way is its own JSON text.
+
         paneMode_ = PaneMode::PaneFiles;
         OpenFileDialog^ pick = gcnew OpenFileDialog();
         pick->Filter = "C and C++|*.c;*.h;*.cpp;*.hpp|All files|*.*";
@@ -2684,8 +2130,7 @@ private:
     }
 
     void OpenPath(String^ path) {
-        // Already open is already open: the tab comes forward with its caret
-        // and its history where they were left.
+
         Sheet^ already = SheetFor(path);
         if (already != nullptr) {
             files_->SelectedTab = already->page;
@@ -2700,24 +2145,16 @@ private:
             return;
         }
 
-        // An untouched, unnamed sheet is a spare tab rather than a file anyone
-        // is working on, so opening into it replaces it instead of leaving one
-        // behind. The same rule the terminal front end keeps.
         Sheet^ spare = Current();
         Sheet^ sheet;
         if (spare != nullptr && spare->path == nullptr && spare->box->TextLength == 0 &&
             !spare->box->Modified) {
             spare->path = path;
             spare->box->Text = contents;
-            // TextChanged fired while the flag was still set, which put a
-            // star on the tab; it comes off with the flag.
+
             spare->box->Modified = false;
             sheet = spare;
-            // The pane lists what is open by name, and this sheet has just
-            // acquired one. MakeSheet refreshes for the other branch; reusing
-            // the spare sheet adds no tab, so nothing else would - which left
-            // "Open files" showing [no name] for a file plainly open in front
-            // of you. Seen in a photograph of the window, not in a test.
+
             PaneFollowsTabs();
         } else {
             sheet = MakeSheet(path, contents);
@@ -2725,12 +2162,10 @@ private:
         text_ = sheet->box;
         path_ = path;
         Text = String::Format("{0} - {1}", ProductName(), System::IO::Path::GetFileName(path));
-        SayBuild();   // the file names the language, and no tab changed here
+        SayBuild();
         Recolour();
         OnTextChanged(nullptr, nullptr);
 
-        // A file just read off the disk has no changes in it, whatever the box
-        // made of being filled and coloured.
         sheet->box->Modified = false;
         MarkTab(sheet);
         text_->Select(0, 0);
@@ -2750,8 +2185,7 @@ private:
             OnSheetChanged(nullptr, nullptr);
         }
         PaneFollowsTabs();
-        // The panel said something about the file that has just gone. Left
-        // there it reads as the output of whatever is in front of you now.
+
         console_->Text = "";
         what_->Text = "closed";
     }
@@ -2762,23 +2196,18 @@ private:
             return;
         }
         try {
-            // Newlines, not carriage returns: the box keeps CRLF and every
-            // other part of this project - the core, the terminal half, the
-            // save that happens before a project build - writes LF.
+
             System::IO::File::WriteAllText(path_, text_->Text->Replace("\r\n", "\n"));
         } catch (Exception^ problem) {
             what_->Text = problem->Message;
             return;
         }
-        // Cleared, or nothing can tell afterwards that it was saved - which is
-        // what a question about unsaved changes has to ask.
+
         text_->Modified = false;
         MarkTab(Current());
         what_->Text = System::IO::Path::GetFileName(path_) + " written";
     }
 
-    // A file that has never been saved has to be given a name before it can
-    // be. Reached from Save when there is no name yet, and from the File menu.
     void OnSaveAs(Object^, EventArgs^) {
         Sheet^ sheet = Current();
         if (sheet == nullptr) return;
@@ -2805,9 +2234,6 @@ private:
         FillTree();
     }
 
-    // A tab wears a star while its file has changes in it, which is how the
-    // terminal half shows it and how anybody knows which tab the question is
-    // about.
     void MarkTab(Sheet^ sheet) {
         if (sheet == nullptr || sheet->page == nullptr) return;
         String^ name = sheet->path == nullptr
@@ -2818,13 +2244,6 @@ private:
 
     void OnExit(Object^, EventArgs^) { Close(); }
 
-    // Whether a sheet with unsaved work in it may go. Save writes it, Don't
-    // save throws it away, Cancel leaves everything where it is - which is
-    // what the window had none of: closing a tab discarded the changes without
-    // a word, and closing the window discarded every tab's.
-    //
-    // The terminal half refuses instead of asking, because its answer has to
-    // fit on the message line. Here there is room to ask properly.
     bool MayDiscard(Sheet^ sheet) {
         if (sheet == nullptr || !sheet->box->Modified) return true;
 
@@ -2839,25 +2258,12 @@ private:
         if (answer == System::Windows::Forms::DialogResult::Cancel) return false;
         if (answer == System::Windows::Forms::DialogResult::No) return true;
 
-        // Yes: the one being closed is not necessarily the one in front, so it
-        // is brought forward and saved through the ordinary path.
         files_->SelectedTab = sheet->page;
         OnSheetChanged(nullptr, nullptr);
         OnSave(nullptr, nullptr);
         return !sheet->box->Modified;
     }
 
-
-    // Read off the menus, not kept as a second list. A key table written by
-    // hand is a promise about the menus that nothing checks, and this project
-    // has been bitten more than once by a document that outlived the thing it
-    // described - the Makefile's hand-kept dependency list being the worst of
-    // them. Rebind anything and this says so the same afternoon.
-    //
-    // It cannot be the terminal's table either: the window's keys really do
-    // differ - Ctrl+PageUp/PageDown for files where the terminal has F2/F3,
-    // Ctrl+L for Re-indent where the terminal has Ctrl-A, Ctrl+A for Select
-    // all. F1 is the same in both, which is how anybody finds this.
     void OnKeys(Object^, EventArgs^) {
         System::Text::StringBuilder^ table = gcnew System::Text::StringBuilder();
         System::Windows::Forms::KeysConverter^ spelling =
@@ -2872,10 +2278,6 @@ private:
                 ToolStripMenuItem^ item = dynamic_cast<ToolStripMenuItem^>(each);
                 if (item == nullptr) continue;
 
-                // What the item advertises, which is not always what it is
-                // bound to: a key that moves between several items is caught in
-                // ProcessCmdKey and shown here by name, so it is in this table
-                // like any other rather than missing from it.
                 String^ key = item->ShortcutKeys == Keys::None
                                   ? item->ShortcutKeyDisplayString
                                   : spelling->ConvertToString(item->ShortcutKeys);
@@ -2883,15 +2285,11 @@ private:
                 under->AppendFormat("  {0,-18}{1}\r\n", key, item->Text->Replace("&", ""));
             }
 
-            // A menu whose items all go without keys says nothing here.
             if (under->Length == 0) continue;
             table->Append(menu->Text->Replace("&", ""))->Append("\r\n");
             table->Append(under->ToString())->Append("\r\n");
         }
 
-        // The one key that is not a menu item, and so the one line here that
-        // is written by hand. It is handled in OnKeyDown because it belongs to
-        // the text box - a menu shortcut on Tab would take it away from typing.
         table->Append("Editing\r\n");
         table->Append("  Tab               lay this line out, in the leading space\r\n");
         table->Append("  Enter             on the Console, go to the error it is about\r\n");
@@ -2915,8 +2313,6 @@ private:
         shown->Text = table->ToString();
         box->Controls->Add(shown);
 
-        // Shown without a selection, and with the caret at the top: a read-only
-        // box that opens with everything highlighted looks like a mistake.
         box->Shown += gcnew EventHandler(this, &MainForm::OnKeysShown);
         box->ShowDialog(this);
     }
@@ -2934,8 +2330,6 @@ private:
                          "About " + ProductName(),
                          MessageBoxButtons::OK, MessageBoxIcon::Information);
     }
-
-    // ---- building ----------------------------------------------------------
 
     void OnCompile(Object^, EventArgs^) {
         if (busy_) { what_->Text = "still working - give it a moment"; return; }
@@ -2992,7 +2386,7 @@ private:
 
             RememberError(line, column, message, nullptr);
             GoTo(line, column);
-            panel_->SelectedIndex = 0;   // the compiler's words are on the Console
+            panel_->SelectedIndex = 0;
             what_->Text = String::Format("{0}:{1}: error: {2}", line, column, message);
             return;
         }
@@ -3013,10 +2407,6 @@ private:
         what_->Text = String::Format("{0} lines of assembly", lines);
     }
 
-    // Compiling, linking and running. The console has to keep the three apart:
-    // a compiler that refused is not a program that returned something other
-    // than zero, and only the program knows what its number meant. Same words
-    // as the terminal front end, from the same core.
     void OnRun(Object^, EventArgs^) {
         if (busy_) { what_->Text = "still working - give it a moment"; return; }
         ForgetError();
@@ -3077,7 +2467,7 @@ private:
 
             RememberError(line, column, message, nullptr);
             GoTo(line, column);
-            panel_->SelectedIndex = 0;   // the compiler's words are on the Console
+            panel_->SelectedIndex = 0;
             what_->Text = String::Format("{0}:{1}: error: {2}", line, column, message);
             return;
         }
@@ -3100,10 +2490,6 @@ private:
     void OnBuildProject(Object^, EventArgs^) { BuildProject(false); }
     void OnRunProject(Object^, EventArgs^) { BuildProject(true); }
 
-    // The project's program: the sources its build entry names, compiled and
-    // linked into one thing beside the project file. It reads nothing from the
-    // window - not the file in front of you, not what is selected - so it says
-    // the same thing here as F4 says in the terminal.
     void BuildProject(bool andRun) {
         if (busy_) { what_->Text = "still working - give it a moment"; return; }
         ForgetError();
@@ -3172,8 +2558,6 @@ private:
             String^ where = FromUtf8(rstudio_build_error_file(made));
             rstudio_build_free(made);
 
-            // The error is as likely as not in a file nothing has opened, so
-            // it is opened before the caret is put in it.
             if (where->Length > 0) {
                 if (!System::IO::Path::IsPathRooted(where)) {
                     array<Byte>^ relative = Utf8Of(where);
@@ -3222,10 +2606,6 @@ private:
                                      System::IO::Path::GetFileName(program), status);
     }
 
-    // Everything with a name and an unsaved change. A project build reads
-    // several files off the disk, so saving the one in front of you - which is
-    // all a single file's build ever needed - would build yesterday's copy of
-    // every other one.
     void SaveEveryDirty() {
         for (int i = 0; i < sheets_->Count; ++i) {
             Sheet^ sheet = sheets_[i];
@@ -3241,23 +2621,6 @@ private:
         }
     }
 
-    // ---- keeping the window awake while something slow happens -------------
-    //
-    // Building with cl takes seconds and starting cdb takes seconds more, and
-    // a program under a debugger can sit at a breakpoint for as long as it
-    // likes. Doing any of that on the thread that paints leaves a window that
-    // does not repaint, cannot be moved, and cannot even be photographed -
-    // which is how this was noticed, when a screenshot of it debugging C++
-    // could never be taken while the same screenshot of C worked.
-    //
-    // So the slow part goes to another thread and this one keeps pumping
-    // messages until it is done. The caller keeps its straight-line shape,
-    // because when WhileBusy returns we are back on the painting thread with
-    // the answer in hand. What the caller loses is the right to start a second
-    // one while the first is running, which is what busy_ refuses - and that
-    // matters more than it sounds: two threads in one RStudioDebugger would be
-    // two conversations down one pipe.
-
     literal int WorkBuild = 1;
     literal int WorkStart = 2;
     literal int WorkGo = 3;
@@ -3267,9 +2630,6 @@ private:
     literal int WorkResume = 7;
     literal int WorkBuildTarget = 8;
 
-    // Run on the worker thread. It touches native handles and reads String^
-    // members, which are immutable, and no control at all - a control touched
-    // from here would throw, and rightly.
     void DoPendingWork() {
         array<Byte>^ archBytes = Utf8Of(arch_ == nullptr ? "" : arch_);
         pin_ptr<Byte> arch = &archBytes[0];
@@ -3295,10 +2655,7 @@ private:
                 break;
             }
             case WorkBuildTarget: {
-                // The project's own program, from the sources its build entry
-                // names. The kind handed over is the editor's override and not
-                // a resolved compiler: a target of C and C++ has one compiler
-                // per group, and naming one here would send both groups to it.
+
                 array<Byte>^ cc1Bytes = Utf8Of(cc1_);
                 pin_ptr<Byte> cc1 = &cc1Bytes[0];
                 array<Byte>^ clBytes = Utf8Of(cl_);
@@ -3316,10 +2673,7 @@ private:
                 break;
             }
             case WorkStart: {
-                // The compiler and the target, not a debugger: which of the
-                // two halves this is - gdb, lldb or cdb, or a Shalimar program
-                // with its own session - is decided on the native side, where
-                // the terminal half decides it too.
+
                 array<Byte>^ programBytes = Utf8Of(workProgram_);
                 pin_ptr<Byte> program = &programBytes[0];
                 workResult_ = rstudio_debugger_start(debugger_, workKind_,
@@ -3336,8 +2690,6 @@ private:
         }
     }
 
-    // False when something slow is already running, which is the caller's cue
-    // to do nothing at all.
     bool WhileBusy(int what) {
         if (busy_) { what_->Text = "still working - give it a moment"; return false; }
 
@@ -3347,7 +2699,7 @@ private:
 
         System::Threading::Thread^ worker = gcnew System::Threading::Thread(
             gcnew System::Threading::ThreadStart(this, &MainForm::DoPendingWork));
-        worker->IsBackground = true;   // never keeps the program alive by itself
+        worker->IsBackground = true;
         worker->Start();
 
         while (!worker->Join(50)) Application::DoEvents();
@@ -3355,8 +2707,6 @@ private:
         busy_ = false;
         return true;
     }
-
-    // ---- stopping on a line ------------------------------------------------
 
     System::Collections::Generic::List<int>^ BreaksFor(String^ file) {
         if (file == nullptr) return nullptr;
@@ -3366,7 +2716,7 @@ private:
             lines = gcnew System::Collections::Generic::List<int>();
             breaks_[key] = lines;
         }
-        breakNames_[key] = file;   // the newest spelling is the one to show
+        breakNames_[key] = file;
         return lines;
     }
 
@@ -3399,9 +2749,6 @@ private:
         Current()->gutter->Invalidate();
     }
 
-    // The whole set, rather than one taken away: neither debugger promises the
-    // numbering of what it hands out, and there are never enough breakpoints
-    // here for the difference to matter.
     void SetEveryBreakpoint() {
         rstudio_debugger_clear(debugger_);
         for each (System::Collections::Generic::KeyValuePair<String^,
@@ -3418,21 +2765,15 @@ private:
     void OnDebug(Object^, EventArgs^) { Debug(false); }
     void OnDebugProject(Object^, EventArgs^) { Debug(true); }
 
-    // Starting it, or carrying on from where it stopped. `project` chooses what
-    // goes under the debugger: the file in front of you, or the program the
-    // project says it builds - the same two things Ctrl-B and F4 choose
-    // between, asked the same way and never guessed. The terminal half takes
-    // the same argument and reads the same way.
     void Debug(bool project) {
         if (rstudio_debugger_running(debugger_) != 0) {
-            // Carrying on can take as long as the program takes to reach the
-            // next breakpoint, which is why this is not done here either.
+
             if (!WhileBusy(WorkResume)) return;
             ShowStop();
             return;
         }
 
-        ForgetError();   // this build is about to say its own
+        ForgetError();
 
         array<Byte>^ archBytes = Utf8Of(arch_);
         pin_ptr<Byte> arch = &archBytes[0];
@@ -3447,9 +2788,7 @@ private:
         int language = 0;
 
         if (project) {
-            // Settled before anything else is asked, because these refusals -
-            // no build entry, a group of two languages - are about the project
-            // rather than about debugging, and they read better said first.
+
             if (rstudio_project_target_ready(project_) == 0) {
                 String^ why = FromUtf8(rstudio_project_target_why(project_));
                 String^ detail = FromUtf8(rstudio_project_target_detail(project_));
@@ -3461,9 +2800,6 @@ private:
             SaveEveryDirty();
             language = rstudio_project_target_language(project_);
 
-            // Which compiler's debug information is read, when the program may
-            // be linked from more than one - and which groups carry none. The
-            // core answers it; the window does not walk the parts itself.
             if (rstudio_project_debug_plan(project_, reinterpret_cast<const char*>(cc1),
                                        reinterpret_cast<const char*>(cl),
                                        reinterpret_cast<const char*>(shc), toolKind_,
@@ -3482,11 +2818,7 @@ private:
                 what_->Text = FromUtf8(rstudio_refusal(kind, language));
                 return;
             }
-            // Asked in this order, and the order is the point: a Shalimar
-            // program stops itself, so there is no debugger here to have or to
-            // lack, and rstudio_debugger_for rightly answers none for it. Reading
-            // that as a refusal is what this window did, and it refused the one
-            // language that needs nothing installed.
+
             if (rstudio_debugger_stops_itself(kind) == 0 &&
                 rstudio_debugger_for(kind, reinterpret_cast<const char*>(arch)) == 0) {
                 what_->Text = FromUtf8(
@@ -3495,16 +2827,12 @@ private:
             }
         }
 
-        // Both of them: a program that cannot be run here cannot be stopped
-        // here either, whatever debug information it carries.
         if (rstudio_runs_here(kind, reinterpret_cast<const char*>(arch)) == 0) {
             what_->Text = FromUtf8(rstudio_why_not_run(kind, reinterpret_cast<const char*>(arch)));
             return;
         }
         if (config_ != RSTUDIO_CONFIG_DEBUG) {
-            // Two different facts wearing one shape: a C build is missing -g,
-            // and a Shalimar one links a runtime with no debugger in it, there
-            // being no -g here to have left out. The key is this window's own.
+
             what_->Text =
                 FromUtf8(rstudio_release_cannot_stop(kind)) + " - choose Debug build, then F8";
             return;
@@ -3518,9 +2846,6 @@ private:
                 console_->Text += "    " +
                     FromUtf8(rstudio_project_target_source(project_, i)) + "\r\n";
 
-            // Said before the build rather than after it, because it is about
-            // what the session will be able to do and whoever pressed this is
-            // about to find out the hard way otherwise.
             int blind = rstudio_project_blind_groups(project_);
             for (int i = 0; i < blind; ++i)
                 console_->Text += "  (" + FromUtf8(rstudio_project_blind_group(project_, i)) +
@@ -3533,14 +2858,10 @@ private:
         if (built_ != nullptr) { rstudio_program_free(built_); built_ = nullptr; }
         if (targetBuilt_ != nullptr) { rstudio_build_free(targetBuilt_); targetBuilt_ = nullptr; }
 
-        // cl runs on the other thread; this one goes on painting.
         workKind_ = kind;
         workLanguage_ = language;
         if (!WhileBusy(project ? WorkBuildTarget : WorkBuild)) return;
 
-        // A project build answers null when there was nothing to build, and
-        // the reason is where rstudio_project_target_ready left it. Asked before
-        // anything reads the build, because there is nothing there to read.
         if (project && targetBuilt_ == nullptr) {
             what_->Text = FromUtf8(rstudio_project_target_why(project_));
             return;
@@ -3552,21 +2873,15 @@ private:
 
         if (workResult_ == 0) { DebugBuildFailed(project, kind); return; }
 
-        // The project's program stays where the project built it; a single
-        // file's is a temporary thing made to be stepped through, and the
-        // handle that owns it takes it away again.
         workProgram_ = project ? FromUtf8(rstudio_project_target_program(project_))
                                : FromUtf8(rstudio_program_path(built_));
 
         what_->Text = rstudio_debugger_stops_itself(kind) != 0
-                          ? "starting the program ..."   // nothing else is started
+                          ? "starting the program ..."
                           : "starting the debugger ...";
         if (!WhileBusy(WorkStart)) return;
         if (workResult_ == 0) {
-            // Which reason applies is the core's answer. A debugger that is not
-            // installed and a program that never said it was ready are not the
-            // same trouble, and sending someone to install something that does
-            // not exist for this language is the worse of the two.
+
             what_->Text =
                 FromUtf8(rstudio_why_it_did_not_start(kind, reinterpret_cast<const char*>(arch)));
             EndDebugging();
@@ -3578,10 +2893,6 @@ private:
         ShowStop();
     }
 
-    // What a build that produced nothing has to say. The two builds report
-    // differently - a project build names the file, since it is several files
-    // and not the one in front of you - so this is the one place that knows
-    // which of them was asked for.
     void DebugBuildFailed(bool project, int kind) {
         bool told = project ? rstudio_build_has_error(targetBuilt_) != 0
                             : rstudio_program_has_error(built_) != 0;
@@ -3594,8 +2905,6 @@ private:
                                                : rstudio_program_error_message(built_));
             String^ where = project ? FromUtf8(rstudio_build_error_file(targetBuilt_)) : nullptr;
 
-            // A project build's error is as likely as not in a file nothing has
-            // opened, so it is opened before the caret is put in it.
             if (where != nullptr && where->Length > 0) {
                 if (!System::IO::Path::IsPathRooted(where)) {
                     array<Byte>^ relative = Utf8Of(where);
@@ -3608,7 +2917,7 @@ private:
 
             RememberError(line, column, message, where);
             GoTo(line, column);
-            panel_->SelectedIndex = 0;   // the compiler's words are on the Console
+            panel_->SelectedIndex = 0;
             what_->Text = String::Format("{0}:{1}: error: {2}", line, column, message);
         } else {
             what_->Text = FromUtf8(rstudio_toolchain_name(kind)) +
@@ -3617,9 +2926,6 @@ private:
         EndDebugging();
     }
 
-    // What cannot be chosen just now, worked out as the menu opens. The three
-    // in the looking group need a stack to walk or a variable to read, and a
-    // Shalimar program has neither.
     void OnDebugMenuOpening(Object^, EventArgs^) {
         bool itsOwn = rstudio_debugging_shalimar(debugger_) != 0;
         upTheStack_->Enabled = !itsOwn;
@@ -3655,10 +2961,7 @@ private:
 
     void EndDebugging() {
         rstudio_debugger_stop(debugger_);
-        // Freeing an RStudioProgram removes the program with it, which is right:
-        // that one is the temporary thing a single file's build made. The
-        // project's program is the project's and stays where it was built, so
-        // what is let go of there is the record of the build and nothing else.
+
         if (built_ != nullptr) { rstudio_program_free(built_); built_ = nullptr; }
         if (targetBuilt_ != nullptr) { rstudio_build_free(targetBuilt_); targetBuilt_ = nullptr; }
         workProgram_ = nullptr;
@@ -3666,22 +2969,19 @@ private:
         stopLine_ = 0;
         lookingFile_ = nullptr;
         lookingLine_ = 0;
-        ShowStoppedLine(-1);   // the bar goes with the arrow
+        ShowStoppedLine(-1);
         Current()->gutter->Invalidate();
     }
 
     void ShowStop() {
-        // What the program printed on its way here belongs in the console,
-        // which is where its output goes when it is run without a debugger.
-        // The debugger's own words are taken out on the native side, so this
-        // and the terminal half show the same thing.
+
         String^ printed = Lines(FromUtf8(rstudio_stop_output(debugger_)));
         if (!String::IsNullOrEmpty(printed)) {
             console_->AppendText(printed);
             ShowConsoleEnd();
         }
 
-        panel_->SelectedIndex = 1;   // the Debug tab
+        panel_->SelectedIndex = 1;
 
         if (rstudio_stop_exited(debugger_) != 0) {
             int status = rstudio_stop_status(debugger_);
@@ -3696,12 +2996,6 @@ private:
         if (rstudio_stop_stopped(debugger_) == 0) {
             String^ heard = Lines(FromUtf8(rstudio_stop_said(debugger_)));
 
-            // Stepping off the end of main lands in the code that started the
-            // program, which was not compiled here. That is a real place to be
-            // standing and not a failure: the debugger stays running, F8
-            // carries on from it, and Stop debugging still leaves. The
-            // terminal has always said so and this said the debugger had died
-            // and ended the session - the same step, two answers.
             if (rstudio_stop_no_source(debugger_) != 0) {
                 stopFile_ = nullptr;
                 stopLine_ = 0;
@@ -3718,10 +3012,6 @@ private:
                 return;
             }
 
-            // With what it said under it. The terminal half has always printed
-            // this and the window said only the sentence, which is the least
-            // useful moment to be told nothing: a debugger that has stopped
-            // answering has usually just explained itself.
             debug_->Text = String::IsNullOrEmpty(heard)
                 ? "the debugger stopped answering"
                 : "the debugger stopped answering\r\n\r\n" + heard;
@@ -3734,7 +3024,6 @@ private:
         stopLine_ = rstudio_stop_line(debugger_);
         String^ function = FromUtf8(rstudio_stop_function(debugger_));
 
-        // The caret follows it, but only into the file it is actually in.
         if (path_ != nullptr && stopLine_ > 0 &&
             System::IO::Path::GetFileName(stopFile_) == System::IO::Path::GetFileName(path_)) {
             GoTo(stopLine_, 1);
@@ -3752,11 +3041,6 @@ private:
                                      String::IsNullOrEmpty(function) ? "" : " in " + function);
     }
 
-    // Moves the caret and nothing else. It used to bring the Console forward as
-    // well, which suited the three callers that go to a compiler's error - and
-    // silently undid the fourth, which goes to the line a program stopped on
-    // and had just brought the Debug tab forward. Choosing the panel is the
-    // caller's business; each of the three says so for itself now.
     void RememberError(int line, int column, String^ message, String^ file) {
         errorLine_ = line;
         errorColumn_ = column;
@@ -3764,8 +3048,6 @@ private:
         errorFile_ = file;
     }
 
-    // Forgotten when a build starts, so that Enter on the console never takes
-    // you to something an earlier build said and this one did not.
     void ForgetError() {
         errorLine_ = 0;
         errorColumn_ = 0;
@@ -3785,40 +3067,28 @@ private:
 
     void OnConsoleKey(Object^, KeyEventArgs^ e) {
         if (e->KeyCode != Keys::Enter) return;
-        e->SuppressKeyPress = true;   // a read-only box would beep at it
+        e->SuppressKeyPress = true;
         GoToError();
     }
 
     void OnConsoleDoubleClick(Object^, EventArgs^) { GoToError(); }
 
-    // The Debug tab, written from what is known about the stop rather than from
-    // the stop itself - so that it can be written again when the frame being
-    // looked at changes, without the program having moved.
     void WriteDebugTab() {
         System::Text::StringBuilder^ said = gcnew System::Text::StringBuilder();
         said->AppendFormat("{0}\r\n\r\n", StopLine());
 
-        // Whose variables these are, when they are not the ones the program
-        // stopped among. Without it the line above stands over another
-        // function's locals and the two contradict each other.
         String^ looking = FromUtf8(rstudio_looking_text(debugger_));
         if (looking->Length > 0) said->AppendFormat("{0}\r\n\r\n", looking);
 
         int howMany = rstudio_locals_count(debugger_);
         if (howMany == 0) {
-            // Empty means two different things. Under a debugger this place has
-            // no variables; under a Shalimar session no place ever will, the
-            // compiler emitting no table of a function's names against its
-            // frame slots. Which sentence that is, is the core's answer, so
-            // both halves of the editor say the same one.
+
             said->AppendFormat("{0}\r\n", FromUtf8(rstudio_locals_none_because(debugger_)));
         } else {
             for (int i = 0; i < howMany; ++i)
                 said->AppendFormat("{0}\r\n", FromUtf8(rstudio_local_text(debugger_, i)));
         }
-        // The expressions being watched, which are the editor's own question
-        // rather than the debugger's list of what is in scope - so they are
-        // their own block, under the variables.
+
         int watching = rstudio_watch_count(debugger_);
         if (watching > 0) {
             said->Append("\r\nwatching\r\n");
@@ -3826,9 +3096,6 @@ private:
                 said->AppendFormat("{0}\r\n", FromUtf8(rstudio_watch_text(debugger_, i)));
         }
 
-        // Who is waiting for it. The first frame is where it is standing and
-        // the line at the top already says that, so what is worth showing is
-        // what is above it - and a program in main has nothing above it.
         int deep = rstudio_stack_count(debugger_);
         if (deep > 1) {
             said->Append("\r\ncalled from\r\n");
@@ -3838,11 +3105,6 @@ private:
 
         said->Append("\r\nF8 carries on   F7 steps over   F6 steps into   F9 sets a breakpoint");
 
-        // Setting a variable needs no stack at all, so it is said whether or
-        // not there is one: a program standing in main has one frame and
-        // variables like any other. None of that is true of Shalimar, and
-        // offering the keys for it would be the panel promising what pressing
-        // them refuses.
         if (rstudio_debugging_shalimar(debugger_) == 0) {
             said->Append("\r\nDouble-click a variable, or press enter on it, to set it");
             if (watching > 0)
@@ -3854,17 +3116,10 @@ private:
         }
         debug_->Text = said->ToString();
 
-        // And the caret at the top of it, as the terminal's panel comes back
-        // to its own top line. Without this it is left wherever the last text
-        // put it, and enter - which acts on the line the caret is on - acts on
-        // whichever line that happened to be.
         debug_->SelectionStart = 0;
         debug_->SelectionLength = 0;
     }
 
-    // The tab's first line, which names the frame the program stopped in. From
-    // the core, because pressing enter on it is how the tab goes back to that
-    // frame and the line acted on has to be the line the core wrote.
     String^ StopLine() {
         pin_ptr<Byte> file = &Utf8Of(stopFile_)[0];
         pin_ptr<Byte> function = &Utf8Of(stopFunction_)[0];
@@ -3874,20 +3129,12 @@ private:
 
     void OnDebugKey(Object^, KeyEventArgs^ e) {
         if (e->KeyCode != Keys::Enter) return;
-        e->SuppressKeyPress = true;   // a read-only box would beep at it
+        e->SuppressKeyPress = true;
         GoToFrame();
     }
 
     void OnDebugDoubleClick(Object^, EventArgs^) { GoToFrame(); }
 
-    // The frame on the line that was clicked, or that the caret is on. Which
-    // line that is comes from the box; which frame is on it is the core's
-    // answer, matched against what the core wrote there - see dbg_frameLine.
-    //
-    // This goes to where the call came from and no further. The program is
-    // still standing where it stopped, the arrow in the gutter still marks
-    // that line, and the variables are still that frame's: going to a line is
-    // not stepping.
     void GoToFrame() {
         if (debug_->Lines->Length == 0) return;
         int row = debug_->GetLineFromCharIndex(debug_->SelectionStart);
@@ -3897,14 +3144,10 @@ private:
         pin_ptr<Byte> line = &Utf8Of(row_text)[0];
         int which = rstudio_stack_on_line(debugger_, reinterpret_cast<const char*>(line));
 
-        // The top line names the frame the program stopped in, which is the
-        // way back from a caller: enter or a double-click on it is enter on
-        // frame 0.
         if (which < 0 && rstudio_stack_count(debugger_) > 0 && row_text == StopLine()) which = 0;
 
         if (which < 0) {
-            // Not a frame, but the tab's other kind of line is a variable, and
-            // this gesture on one of those is how it is set.
+
             int variable = rstudio_locals_on_line(debugger_,
                                               reinterpret_cast<const char*>(line));
             if (variable >= 0) { EditVariable(variable); return; }
@@ -3919,11 +3162,8 @@ private:
         LookAt(which);
     }
 
-    // An expression to keep asking about, read again wherever the program gets
-    // to next. Asked for in the same box as everything else.
     void OnWatch(Object^, EventArgs^) {
-        // Refused before it is asked for, rather than accepted and then shown
-        // blank for the rest of the session. Empty means it can be done.
+
         String^ no = FromUtf8(rstudio_cannot_watch(debugger_));
         if (no->Length > 0) { what_->Text = no; return; }
 
@@ -3932,15 +3172,13 @@ private:
 
         pin_ptr<Byte> wanted = &Utf8Of(what)[0];
         rstudio_watch_add(debugger_, reinterpret_cast<const char*>(wanted));
-        panel_->SelectedIndex = 1;   // the Debug tab, which is where it appears
+        panel_->SelectedIndex = 1;
         if (stopLine_ > 0) WriteDebugTab();
         what_->Text = rstudio_debugger_running(debugger_) != 0
                           ? "watching " + what
                           : "watching " + what + " - it is read when the program stops";
     }
 
-    // Changing one, or taking it away: the box comes up with the expression in
-    // it, and an empty answer is how a watch is dropped.
     void EditWatch(int which) {
         String^ was = FromUtf8(rstudio_watch_expression(debugger_, which));
         String^ what = Ask("watch, or empty to drop it", was);
@@ -3952,10 +3190,6 @@ private:
         what_->Text = what->Length == 0 ? "stopped watching " + was : "watching " + what;
     }
 
-    // Writing a variable back, into whichever frame is being looked at. Asked
-    // for in the same box that asks for a filename, and what the debugger says
-    // about a value it will not take is what the line at the bottom says: its
-    // complaint names the mistake better than anything invented here.
     void EditVariable(int which) {
         String^ name = FromUtf8(rstudio_local_name(debugger_, which));
         String^ was = FromUtf8(rstudio_local_value(debugger_, which));
@@ -3983,20 +3217,13 @@ private:
                                      FromUtf8(rstudio_local_value(debugger_, which)));
     }
 
-    // One frame along, without going near the panel: Ctrl-Up towards what
-    // called this, Ctrl-Down back towards where the program stopped. The same
-    // act as pressing enter on the frame, reached from the text where the
-    // caret already is - which is where a person is when the question occurs
-    // to them.
     void LookAlongStack(int by) {
         int deep = rstudio_stack_count(debugger_);
         if (rstudio_debugger_running(debugger_) == 0 || deep == 0) {
             what_->Text = "nothing is stopped, so there is no stack to walk";
             return;
         }
-        // One frame, and it says how deep it is rather than what it is called.
-        // There is nothing to walk to, and saying so beats the message below,
-        // which would name that depth as though it were a function.
+
         String^ no = FromUtf8(rstudio_cannot_walk_stack(debugger_));
         if (no->Length > 0) { what_->Text = no; return; }
 
@@ -4017,22 +3244,17 @@ private:
         LookAt(looking - 1);
     }
 
-    // Looking at a frame: its variables are read, the tab is written again
-    // with it marked, and the caret goes to the line waiting for the call.
     void LookAt(int which) {
         if (rstudio_debugger_look_at(debugger_, which) == 0) {
             what_->Text = "the debugger would not go to that frame";
             return;
         }
-        // The variables are what was asked for, so the tab comes back to the
-        // top where they are - and where the line that goes back is.
+
         WriteDebugTab();
 
         String^ file = FromUtf8(rstudio_stack_file(debugger_, which));
         int at = rstudio_stack_line(debugger_, which);
 
-        // The gutter marks it, unless it is the frame the program stopped in -
-        // that one has the arrow already.
         lookingFile_ = which == 0 ? nullptr : file;
         lookingLine_ = which == 0 ? 0 : at;
 
@@ -4060,19 +3282,12 @@ private:
         text_->Focus();
     }
 
-    // A read-only box selects all of itself when it is given the keyboard,
-    // which looks like a mistake rather than a highlight.
-    // Shown *and* given the keyboard, as Ctrl+0 does for the project pane -
-    // otherwise the panel is reachable by mouse alone, and Enter on the console
-    // is a key nobody can press. Ctrl+4 is the way back to the file, as before.
     void ShowPanel(int which) {
         panel_->SelectedIndex = which;
         if (which == 0) console_->Focus();
         else if (which == 1) debug_->Focus();
         else assembly_->Focus();
-        // After the focus, not before it: taking the keyboard is what makes a
-        // read-only box select all of itself, so clearing the selection first
-        // clears nothing. The note above this said so and I did it anyway.
+
         console_->SelectionLength = 0;
         debug_->SelectionLength = 0;
         assembly_->SelectionLength = 0;
@@ -4082,14 +3297,6 @@ private:
     void OnShowDebug(Object^, EventArgs^) { ShowPanel(1); }
     void OnShowAssembly(Object^, EventArgs^) { ShowPanel(2); }
 
-    // Which target, which compiler and which of debug and release - said by a
-    // tick beside the one in force. They were announced on the message line
-    // when picked and nowhere after that, so the next thing to happen took the
-    // answer away with it; the terminal has all three on its status bar for as
-    // long as the editor is running. Called wherever the three can change,
-    // which includes opening a project: an RStudio.json carries all of them, and a
-    // tick that only followed the menus would start lying the moment one was
-    // opened.
     void SayBuild() {
         if (build_ == nullptr) return;
         int language = LanguageNow();
@@ -4097,13 +3304,9 @@ private:
         String^ said = FromUtf8(rstudio_language_name(language)) + "  " +
                        FromUtf8(rstudio_config_name(config_)) + "  " +
                        FromUtf8(rstudio_toolchain_name(kind));
-        // The star means the file picked the compiler, not the menu - the same
-        // mark, in the same place, as the terminal's.
+
         if (toolKind_ == RSTUDIO_TOOL_AUTO) said += "*";
-        // The target is shown only when it means something: cl builds for the
-        // host it was installed as, and offering a choice that changes nothing
-        // would be the status bar telling a lie. Editor::drawStatus says the
-        // same thing in the same words.
+
         if (rstudio_uses_arch(kind) != 0) said += "  " + arch_;
         build_->Text = said;
     }
@@ -4128,18 +3331,11 @@ private:
         SayBuild();
     }
 
-    // Debug and release are two, so this is a toggle. The compilers and the
-    // targets are three each, so those go round - and going round rather than
-    // between two is why automatic is never more than two presses away, which
-    // is the reason the terminal gives for its own.
     void NextConfig() {
         if (config_ == RSTUDIO_CONFIG_DEBUG) OnReleaseConfig(nullptr, nullptr);
         else OnDebugConfig(nullptr, nullptr);
     }
 
-    // In the order the Tools menu lists them, which is the rule the terminal
-    // keeps too: what the key does and what the menu shows are one thing
-    // rather than two that can drift apart.
     void NextTool() {
         if (toolKind_ == RSTUDIO_TOOL_AUTO) OnToolCc1(nullptr, nullptr);
         else if (toolKind_ == RSTUDIO_TOOL_CC1) OnToolShc(nullptr, nullptr);
@@ -4155,14 +3351,10 @@ private:
                 at = i;
                 break;
             }
-        // OnTarget reads the target's name off the item it was given, so the
-        // item is what it is handed rather than a name looked up twice.
+
         OnTarget(targetItems_[(at + 1) % targetItems_->Count], nullptr);
     }
 
-    // Kept for the next run, in this machine's settings rather than in the
-    // project - which is where the terminal front end keeps it too, so the two
-    // do not disagree about what you were last building.
     void OnDebugConfig(Object^, EventArgs^) {
         config_ = RSTUDIO_CONFIG_DEBUG;
         rstudio_remember_configuration(config_);
@@ -4178,7 +3370,7 @@ private:
     void OnTarget(Object^ sender, EventArgs^) {
         arch_ = safe_cast<ToolStripMenuItem^>(sender)->Text;
         ShowChoices();
-        RefreshDebugTab();   // what the target can carry is part of what it says
+        RefreshDebugTab();
         what_->Text = "target: " + arch_;
     }
     void OnToolAuto(Object^, EventArgs^) {
@@ -4209,13 +3401,88 @@ private:
     void ChooseLanguage(int language, String^ said) {
         languageChoice_ = language;
         ShowChoices();
-        RefreshDebugTab();   // which language it is decides which compiler runs
+        RefreshDebugTab();
         Recolour();
         what_->Text = said;
     }
     void OnLangAuto(Object^, EventArgs^) {
         ChooseLanguage(-1, "language: chosen by the name");
     }
+    void OnConvert(Object^, EventArgs^) {
+        if (busy_) { what_->Text = "still working - give it a moment"; return; }
+        ForgetError();
+        if (path_ == nullptr) { what_->Text = "open a file first"; return; }
+
+        int toShalimar = 0;
+        if (rstudio_converts_from(LanguageNow(), &toShalimar) == 0) {
+            what_->Text = "c2s converts between C and Shalimar - set the language above "
+                          "if that is wrong";
+            return;
+        }
+
+        OnSave(nullptr, nullptr);
+        if (path_ == nullptr) return;
+
+        char* whereRaw = rstudio_find_converter();
+        String^ converter = FromUtf8(whereRaw);
+        rstudio_free(whereRaw);
+        if (converter->Length == 0) {
+            what_->Text = "no c2s beside this editor - build Converter-C2S here, or set C2S";
+            return;
+        }
+
+        array<Byte>^ sourceBytes = Utf8Of(path_);
+        pin_ptr<Byte> source = &sourceBytes[0];
+
+        char* namedRaw =
+            rstudio_converted_name(reinterpret_cast<const char*>(source), toShalimar);
+        String^ produced = FromUtf8(namedRaw);
+        rstudio_free(namedRaw);
+        if (produced->Length == 0 || String::Equals(produced, path_)) {
+            what_->Text = "that would write over the file it is reading";
+            return;
+        }
+
+        array<Byte>^ converterBytes = Utf8Of(converter);
+        pin_ptr<Byte> where = &converterBytes[0];
+        array<Byte>^ producedBytes = Utf8Of(produced);
+        pin_ptr<Byte> into = &producedBytes[0];
+
+        console_->Text = "$ c2s " + (toShalimar ? "--to-shalimar " : "--to-c ") +
+                         produced + "\r\n";
+        panel_->SelectedIndex = 0;
+        Application::DoEvents();
+
+        RStudioConversion* made =
+            rstudio_convert(reinterpret_cast<const char*>(where),
+                            reinterpret_cast<const char*>(source),
+                            reinterpret_cast<const char*>(into), toShalimar);
+
+        console_->Text += FromUtf8(rstudio_conversion_output(made))->Replace("\n", "\r\n");
+        ShowConsoleEnd();
+
+        if (rstudio_conversion_ran(made) == 0) {
+            what_->Text = "could not run " + converter;
+            rstudio_conversion_free(made);
+            return;
+        }
+
+        String^ written = FromUtf8(rstudio_conversion_produced(made));
+        int ok = rstudio_conversion_ok(made);
+        rstudio_conversion_free(made);
+
+        if (written->Length == 0) {
+            what_->Text = "nothing was written - c2s could not read or write a file";
+            return;
+        }
+
+        OpenPath(written);
+        what_->Text = ok != 0
+            ? System::IO::Path::GetFileName(written) + " - converted"
+            : System::IO::Path::GetFileName(written) +
+                  " - written with unconverted parts marked; search for BEYOND";
+    }
+
     void OnLangC(Object^, EventArgs^) { ChooseLanguage(RSTUDIO_LANG_C, "language: C"); }
     void OnLangCpp(Object^, EventArgs^) { ChooseLanguage(RSTUDIO_LANG_CPP, "language: C++"); }
     void OnLangShalimar(Object^, EventArgs^) {
@@ -4229,4 +3496,4 @@ private:
     }
 };
 
-}  // namespace rstudiogui
+}

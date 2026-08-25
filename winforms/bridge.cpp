@@ -1,8 +1,3 @@
-// The native side of the seam. All the STL in the Windows Forms build lives
-// here and never crosses into the managed translation unit - see bridge.h for
-// what happens when it does.
-//
-// Compiled without /clr, like every other file it calls into.
 
 #include "bridge.h"
 
@@ -14,16 +9,14 @@
 
 #ifdef _WIN32
 #include <windows.h>
-// After windows.h, which it needs.
+
 #include <dbghelp.h>
 #pragma comment(lib, "dbghelp.lib")
-// Rich Edit's own interfaces, for suspending its undo recording. richole.h
-// wants richedit.h before it, and tom.h wants both.
+
 #include <richedit.h>
 #include <richole.h>
 #include <tom.h>
-// SendMessage, for the one call below. The window's own project links this
-// already; the test build does not, and linked nothing else that needed it.
+
 #pragma comment(lib, "user32.lib")
 #endif
 
@@ -43,14 +36,6 @@
 
 namespace {
 
-// The numbers in bridge.h are the editor's own, written out as plain integers
-// for a header that may not name a C++ type. If either side is renumbered this
-// stops the build rather than mis-colouring a screen.
-//
-// The cast is not decoration: one side is an unnamed enum from a C header and
-// the other a named C++ one, and gcc refuses to compare the two. It only
-// started mattering when the tests began linking this file, which is the first
-// time anything but MSVC and clang had read it.
 static_assert(RSTUDIO_KIND_KEYWORD == static_cast<int>(editor::KindKeyword), "kind numbering has drifted");
 static_assert(RSTUDIO_KIND_LABEL == static_cast<int>(editor::KindLabel), "kind numbering has drifted");
 static_assert(RSTUDIO_LANG_CPP == static_cast<int>(editor::LangCpp), "language numbering has drifted");
@@ -62,8 +47,6 @@ static_assert(RSTUDIO_TOOL_SHC == static_cast<int>(editor::ToolShc), "toolchain 
 static_assert(RSTUDIO_TOOL_CXX == static_cast<int>(editor::ToolCxx), "toolchain numbering has drifted");
 static_assert(RSTUDIO_CONFIG_RELEASE == static_cast<int>(editor::ConfigRelease), "config numbering has drifted");
 
-// A copy the caller owns. Allocated and freed on this side of the seam, which
-// is the whole point.
 char* give(const std::string& text) {
     char* out = static_cast<char*>(std::malloc(text.size() + 1));
     if (!out) return 0;
@@ -105,11 +88,6 @@ editor::IndentStyle styleOf(int width, int tabs, int caseIndent, int dialect) {
     return style;
 }
 
-// Somewhere for the short-lived answers to live. Good until the next call,
-// which is what bridge.h promises.
-//
-// Never destroyed, for the same reason as json.cpp's: a static with a
-// destructor registers an atexit handler, and that corrupts the heap here.
 std::string& scratch() {
     static std::string* kept = new std::string();
     return *kept;
@@ -121,16 +99,13 @@ char faultLog[MAX_PATH] = "RStudioGui-fault.log";
 
 void write(FILE* f, const char* text) { std::fputs(text, f); }
 
-// What a debugger would print, printed by the program itself: the exception,
-// where it happened, and the frames that led there with names and line numbers.
 LONG CALLBACK onFault(EXCEPTION_POINTERS* info) {
     static bool inside = false;
-    if (inside) return EXCEPTION_CONTINUE_SEARCH;   // a fault while reporting one
+    if (inside) return EXCEPTION_CONTINUE_SEARCH;
     inside = true;
 
     DWORD code = info->ExceptionRecord->ExceptionCode;
-    // Only the ones that are really crashes; C++ exceptions pass through here
-    // on their way to a handler and are none of this function's business.
+
     if (code != EXCEPTION_ACCESS_VIOLATION && code != STATUS_HEAP_CORRUPTION &&
         code != EXCEPTION_STACK_OVERFLOW && code != EXCEPTION_ILLEGAL_INSTRUCTION) {
         inside = false;
@@ -190,31 +165,21 @@ LONG CALLBACK onFault(EXCEPTION_POINTERS* info) {
 
 #endif
 
-}  // namespace
+}
 
 struct RStudioProject {
     editor::Project project;
     std::string answer;
-    editor::Outcome last;   // what the most recent change had to say
+    editor::Outcome last;
 
-    // What the last look at the project's target found: its sources, or the
-    // reason there are none to hand back. Kept here because the managed side
-    // reads them one string at a time and a returned pointer has to outlive
-    // the call that gave it.
     std::vector<std::string> sources;
-    // The same target said the way it is built: one part per group, each with
-    // its own compiler. `sources` above is these flattened, kept because the
-    // managed side lists the files of a build and does not care which compiler
-    // each came from - and because a window that could only build what one
-    // compiler makes would be the window falling behind the terminal again.
+
     std::vector<editor::Part> parts;
     std::string program;
     std::string why;
     std::string detail;
     int language;
-    // How that target is stepped through, worked out once and read one string
-    // at a time - the managed side can hold neither the plan nor its list of
-    // groups. `whyNot` is empty when there is nothing standing in the way.
+
     editor::DebugPlan plan;
     std::string whyNot;
 };
@@ -232,30 +197,22 @@ struct RStudioProgram {
     editor::Built built;
 };
 
-// The debugger, what it last said, and what was in scope when it said it. All
-// three are kept together because the managed side reads them one string at a
-// time and must not have to hold any of them itself.
 struct RStudioDebugger {
     editor::Debugger debugger;
-    // The other half of stopping a program, and a different half rather than a
-    // second copy: a Shalimar program stops itself, so there is no gdb, lldb or
-    // cdb in it and nothing of Debugger that could have been extended to do it.
-    // Which of the two is live is asked of them - shm.running() - so there is
-    // no third thing here that can fall out of step with what is running.
-    // src/shalimar/README.md has the rest of why.
+
     shalimar::Session shm;
     editor::Stop stop;
     std::vector<editor::Variable> locals;
     std::vector<editor::StackFrame> stack;
-    size_t looking;          // which frame the variables belong to; 0 is the stop
-    std::string frameLine;   // one frame as the Debug tab spells it
+    size_t looking;
+    std::string frameLine;
     std::string variableLine;
     std::string watchLine;
     std::string lookingLine;
-    std::string complaint;   // what it said about a value it would not take
+    std::string complaint;
     std::string answer;
-    std::string output;   // the program's own words, kept for the same reason
-    std::string refusal;  // what a Shalimar session cannot be asked, in words
+    std::string output;
+    std::string refusal;
 
     RStudioDebugger() : looking(0) {}
 };
@@ -275,8 +232,7 @@ void rstudio_watch_for_faults(const char* logPath) {
 }
 
 #ifdef _WIN32
-// tomSuspend stacks: two suspends want two resumes. The colouring passes are
-// not nested, but the count is what the interface promises, not the caller.
+
 static void undoRecording(void* windowHandle, long how) {
     HWND window = reinterpret_cast<HWND>(windowHandle);
     if (!window) return;
@@ -578,8 +534,6 @@ int rstudio_add_existing(RStudioProject* project, const char* absolute, const ch
     return project->last.ok ? 1 : 0;
 }
 
-// Out of the project's list, and not off the disk - which is rstudio_delete_file.
-// The two are one keystroke apart in the menu, so the names are kept far apart.
 int rstudio_remove_from_project(RStudioProject* project, const char* absolute) {
     project->last = editor::removeExisting(project->project, absolute ? absolute : "");
     return project->last.ok ? 1 : 0;
@@ -725,7 +679,7 @@ RStudioProgram* rstudio_build_program(const char* cc1, const char* cl, const cha
 
 void rstudio_program_free(RStudioProgram* built) {
     if (!built) return;
-    editor::removeProgram(built->built);   // the program goes with the handle
+    editor::removeProgram(built->built);
     delete built;
 }
 
@@ -770,9 +724,7 @@ const char* rstudio_release_cannot_stop(int kind) {
 
 const char* rstudio_why_it_did_not_start(int kind, const char* arch) {
     if (editor::dbg_stopsItself(static_cast<editor::ToolchainKind>(kind))) {
-        // Nothing was started here except the program itself, so nothing can
-        // be missing from the machine. It was built without --debug, or it
-        // died before it could say it was ready.
+
         scratch() = shalimar::didNotArm();
         return scratch().c_str();
     }
@@ -795,9 +747,6 @@ int rstudio_debugger_start(RStudioDebugger* debugger, int kind, const char* arch
 
     const editor::ToolchainKind tool = static_cast<editor::ToolchainKind>(kind);
 
-    // Asked before dbg_for and not after it: that one answers DebuggerNone for
-    // shc and is right to, there being no debugger in this at all. What starts
-    // is the program, with its session armed.
     if (editor::dbg_stopsItself(tool))
         return debugger->shm.start(program ? program : "") ? 1 : 0;
 
@@ -835,24 +784,14 @@ int rstudio_debugger_clear(RStudioDebugger* debugger) {
 }
 
 namespace {
-// Every move ends the same way: keep where it stopped, and ask what is in
-// scope there while it is still standing still.
-//
-// `itself` is read before the move rather than after it, because a move that
-// ends the program closes the session with it - and what is being asked is
-// which half was moved, not which half is still there.
+
 void afterMoving(RStudioDebugger* debugger, const editor::Stop& stop, bool itself) {
     debugger->stop = stop;
     debugger->locals.clear();
     debugger->stack.clear();
-    debugger->looking = 0;   // every stop starts at the frame it stopped in
+    debugger->looking = 0;
     if (!stop.stopped) return;
 
-    // A Shalimar program has no variables to read: the compiler emits no table
-    // of a function's names against its frame slots, and that is a decision
-    // rather than a gap - ../Compiler-S/docs/DEBUGGING.md says so. The empty
-    // list is the truth, and rstudio_locals_none_because is what is written over
-    // it. One frame, saying how deep it is, is the whole of the stack.
     if (itself) {
         debugger->stack = debugger->shm.frames();
         return;
@@ -861,7 +800,7 @@ void afterMoving(RStudioDebugger* debugger, const editor::Stop& stop, bool itsel
     debugger->locals = debugger->debugger.locals();
     debugger->stack = debugger->debugger.frames();
 }
-}  // namespace
+}
 
 void rstudio_debugger_run(RStudioDebugger* debugger) {
     const bool itself = debugger->shm.running();
@@ -897,21 +836,12 @@ int rstudio_stop_no_source(RStudioDebugger* debugger) {
 }
 
 const char* rstudio_stop_output(RStudioDebugger* debugger) {
-    // A Shalimar session needs none of the taking apart below. Its channel
-    // keeps the program's own printing on standard output away from the
-    // protocol on standard error, so this is already the program's words and
-    // nothing else - which is the whole reason that channel is not
-    // editor::Process.
-    //
-    // ownsTheStop rather than running: the last stop of all is the one saying
-    // the program ended, and the channel has closed by then. That stop carries
-    // the last line the program printed, which is the line most worth having.
+
     if (debugger->shm.ownsTheStop()) {
         debugger->output = debugger->stop.said;
         return debugger->output.c_str();
     }
-    // Worked out here and kept, rather than handed back from a temporary: the
-    // managed side reads these one string at a time and holds none of them.
+
     debugger->output = editor::dbg_programOutput(debugger->debugger.kind(), debugger->stop.said);
     return debugger->output.c_str();
 }
@@ -924,7 +854,7 @@ namespace {
 bool holds(RStudioDebugger* debugger, int index) {
     return index >= 0 && static_cast<size_t>(index) < debugger->locals.size();
 }
-}  // namespace
+}
 
 const char* rstudio_local_name(RStudioDebugger* debugger, int index) {
     return holds(debugger, index) ? debugger->locals[index].name.c_str() : "";
@@ -944,7 +874,7 @@ namespace {
 bool reaches(RStudioDebugger* debugger, int index) {
     return index >= 0 && static_cast<size_t>(index) < debugger->stack.size();
 }
-}  // namespace
+}
 
 const char* rstudio_stack_function(RStudioDebugger* debugger, int index) {
     return reaches(debugger, index) ? debugger->stack[index].function.c_str() : "";
@@ -957,10 +887,7 @@ int rstudio_stack_line(RStudioDebugger* debugger, int index) {
 }
 
 const char* rstudio_stack_text(RStudioDebugger* debugger, int index) {
-    // Worked out here and kept, as the program's output is: the managed side
-    // reads these one string at a time and holds none of them. The frame being
-    // looked at is written with its mark, which is why this takes no flag of
-    // its own - which frame that is, is known here.
+
     debugger->frameLine =
         reaches(debugger, index)
             ? editor::dbg_frameLine(debugger->stack[index],
@@ -987,8 +914,6 @@ int rstudio_set_variable(RStudioDebugger* debugger, const char* name, const char
                                         &debugger->complaint))
         return 0;
 
-    // Read back rather than assumed: a debugger may take 3.7 for an int and
-    // store 3, and the tab should say what is in there.
     debugger->locals = debugger->debugger.locals();
     return 1;
 }
@@ -1007,7 +932,7 @@ namespace {
 bool watched(RStudioDebugger* debugger, int index) {
     return index >= 0 && static_cast<size_t>(index) < debugger->debugger.watches().size();
 }
-}  // namespace
+}
 
 const char* rstudio_watch_text(RStudioDebugger* debugger, int index) {
     debugger->watchLine = watched(debugger, index)
@@ -1035,10 +960,6 @@ void rstudio_watch_set(RStudioDebugger* debugger, int index, const char* express
 int rstudio_debugger_look_at(RStudioDebugger* debugger, int which) {
     if (!reaches(debugger, which)) return 0;
 
-    // A Shalimar session has one frame and no debugger to be asked to go to
-    // it, so going to the frame it is already standing in is the only move
-    // there is - and it is the move the top line of the tab makes. There are
-    // no variables to read afterwards.
     if (debugger->shm.running()) {
         debugger->looking = 0;
         return which == 0 ? 1 : 0;
@@ -1051,12 +972,6 @@ int rstudio_debugger_look_at(RStudioDebugger* debugger, int which) {
     return 1;
 }
 
-// ---- what a Shalimar session cannot be asked, in the words both halves use --
-//
-// Composed here rather than in the window, so that neither front end has to
-// decide which case it is in: it puts up what it is given. The sentences
-// themselves are in src/shalimar/, which is where the fact they state lives.
-
 const char* rstudio_locals_none_because(RStudioDebugger* debugger) {
     debugger->refusal = debugger->shm.running()
                             ? "  (" + std::string(shalimar::saysWhereOnly()) + ")"
@@ -1065,10 +980,7 @@ const char* rstudio_locals_none_because(RStudioDebugger* debugger) {
 }
 
 const char* rstudio_cannot_watch(RStudioDebugger* debugger) {
-    // A watch is an expression handed to a debugger to work out, and a
-    // Shalimar program has nothing to hand it to: it reports where it is, not
-    // what is in it. Refusing plainly beats accepting one and showing it blank
-    // for the rest of the session.
+
     debugger->refusal = debugger->shm.running()
                             ? std::string(shalimar::saysWhereOnly()) +
                                   " - nothing to watch with"
@@ -1077,17 +989,14 @@ const char* rstudio_cannot_watch(RStudioDebugger* debugger) {
 }
 
 const char* rstudio_cannot_walk_stack(RStudioDebugger* debugger) {
-    // Shalimar knows how deep it is and not what it is standing in, so
-    // frames() gives back one frame that says the depth. There is nothing to
-    // walk to, and saying so beats naming that depth as if it were a function.
+
     debugger->refusal = debugger->shm.running() ? std::string(shalimar::saysHowDeepOnly())
                                                 : std::string();
     return debugger->refusal.c_str();
 }
 
 const char* rstudio_stop_line_text(const char* file, int line, const char* function) {
-    // No debugger handle: this is the spelling of a line, not a question about
-    // a running one, and the window asks it while writing the tab.
+
     scratch() = editor::dbg_stopLine(file ? file : "",
                                      static_cast<size_t>(line < 0 ? 0 : line),
                                      function ? function : "");
@@ -1119,10 +1028,7 @@ int rstudio_begin_from_what_is_there(RStudioProject* project, const char* direct
 }
 
 const char* rstudio_last_project(void) {
-    // scratch(), not a static string of its own: a function-local static with
-    // a destructor registers an atexit handler, and in a mixed binary that
-    // corrupts the heap - which it did, on the first call, with the fault log
-    // naming atexit under rstudio_last_project. The note is on scratch() itself.
+
     scratch() = editor::settings::lastProject();
     return scratch().c_str();
 }
@@ -1150,10 +1056,6 @@ int rstudio_project_target_ready(RStudioProject* project) {
             for (size_t f = 0; f < project->parts[i].sources.size(); ++f)
                 project->sources.push_back(project->parts[i].sources[f]);
 
-    // One language for the window's own use - which tab to colour, which
-    // compiler to name in a status bar. The first part's, and a target of two
-    // languages has no single honest answer, which is what
-    // rstudio_project_target_parts is for.
     project->language = ok && !project->parts.empty()
                             ? static_cast<int>(project->parts[0].lang)
                             : static_cast<int>(editor::LangPlain);
@@ -1263,10 +1165,6 @@ RStudioBuild* rstudio_build_target(RStudioProject* project, const char* cc1, con
     if (cl && *cl) tool.cl = cl;
     if (shc && *shc) tool.shc = shc;
 
-    // The caller's kind is an override and goes into the Toolchain, where
-    // resolve already knows what to do with it - rather than being applied to
-    // every part by hand, which would quietly ignore a group that named its
-    // own compiler.
     tool.kind = static_cast<editor::ToolchainKind>(kind);
 
     RStudioBuild* out = new RStudioBuild();
@@ -1274,9 +1172,6 @@ RStudioBuild* rstudio_build_target(RStudioProject* project, const char* cc1, con
         tool, project->parts, arch ? arch : "",
         static_cast<editor::Configuration>(config), project->program);
 
-    // The window reads a Build, and what a target build produces is a program
-    // rather than assembly - so what came of it is carried over and the
-    // assembly is left empty, which is what there is.
     out->built.ok = made.ok;
     out->built.diag = made.diag;
     out->built.output = made.output;
@@ -1368,4 +1263,4 @@ const char* rstudio_build_error_message(RStudioBuild* built) {
     return built->built.diag.message.c_str();
 }
 
-}  // extern "C"
+}
