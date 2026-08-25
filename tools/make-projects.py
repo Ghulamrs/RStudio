@@ -794,12 +794,12 @@ HOST := $(shell uname -s)
 
 check: confirm
 ifeq ($(HOST),Darwin)
-	cd $(CC1_DIR) && ./tests/arm64.sh
-	cd $(CC1_DIR) && ./tests/fingerprint.sh
+	cd $(CC1_DIR) && CC1=$(OUT)/cc1.exe ./tests/arm64.sh
+	cd $(CC1_DIR) && CC1=$(OUT)/cc1.exe ./tests/fingerprint.sh
 else
 	$(MAKE) -C $(CC1_DIR) test
 endif
-	$(MAKE) -C $(SHC_DIR) test
+	$(MAKE) -C $(SHC_DIR) SHC=$(OUT)/shc.exe test
 # The converter's suite is differential and needs both compilers as oracles.
 # It is given the two just built into $(OUT), for the same reason the editor's
 # is below: those are the ones this build produced, and they are the ones

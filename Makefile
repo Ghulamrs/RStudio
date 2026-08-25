@@ -241,8 +241,12 @@ product: confirm
 	   "$(PRODUCT)/examples/"
 	@echo "RStudio is in $(PRODUCT)"
 
+# build/ is Xcode's, not make's, and it lands inside the checkout unless the
+# project is told otherwise - which is the one place in this workspace that
+# still builds where it should not. Removed here so that "clean" means clean
+# whichever tool last built, rather than only the one being asked.
 clean:
-	rm -rf $(OBJDIR)
+	rm -rf $(OBJDIR) build
 	rm -f $(EDITOR) tests/test tests/session
 
 .PHONY: test session check confirm xcodeproj product clean
