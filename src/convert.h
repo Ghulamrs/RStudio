@@ -4,8 +4,11 @@
 #include <string>
 
 #include "compile.h"
+#include "syntax.h"
 
 namespace editor {
+
+bool convertsFrom(Language lang, bool* toShalimar);
 
 struct Conversion {
     bool ran = false;

@@ -1994,12 +1994,7 @@ void Editor::goToProblem() {
 void Editor::convertFile() {
 
     bool toShalimar = false;
-    if (lang_ == LangC) {
-        toShalimar = true;
-    } else if (lang_ == LangShalimar) {
-        toShalimar = false;
-    } else {
-
+    if (!convertsFrom(lang_, &toShalimar)) {
         say(std::string("c2s converts between C and Shalimar, and this is ") +
             languageName(lang_) + " - set the language above if that is wrong");
         return;

@@ -6,6 +6,12 @@
 
 namespace editor {
 
+bool convertsFrom(Language lang, bool* toShalimar) {
+    if (lang == LangC) { *toShalimar = true; return true; }
+    if (lang == LangShalimar) { *toShalimar = false; return true; }
+    return false;
+}
+
 std::string findConverter() {
     const char* fromEnv = std::getenv("C2S");
     if (fromEnv && *fromEnv) return fromEnv;
