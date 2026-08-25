@@ -48,7 +48,17 @@ std::string quoteDirectory(const std::string& s) {
 
 #ifdef _WIN32
 
-std::string forCmd(const std::string& s) { return "\"" + s + "\""; }
+// Nothing asked from here reads the editor's input, and one of these was: cmd
+// running vcvars64.bat to hand back its environment inherits stdin, and read
+// it to the end while the parent drained the answer. stdin is the editor's
+// keystrokes, so after the first build there were none left - every key
+// pressed after it was silently the last one, and the editor quit on what it
+// took for end of input.
+//
+// The redirect is on a parenthesised block, not on the command: in a '&&'
+// chain cmd binds '< NUL' to the one command it follows, so the obvious
+// spelling left the 'call' still reading.
+std::string forCmd(const std::string& s) { return "\"( " + s + " ) < NUL\""; }
 
 std::string firstLineOf(const std::string& command) {
     FILE* pipe = POPEN(command.c_str(), "r");
