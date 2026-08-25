@@ -138,10 +138,11 @@ tests/test: tests/test.cpp src/compile.cpp src/indent.cpp src/syntax.cpp \
 	    src/buffer.cpp $(SHM_SRC)
 
 # The other half of the checking: the editor itself, driven by keystrokes.
-# CC1 and SHC name compilers for the build cases; without them those cases
-# are skipped rather than failed.
+# CC1 and SHC name compilers for the build cases, and C2S the converter for
+# the Language menu's Convert; without them those cases are skipped rather
+# than failed.
 session: tests/session $(EDITOR)
-	CC1="$(CC1)" SHC="$(SHC)" ./tests/session $(EDITOR)
+	CC1="$(CC1)" SHC="$(SHC)" C2S="$(C2S)" ./tests/session $(EDITOR)
 
 tests/session: tests/session.cpp src/path.cpp src/path.h
 	$(CXX) $(CXXFLAGS) -Isrc -o $@ tests/session.cpp src/path.cpp

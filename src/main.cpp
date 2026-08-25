@@ -33,6 +33,7 @@ int main(int argc, char** argv) {
     std::string cl;
     std::string shc;
     std::string cxx;
+    std::string c2s;
     long width = 0;
     int plain = 0;
     int tabs = -1;
@@ -49,6 +50,8 @@ int main(int argc, char** argv) {
             shc = argv[++i];
         } else if (std::strcmp(argv[i], "--cxx") == 0 && i + 1 < argc) {
             cxx = argv[++i];
+        } else if (std::strcmp(argv[i], "--c2s") == 0 && i + 1 < argc) {
+            c2s = argv[++i];
         } else if (std::strcmp(argv[i], "--config") == 0 && i + 1 < argc) {
             config = argv[++i];
         } else if (std::strcmp(argv[i], "--project") == 0 && i + 1 < argc) {
@@ -67,7 +70,7 @@ int main(int argc, char** argv) {
             std::printf(
                 "usage: %s [file] [--project dir] [--toolchain auto|cc1|msvc|shc|c++]\n"
                 "           [--config debug|release] [--cc1 path] [--cl path]\n"
-                "           [--shc path] [--cxx path]\n"
+                "           [--shc path] [--cxx path] [--c2s path]\n"
                 "           [--width n] [--tabs] [--case-indent] [--plain]\n"
                 "  RStudio - the console half, which is RStudio.exe on Linux and\n"
                 "  macOS and RStudioConsole.exe on Windows. RStudioGui is the same\n"
@@ -233,6 +236,7 @@ int main(int argc, char** argv) {
     if (!cc1.empty()) ed.setCc1(cc1);
     if (!cl.empty()) ed.setCl(cl);
     if (!shc.empty()) ed.setShc(shc);
+    if (!c2s.empty()) ed.setConverter(c2s);
     // $CXX before --cxx, so the flag wins - the same order the other three
     // keep, and the same order anybody who has used make expects.
     if (cxx.empty()) {

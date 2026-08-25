@@ -805,16 +805,17 @@ endif
 # is below: those are the ones this build produced, and they are the ones
 # whose behaviour the converter's output is being judged against.
 	$(MAKE) -C $(C2S_DIR) BINDIR=$(OUT) OBJDIR=$(OUT)/obj-c2s test CC1=$(OUT)/cc1.exe SHC=$(OUT)/shc.exe
-# The two just built into $(OUT), and not the copies in the compilers' own
-# trees. Those are usually the same file and occasionally are not, and the
+# The three just built into $(OUT), and not the copies in those repositories'
+# own trees. Those are usually the same file and occasionally are not, and the
 # occasion is exactly the one worth catching: this build wrote its compilers
-# somewhere, and this is the suite that says whether what it wrote works.
+# and its converter somewhere, and this is the suite that says whether what it
+# wrote works.
 #
 # Naming the wrong ones does not fail - the editor's suite skips the cases that
 # need a compiler and says so quietly - so the count fell from 792 and 232 to
 # 686 and 115 and everything still read as green. A suite that skips is not a
 # suite that passes.
-	$(MAKE) BINDIR=$(OUT) check CC1=$(OUT)/cc1.exe SHC=$(OUT)/shc.exe
+	$(MAKE) BINDIR=$(OUT) check CC1=$(OUT)/cc1.exe SHC=$(OUT)/shc.exe C2S=$(OUT)/c2s.exe
 
 # The alternative destination, for anyone who would rather the checkout root
 # stayed as it was. Nothing is copied into it - see the `bin` rule below.

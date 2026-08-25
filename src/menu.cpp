@@ -126,14 +126,20 @@ Menu::Menu() : active_(false), dropped_(false), column_(0), item_(0) {
     language.items.push_back({"Shalimar", "", ActionLangShalimar});
     language.items.push_back({"JSON", "", ActionLangJson});
     language.items.push_back({"Plain text", "", ActionLangText});
-    // The other two things one can do about which language a file is in: not
-    // read it as another one, but turn it into another one. c2s writes the
+    // The other thing one can do about which language a file is in: not read
+    // it as another one, but turn it into another one. c2s writes the
     // converted file beside the original and it is opened here, so the two
     // are on screen together - a conversion is something to read and finish,
     // not something to take on trust.
+    //
+    // One item and not two, because which way round it goes is not a choice:
+    // it is what the file already is. C goes to Shalimar and Shalimar comes
+    // back to C, and the column above is what says which of those this file
+    // is - normally by its extension, and by hand for the file whose suffix
+    // is wrong. So a .txt holding C is converted by setting C here first,
+    // which is the same answer this column gives to every other question.
     language.items.push_back(separator());
-    language.items.push_back({"Convert C to Shalimar", "", ActionConvertToShalimar});
-    language.items.push_back({"Convert Shalimar to C", "", ActionConvertToC});
+    language.items.push_back({"Convert (c2s / s2c)", "", ActionConvert});
     columns_.push_back(language);
 
     // Which compiler is driven. cc1 is what this was written for; cl is here

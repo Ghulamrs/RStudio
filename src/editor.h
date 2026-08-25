@@ -85,6 +85,11 @@ public:
     void setCc1(const std::string& path) { tool_.cc1 = path; }
     void setCl(const std::string& path) { tool_.cl = path; }
     void setShc(const std::string& path) { tool_.shc = path; }
+
+    // c2s is not part of Toolchain - it makes source, not a program - so it
+    // is named on its own. Empty means "look for it", which is what the
+    // Language menu's Convert does when nobody said.
+    void setConverter(const std::string& path) { c2s_ = path; }
     void setCxx(const std::string& path) { tool_.cxx = path; }
     void setToolchain(ToolchainKind kind) { tool_.kind = kind; }
     void setConfig(Configuration config) { config_ = config; }
@@ -185,7 +190,11 @@ private:
     // Runs c2s over the open file and opens what it wrote. Not a build: what
     // comes out is source in the other language, to be read and finished, so
     // it is neither a Toolchain nor anything the diagnostic pane knows about.
-    void convertFile(bool toShalimar);
+    //
+    // Takes no direction. The file's language is the source and the other one
+    // is the target, which is why this sits under the Language menu and not
+    // beside Build.
+    void convertFile();
 
     // The project's own build: the program it says it is, out of the sources
     // it says make it. Separate from everything above on purpose - compiling
@@ -333,6 +342,7 @@ private:
 
     Focus focus_;
     Language lang_;
+    std::string c2s_;   // named with --c2s, or found beside the editor
     Configuration config_;
     size_t arch_;
     bool numbers_;

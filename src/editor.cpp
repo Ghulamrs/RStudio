@@ -2434,8 +2434,28 @@ void Editor::goToProblem() {
     say(number(lastDiag_.line) + ":" + number(lastDiag_.col) + ": " + lastDiag_.message);
 }
 
-void Editor::convertFile(bool toShalimar) {
-    const std::string converter = findConverter();
+void Editor::convertFile() {
+    // Which way round is not a choice on the menu: it is what the file is.
+    // C goes to Shalimar, Shalimar comes back to C, and lang_ is what says
+    // which of those this file is - by its extension normally, and by hand
+    // through the Language column for the file whose suffix is wrong or
+    // missing. That is the whole reason this item lives in that column: set
+    // the language, then convert, and a .txt holding C converts like C.
+    bool toShalimar = false;
+    if (lang_ == LangC) {
+        toShalimar = true;
+    } else if (lang_ == LangShalimar) {
+        toShalimar = false;
+    } else {
+        // C++, JSON, assembly and plain text have no other side. Said with
+        // the language named, because the answer is usually to pick the right
+        // one in this same column rather than to give up.
+        say(std::string("c2s converts between C and Shalimar, and this is ") +
+            languageName(lang_) + " - set the language above if that is wrong");
+        return;
+    }
+
+    const std::string converter = c2s_.empty() ? findConverter() : c2s_;
     if (converter.empty()) {
         say("no c2s beside this editor - set C2S, or build Converter-C2S here");
         return;
@@ -3353,8 +3373,7 @@ void Editor::perform(Action action) {
             if (!panelOpen_ && focus_ == FocusPanel) focus_ = FocusText;
             break;
         case ActionBuild:        compile(); break;
-        case ActionConvertToShalimar: convertFile(true); break;
-        case ActionConvertToC:        convertFile(false); break;
+        case ActionConvert:      convertFile(); break;
         case ActionRun:          buildAndRun(); break;
         case ActionBuildProject: buildProject(false); break;
         case ActionRunProject:   buildProject(true); break;

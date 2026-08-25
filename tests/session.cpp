@@ -1767,6 +1767,90 @@ void aDirectoryWithNoProject(const std::string& rstudio) {
 // The third language, driven rather than described. Everything below asks the
 // editor to do something with a .shl and looks at what came back on the
 // screen; nothing here reaches into the core.
+// The Language menu's Convert, which runs c2s over the open file.
+//
+// One item and not two: which way round it goes is what the file already is,
+// and the column it sits in is what says so. That is the part worth driving
+// from the keyboard rather than unit-testing, because the direction is taken
+// from the editor's idea of the language and not from the file name - which
+// is exactly what a .txt holding C is for.
+void convertingFromTheMenu(const std::string& rstudio, const std::string& c2s) {
+    std::printf("converting between C and Shalimar from the Language menu\n");
+
+    if (c2s.empty()) {
+        std::printf("  (no c2s named, so those cases are not tried)\n");
+        return;
+    }
+
+    // Language is the sixth column, and Convert the seventh selectable item
+    // in it - By extension, C, C++, Shalimar, JSON, Plain text, then this.
+    // The separator above it costs nothing to walk past, stepTo skipping
+    // whatever cannot be landed on. These counts move if the column does,
+    // which is what this comment is here to make findable.
+    const std::string toLanguage = kF10 + times(kRight, 5);
+    const std::string convert = toLanguage + times(kDown, 6) + kEnter;
+    const std::string asC = toLanguage + times(kDown, 1) + kEnter;
+
+    file::path dir = freshProject("convert");
+
+    // C to Shalimar. The direction is never stated - the .c is what says it.
+    file::path source = dir / "src" / "adder.c";
+    writeFile(source,
+              "#include <stdio.h>\n"
+              "int main(void)\n"
+              "{\n"
+              "    int i;\n"
+              "    for (i = 0; i < 3; i++) {\n"
+              "        printf(\"i %d \\n\", i);\n"
+              "    }\n"
+              "    return 0;\n"
+              "}\n");
+
+    std::string arguments = "\"" + source.string() + "\" --c2s \"" + c2s + "\"";
+    Screen made = drive(rstudio, arguments, convert + ctrl('q'), dir);
+    check(file::exists(dir / "src" / "adder.shm"),
+          "a .c converts to a .shm beside it");
+    const std::string shalimar = readFile(dir / "src" / "adder.shm");
+    check(shalimar.find("fun <> = main()") != std::string::npos,
+          "and what was written is Shalimar");
+    check(onScreen(made, "adder.shm"), "and the converted file is opened");
+
+    // And back again, from the .shm this time - so the round trip is driven
+    // entirely from the menu, with the direction never named on either leg.
+    file::path back = dir / "src" / "adder.shm";
+    arguments = "\"" + back.string() + "\" --c2s \"" + c2s + "\"";
+    drive(rstudio, arguments, convert + ctrl('q'), dir);
+    check(readFile(dir / "src" / "adder.c").find("int main") != std::string::npos,
+          "and a .shm converts back to C over the original");
+
+    // The file whose suffix is wrong, which is the reason this item is in
+    // the Language column at all. A .txt holding C is plain text until the
+    // menu above says it is C, and then it converts like C.
+    file::path odd = dir / "src" / "hidden.txt";
+    writeFile(odd,
+              "#include <stdio.h>\n"
+              "int main(void)\n"
+              "{\n"
+              "    printf(\"hidden \\n\");\n"
+              "    return 0;\n"
+              "}\n");
+    arguments = "\"" + odd.string() + "\" --c2s \"" + c2s + "\"";
+
+    Screen refused = drive(rstudio, arguments, convert + ctrl('q'), dir);
+    check(!file::exists(dir / "src" / "hidden.shm"),
+          "plain text is not converted");
+    check(onScreen(refused, "between C and Shalimar"),
+          "and it says what it converts between instead");
+
+    // No kRight on the second F10: the menu reopens on the column it was
+    // last used from, which is Language, and only the item resets. Walking
+    // right five more from there lands five columns further on.
+    const std::string convertAgain = kF10 + times(kDown, 6) + kEnter;
+    drive(rstudio, arguments, asC + convertAgain + ctrl('q'), dir);
+    check(file::exists(dir / "src" / "hidden.shm"),
+          "but the same file read as C converts");
+}
+
 void compilingShalimar(const std::string& rstudio, const std::string& shc) {
     std::printf("building Shalimar with shc\n");
 
@@ -2331,6 +2415,15 @@ int main(int argc, char** argv) {
         const char* fromEnv = std::getenv("SHC");
         if (fromEnv) shc = fromEnv;
     }
+    std::string c2s;
+    {
+        const char* fromEnv = std::getenv("C2S");
+        if (fromEnv) c2s = fromEnv;
+    }
+    if (!c2s.empty() && !editor::path::exists(c2s)) {
+        std::printf("no c2s at %s - the cases that need one are not tried\n\n", c2s.c_str());
+        c2s.clear();
+    }
 
     // A compiler named but not there is worse than none named: every case that
     // needs it fails, and none of them says why. Dropped with a word, so the
@@ -2372,6 +2465,7 @@ int main(int argc, char** argv) {
     runningTheProgram(rstudio, cc1);
     stoppingAndStepping(rstudio, cc1);
     compilingShalimar(rstudio, shc);
+    convertingFromTheMenu(rstudio, c2s);
     aShalimarProject(rstudio, shc);
     stoppingShalimar(rstudio, shc);
     aCompilerPerGroup(rstudio, cc1);
