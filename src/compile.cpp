@@ -175,7 +175,18 @@ std::string temporaryDirectory(const char* what) {
 
 int runCaptured(const std::string& command, std::string& output,
                 LineSink sink, void* context) {
-    std::string cmd = command + " 2>&1";
+    // Nothing run from here has any business reading the editor's own input.
+    // A compiler that inherits it consumes the keystrokes the editor has not
+    // read yet, and on Windows that ended the session: the editor's next read
+    // saw end of file and it quit, so every key pressed after a build was
+    // silently the last one. The run step always said this; the build step
+    // did not, and only the build step is a child that might.
+#ifdef _WIN32
+    const char* noInput = " < NUL";
+#else
+    const char* noInput = " < /dev/null";
+#endif
+    std::string cmd = command + noInput + " 2>&1";
 
 #ifdef _WIN32
 
@@ -448,14 +459,9 @@ Ran runBuilt(const std::string& program, LineSink sink, void* context) {
     Ran result;
     if (program.empty()) return result;
 
-#ifdef _WIN32
-    const char* noInput = " < NUL";
-#else
-    const char* noInput = " < /dev/null";
-#endif
     result.built = true;
     result.ran = true;
-    result.status = runCaptured("\"" + program + "\"" + noInput, result.output, sink, context);
+    result.status = runCaptured("\"" + program + "\"", result.output, sink, context);
     return result;
 }
 
