@@ -73,7 +73,14 @@ SHM_SRC := src/shalimar/channel.cpp src/shalimar/session.cpp
 
 # The objects go under obj/ rather than beside the sources they came from,
 # so that a listing of src/ is the code and nothing else.
-OBJDIR := obj
+# Objects are built OUTSIDE the checkout, in a build directory beside the four
+# projects: ../build/RStudio/obj. Nothing intermediate is ever written next
+# to the sources, so `tar` on this repository carries source and nothing else,
+# and a clean is a directory removal that cannot reach a tracked file.
+#
+# Overridable, and `?=` on purpose: workspace.mk names one place for all four,
+# and a command line beats both.
+OBJDIR ?= ../build/RStudio/obj
 OBJ := $(patsubst src/%.cpp,$(OBJDIR)/%.o,$(SRC) $(SHM_SRC))
 
 # Where the finished program goes. `.` is this directory, which is what every

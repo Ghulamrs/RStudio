@@ -52,32 +52,34 @@ OUT := $(abspath $(BINDIR))
 all: confirm
 
 cc1:
-	$(MAKE) -C $(CC1_DIR) BINDIR=$(OUT)
+	$(MAKE) -C $(CC1_DIR) BINDIR=$(OUT) OBJDIR=$(OUT)/obj/cc1
 
 shc:
-	$(MAKE) -C $(SHC_DIR) BINDIR=$(OUT)
+	$(MAKE) -C $(SHC_DIR) BINDIR=$(OUT) BUILD=$(OUT)/obj/shc
 
 # The converter. Not a compiler and nothing links it - the editor runs it over
 # the open file from the Language menu - but it is found the same way the
 # compilers are, beside the editor, so it is built into the same place.
 #
-# OBJDIR as well as BINDIR, which the other two do not need: Converter-C2S
-# sets OBJDIR with := and its own objects would otherwise land in its tree
-# while its binary landed here.
+# All four are given an object directory as well as a binary directory now.
+# Each Makefile already defaults its own objects outside its checkout; this
+# names one place for all four so that a workspace build leaves a single
+# directory behind and `clean` is one removal. Compiler-S calls the variable
+# BUILD rather than OBJDIR, which is why that line reads differently.
 c2s:
-	$(MAKE) -C $(C2S_DIR) BINDIR=$(OUT) OBJDIR=$(OUT)/obj-c2s
+	$(MAKE) -C $(C2S_DIR) BINDIR=$(OUT) OBJDIR=$(OUT)/obj/c2s
 
 # The dependency, said the same way it is said in the other two: the editor is
 # built after the things it drives. Nothing of them ends up inside it.
 editor: cc1 shc c2s
-	$(MAKE) BINDIR=$(OUT)
+	$(MAKE) BINDIR=$(OUT) OBJDIR=$(OUT)/obj/editor
 
 # Asked of RStudio rather than answered here. The editor is the thing that
 # knows what it drives - the list is in its own Makefile, beside the code that
 # goes looking for them - and this only calls it once all four have been
 # built into one place.
 confirm: editor
-	$(MAKE) BINDIR=$(OUT) confirm
+	$(MAKE) BINDIR=$(OUT) OBJDIR=$(OUT)/obj/editor confirm
 
 # Each suite is that project's own, called by the name that project uses -
 # both compilers say `test` and only the editor says `check`. Calling `check`
@@ -103,7 +105,7 @@ endif
 # It is given the two just built into $(OUT), for the same reason the editor's
 # is below: those are the ones this build produced, and they are the ones
 # whose behaviour the converter's output is being judged against.
-	$(MAKE) -C $(C2S_DIR) BINDIR=$(OUT) OBJDIR=$(OUT)/obj-c2s test CC1=$(OUT)/cc1.exe SHC=$(OUT)/shc.exe
+	$(MAKE) -C $(C2S_DIR) BINDIR=$(OUT) OBJDIR=$(OUT)/obj/c2s test CC1=$(OUT)/cc1.exe SHC=$(OUT)/shc.exe
 # The three just built into $(OUT), and not the copies in those repositories'
 # own trees. Those are usually the same file and occasionally are not, and the
 # occasion is exactly the one worth catching: this build wrote its compilers
@@ -114,7 +116,7 @@ endif
 # need a compiler and says so quietly - so the count fell from 792 and 232 to
 # 686 and 115 and everything still read as green. A suite that skips is not a
 # suite that passes.
-	$(MAKE) BINDIR=$(OUT) check CC1=$(OUT)/cc1.exe SHC=$(OUT)/shc.exe C2S=$(OUT)/c2s.exe
+	$(MAKE) BINDIR=$(OUT) OBJDIR=$(OUT)/obj/editor check CC1=$(OUT)/cc1.exe SHC=$(OUT)/shc.exe C2S=$(OUT)/c2s.exe
 
 # The alternative destination, for anyone who would rather the checkout root
 # stayed as it was. Nothing is copied into it - see the `bin` rule below.
@@ -135,7 +137,8 @@ bin:
 
 clean:
 	rm -rf $(BIN)
-	$(MAKE) -C $(CC1_DIR) BINDIR=$(OUT) clean
-	$(MAKE) -C $(SHC_DIR) BINDIR=$(OUT) clean
-	$(MAKE) -C $(C2S_DIR) BINDIR=$(OUT) OBJDIR=$(OUT)/obj-c2s clean
-	$(MAKE) BINDIR=$(OUT) clean
+	$(MAKE) -C $(CC1_DIR) BINDIR=$(OUT) OBJDIR=$(OUT)/obj/cc1 clean
+	$(MAKE) -C $(SHC_DIR) BINDIR=$(OUT) BUILD=$(OUT)/obj/shc clean
+	$(MAKE) -C $(C2S_DIR) BINDIR=$(OUT) OBJDIR=$(OUT)/obj/c2s clean
+	$(MAKE) BINDIR=$(OUT) OBJDIR=$(OUT)/obj/editor clean
+	rm -rf $(OUT)/obj

@@ -39,7 +39,7 @@ if not exist obj mkdir obj
 
 cl /nologo /std:c++14 /W4 /WX /EHsc /permissive- /O2 /D_CRT_SECURE_NO_WARNINGS ^
    /Fe:RStudioConsole.exe /Fo:obj\ ^
-   src\main.cpp src\editor.cpp src\buffer.cpp src\compile.cpp ^
+   src\main.cpp src\editor.cpp src\buffer.cpp src\compile.cpp src\convert.cpp ^
    src\indent.cpp src\menu.cpp src\tree.cpp src\syntax.cpp src\toolchain.cpp ^
    src\json.cpp src\project.cpp src\find.cpp src\utf8.cpp src\workspace.cpp src\symbols.cpp src\demangle_win.cpp ^
    src\path.cpp src\process.cpp src\debugger.cpp src\settings.cpp src\about.cpp src\help.cpp ^
@@ -102,12 +102,17 @@ rem build and no suite could see, because -S needs no runtime. It waited for
 rem somebody to press Run on a Shalimar file, and then read as a broken
 rem compiler rather than an incomplete directory.
 rem
+rem c2s.exe is named too. The Makefile's confirm has always listed it and this
+rem did not, so the Windows check was one binary weaker than the Unix one - and
+rem the converter is exactly the kind of thing that goes missing, being the one
+rem of the four that nothing links and only the Language menu runs.
+rem
 rem Both runtime archives are named. Debug is the editor's default
 rem configuration and links the other one, so checking a single archive would
 rem confirm exactly the half that was not about to be used.
 if "%BINDIR%"=="" set BINDIR=x64\Release
 set MISSING=0
-for %%f in (cc1.exe shc.exe lib\shmrt-x86_64-windows.lib lib\shmrt-x86_64-windows-debug.lib) do (
+for %%f in (cc1.exe shc.exe c2s.exe lib\shmrt-x86_64-windows.lib lib\shmrt-x86_64-windows-debug.lib) do (
    if exist "%BINDIR%\%%f" (echo   ok       %%f) else (echo   MISSING  %%f& set MISSING=1)
 )
 if "%MISSING%"=="1" (
@@ -176,7 +181,7 @@ goto :done
 
 cl /nologo /std:c++14 /W4 /WX /EHsc /permissive- /D_CRT_SECURE_NO_WARNINGS ^
    /I src /I winforms /Fe:test.exe /Fo:obj\ ^
-   tests\test.cpp src\compile.cpp src\indent.cpp src\syntax.cpp src\toolchain.cpp ^
+   tests\test.cpp src\compile.cpp src\convert.cpp src\indent.cpp src\syntax.cpp src\toolchain.cpp ^
    src\json.cpp src\project.cpp src\find.cpp src\buffer.cpp src\utf8.cpp src\workspace.cpp src\symbols.cpp ^
    src\demangle_win.cpp src\path.cpp src\process.cpp src\debugger.cpp ^
    src\settings.cpp src\about.cpp src\help.cpp ^
