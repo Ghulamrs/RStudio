@@ -134,6 +134,30 @@ for repo in "$CC1_DIR" "$SHC_DIR" "$C2S_DIR" "$ED_DIR"; do
         drop "$repo" "$d"
     done
 
+    # **macOS "keep both" duplicates.** A copy onto a read-only file can leave
+    # `Ast 2.cpp` beside `Ast.cpp`, and those are not merely clutter: a
+    # Makefile using $(wildcard src/*.cpp) picks one up, make splits the name
+    # on the space, and the build tries to link a program called `Ast`. That
+    # happened here, in Converter-C2S/src/s/vendor, and cost a confusing
+    # afternoon of linker errors about a missing `_main`.
+    #
+    # Only ever untracked ones - a real file with a space in its name would be
+    # tracked, and this leaves it alone.
+    # find, not a glob: `**` is not globstar in plain sh, and the ones that
+    # caused the trouble were three directories down.
+    find "$repo" -name '* [0-9].*' -not -path '*/.git/*' 2>/dev/null |
+    while IFS= read -r dup; do
+        [ -e "$dup" ] || continue
+        if [ -d "$repo/.git" ] &&
+           git -C "$repo" ls-files --error-unmatch "${dup#"$repo"/}" >/dev/null 2>&1; then
+            echo "  KEPT     ${dup#"$root"/}   (the repository holds this)"
+            continue
+        fi
+        size=$(du -sh "$dup" 2>/dev/null | cut -f1)
+        if [ "$DRY" = 1 ]; then echo "  would go ${dup#"$root"/}   ($size)"
+        else rm -rf "$dup"; echo "  removed  ${dup#"$root"/}   ($size)"; fi
+    done
+
     # **Objects lying beside the sources.** This is the mess the object
     # directory was moved out of the checkout to stop making, but older builds
     # left plenty behind - 39 of them on the Linux box, in src/ and runtime/
