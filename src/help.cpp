@@ -20,7 +20,7 @@ const Page kPages[] = {
     {"10", "Keys",            "every key, every menu, every flag",             "10-keys.md"},
     {"",   "C",                "cc1, three targets, DWARF on two of them",      "c.md"},
     {"",   "C++",              "cl on Windows, clang++ or g++ elsewhere",       "cpp.md"},
-    {"",   "Shalimar",         "shc, the indent dialect, stopping itself",      "shalimar.md"},
+    {"",   "Shalimar",         "shc, the borrowed library, the indent dialect", "shalimar.md"},
     {"",   "C and Shalimar",   "calling a C library from a Shalimar program",   "mixing-c-and-shalimar.md"},
     {"",   "Appendix A",       "the Shalimar language, in full",                "appendix-a-shalimar-language.md"},
 };

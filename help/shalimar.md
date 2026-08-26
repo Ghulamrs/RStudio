@@ -30,6 +30,42 @@ exists for exactly that, which is why the Language menu matters here.
 Shalimar also has **no block comment, no escapes in a literal, no character
 literal and no preprocessor**. The colouring knows all four.
 
+## The library, and asking for it
+
+Shalimar has no maths functions of its own. `sin` and its neighbours are the C
+library's, and **a file may call one only if it says so**:
+
+```
+uses sin, cos, tan
+uses fmod
+```
+
+Global space, several to a line, per file. A file that does not borrow `fmod`
+may use `fmod` for a variable of its own.
+
+| | |
+| --- | --- |
+| powers and roots | `sqrt` `cbrt` `pow` `hypot` |
+| logs | `log` `log10` `log2` `exp` |
+| trigonometry | `sin` `cos` `tan` `asin` `acos` `atan` `atan2` |
+| hyperbolic | `sinh` `cosh` `tanh` |
+| rounding | `round` `ceil` `floor` `trunc` |
+| the rest | `abs` `max` `min` `fmod` `len` |
+| constants | `pi` `e` — values, not calls, and not borrowed |
+
+Twenty-seven, and asking is what lets there be that many: making them all
+available by default would take twenty-seven names from every program that
+wanted none of them. Adding more costs the runtime archive nothing, because a
+borrowed function is a direct call into the platform's own libm rather than a
+wrapper.
+
+`fmod(x,y)` and `x % y` are the same operation on reals. The operator needs no
+borrow, so it is the shorter way to say it; the function is there for a program
+that would rather name it.
+
+The same keyword reaches a **C library you wrote** — see
+[Calling C from Shalimar](mixing-c-and-shalimar.md).
+
 ## No include, and none coming
 
 A call to a function this file does not define is **looked for in the project's
@@ -76,7 +112,7 @@ than offered and then refused.
 limitation of it: the release runtime has no code in it for stopping. Rebuild
 in debug — it is the same source and byte-identical compiler output.
 
-## Why Shalimar cannot share a program with C
+## Why a Shalimar object cannot be one group among several
 
 It is refused twice, and the two refusals say different things.
 
@@ -90,12 +126,17 @@ builds. This one is about what a Shalimar object *is*:
   whatever file it came from, so two of them collide by construction;
 - the runtime archive owns `main`, so a C program with its own cannot link it,
   and a Shalimar object without the runtime has nothing to call;
-- the language has no declarations, so a call across a link could not be
-  checked — and checking the whole program together is the rule the cross-file
-  search exists to keep.
+- and until 1.2 the language had no declarations, so a call across a link could
+  not have been checked.
 
-The first two could be fixed. The third is the language. `Compiler-S/docs/LINKING.md`
-has it with the actual linker output and with what would have to change.
+The first two are mechanical. The third **stopped being true**: `uses <real> =
+f(a[]: real)` declares a function the link provides, and is checked exactly as
+a written one is. `Compiler-S/docs/LINKING.md` has the actual linker output and
+what would still have to change.
 
-**A project that wants Shalimar beside C is a project that builds two
-programs.**
+**So the two halves of this are no longer the same question.** A Shalimar
+*object* still cannot be one group among several — that is the collision above,
+and it is why a project wanting Shalimar beside C builds two programs. But a
+Shalimar *program* can call into C perfectly well, because the C arrives as a
+library rather than as a peer, and only one Shalimar unit is ever in the link.
+[Calling C from Shalimar](mixing-c-and-shalimar.md) is that page.
