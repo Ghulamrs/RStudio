@@ -1982,6 +1982,12 @@ void aShalimarProject(const std::string& rstudio, const std::string& shc) {
     // program calls and does not define in the other files it was given, and
     // the project is what says which files those are.
     writeFile(dir / "src" / "shapes.shl",
+              // `uses abs` belongs to THIS file, not to the one that calls
+              // area(). That is what per-file borrowing buys: a file pulled
+              // into somebody else's program brings what it needs with it,
+              // and the caller does not have to know what it reaches for.
+              "uses abs\n"
+              "\n"
               "real tolerance : 1e-9\n"
               "\n"
               "fun <real> = area(w: real, h: real) {\n"

@@ -9,6 +9,9 @@
 // 1.0, counting round. The app's own
 // rotations.shm writes the same three
 // as literals.
+
+uses sin, cos
+
 fun <> = ROX(angle: real, R[][]: real) {
   real c : cos(angle)
   real s : sin(angle)

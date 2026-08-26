@@ -50,7 +50,7 @@ const char* const kCppTypes[] = {
 // already here.
 const char* const kShalimarKeywords[] = {
     "if", "else", "while", "for", "to", "step", "fun", "return",
-    "break", "continue", 0};
+    "break", "continue", "uses", 0};
 
 const char* const kShalimarTypes[] = {
     "int", "real", "char", 0};
