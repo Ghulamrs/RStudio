@@ -45,12 +45,12 @@ project file and its groups, the panel with its three tabs, and real debugging:
 breakpoints, stepping, variables and the call stack. Complete in itself, and
 what the name *CC1 Studio Workbench* described.
 
-**1.1 — Shalimar.** A third language, and the release this manual is for.
-Shalimar is not C with fewer rules, so it did not arrive as a suffix in a
-table: it brought its own indent dialect, because `n : n + 1` is an assignment
-here and a label there; its own way of finding the rest of a program, because
-it has no `include`; and its own debugger, because a Shalimar program stops
-itself and there is nothing to install.
+**1.1 — Shalimar.** A third language. Shalimar is not C with fewer rules, so
+it did not arrive as a suffix in a table: it brought its own indent dialect,
+because `n : n + 1` is an assignment here and a label there; its own way of
+finding the rest of a program, because it has no `include`; and its own
+debugger, because a Shalimar program stops itself and there is nothing to
+install.
 
 The same release moved the compiler from being a property of the *project* to
 being a property of a **group**, so a target can hold C and C++ together —
@@ -60,6 +60,29 @@ the Linux box, where `auto` used to route C++ to a `cl` that was not installed.
 
 And it is why the product is called RStudio. Three languages is where *CC1
 Studio Workbench* stopped being a description.
+
+**1.2 — Shalimar borrows, and can call C.** The release this manual is for.
+
+Shalimar stopped having a library of its own. `sin` and its nineteen
+neighbours were available to every program whether it wanted them or not, and
+now a file asks — `uses sin, cos` — which costs no program a name it did not
+spend, and let the borrowable set grow from twenty to twenty-seven without the
+runtime archive growing by a byte, because a borrowed function is a direct call
+into the platform's own libm.
+
+The same form reaches further. `uses <real> = mean(a[]: real)` declares a
+function **this compiler will never see**, provided by a library the link is
+given with `--with=` — so a Shalimar program can call C compiled by `cc1`, by
+`cl`, or by the host's compiler. Arrays cross too, as an opaque handle, which
+meant writing the array ABI down at last rather than leaving it as whatever two
+functions happened to agree on.
+
+The one thing it costs: a program that declares a foreign function has no
+interpreter, because the phone app has no link step. Both readers parse the
+declaration and the app refuses it by name.
+
+[Calling C from Shalimar](mixing-c-and-shalimar.md) is the page; the worked
+examples are in the two compilers' own repositories.
 
 ## What it will not do
 

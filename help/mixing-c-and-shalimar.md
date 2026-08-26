@@ -4,14 +4,37 @@ A Shalimar program can call a function written in C, compiled by `cc1` (or
 `cl`, or the host's compiler) and handed to the link as a library. Arrays cross
 the boundary too.
 
-There are worked examples in the two repositories:
+There are worked examples in the two repositories. Build the library first,
+then any of the three programs:
 
-| | |
-| --- | --- |
-| the library | `Compiler-C/examples/shalimar-library` |
-| the program | `Compiler-S/examples/using-a-library` |
+| | | |
+| --- | --- | --- |
+| **the library** | `Compiler-C/examples/shalimar-library` | `stats.c`, `tally.c`, `text.c` |
+| the programs | `Compiler-S/examples/using-a-library` | `real`, `real[]`, `real[][]` |
+| | `Compiler-S/examples/library-integers` | `int`, `int[]`, `int[][]` |
+| | `Compiler-S/examples/library-text` | `char[]` in, `int` and `real` out |
 
-Build the first, then the second.
+They divide by **argument type** rather than by subject, because the type is
+what decides whether a function can cross at all. Each has a `build.sh` and a
+README, and each runs identically on all three machines.
+
+### What the second and third add
+
+`library-integers` is the same shapes without a single `real` in it — the
+boundary is not a floating-point one. `int` is 32 bits and matches C's `int` on
+every target; an `int[]` is read with `shm_get_int`, and `shm_array_dim` gives
+the length whatever the element type. It sorts an array in C and the Shalimar
+side sees the result, because Shalimar passes arrays by reference.
+
+`library-text` is the one with the traps in it:
+
+- **A literal carries a terminator.** `char w[14] : "hello, sailor"` is fourteen
+  elements — thirteen codes and a nought — so `len(w)` is 14 and the text is 13.
+  A C function that trusts the extent reads one element too many.
+- **A char is a 32-bit code, not a byte.** `shm_get_char` answers `int32_t`.
+  There is no `char *` anywhere in this, and there could not be.
+- **Shalimar's `=` on two `char[]` compares addresses**, not text, which is why
+  a text library is worth having at all.
 
 ## The two forms of `uses`
 
