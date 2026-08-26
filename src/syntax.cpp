@@ -44,8 +44,12 @@ const char* const kCppTypes[] = {
     "exception", "runtime_error", "logic_error", "bad_alloc",
     "function", "thread", "mutex", "atomic", "chrono", 0};
 
+// No `elseif`: the language dropped it and did not keep it reserved, so it is
+// an ordinary identifier now and colouring it as a keyword would be the exact
+// lie this list exists to avoid. A branch is `else` then `if`, and both are
+// already here.
 const char* const kShalimarKeywords[] = {
-    "if", "elseif", "else", "while", "for", "to", "step", "fun", "return",
+    "if", "else", "while", "for", "to", "step", "fun", "return",
     "break", "continue", 0};
 
 const char* const kShalimarTypes[] = {

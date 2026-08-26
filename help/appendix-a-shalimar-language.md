@@ -61,7 +61,7 @@ both files change.
 - Four types: `int`, `real`, `char`, and arrays of them. Text is `char[]`. See [§5](#5-types).
 - Variables are declared with a type. A *scalar* may also be created by assigning to it; an array
   may not, unless the right-hand side is a literal ([§7.1](#71-assignment)).
-- Control flow: `if`/`elseif`/`else`, `while`, two `for` forms, and `break`/`continue`
+- Control flow: `if`/`else if`/`else`, `while`, two `for` forms, and `break`/`continue`
   inside a loop.
 - Functions may return **several** values; the caller captures them with `<a,b> : f(...)`. An array
   cannot be returned — it is passed in and filled, because an array argument is a reference
@@ -151,7 +151,7 @@ Case-sensitive. Keywords are recognized case-insensitively at the lexer level (t
 `lowercased()` before the switch) and can never be used as identifiers:
 
 ```
-if  elseif  else  while  for  to  step  fun  return  break  continue  int  real  char
+if  else  while  for  to  step  fun  return  break  continue  int  real  char
 ```
 
 `int`, `real` and `char` are keywords but are also the names of the three conversions, which is
@@ -332,7 +332,7 @@ MultiAssign    ::= "<" Identifier { "," Identifier } ">" ":" FunctionCall
 
 ReturnStmt     ::= "return" [ Expression | "(" Expression { "," Expression } ")" ]
 
-IfStmt         ::= "if" Expression Block { "elseif" Expression Block } [ "else" Block ]
+IfStmt         ::= "if" Expression Block { "else" "if" Expression Block } [ "else" Block ]
 WhileStmt      ::= "while" Expression Block
 ForStmt        ::= "for" Identifier ":" Expression "to" Expression [ "step" Expression ] Block
                  | "for" Identifier "<" Expression [ "step" Expression ] Block
@@ -627,13 +627,22 @@ return (expr, expr, ...)       // two or more - the parentheses are required
 A function that declares outputs must return them on every path; falling off the end is a check
 error. The number returned must match the output list.
 
-### 7.5 `if` / `elseif` / `else`
+### 7.5 `if` / `else`
 
 ```
-if cond { ... } elseif cond { ... } else { ... }
+if cond { ... } else if cond { ... } else { ... }
 ```
 
-Any number of `elseif` branches, at most one `else`. The condition must be a scalar.
+Any number of `else if` branches, at most one `else`. The condition must be a scalar.
+
+A further branch is `else` followed by `if`. There is nothing new to learn
+there: both words are already keywords and they mean what they mean, which is
+why neither the keyword list nor the grammar has a third name for the pair.
+
+There was once a one-word `elseif`. It is gone completely - not a keyword, and
+not a reserved name either, so a program may use `elseif` for a variable if it
+wants one. The language says a thing one way and keeps no seat warm for the
+way it used to say it.
 
 ### 7.6 `while`
 
@@ -819,7 +828,9 @@ fun <>         = show(M[][]: real)         { ? M }
 > declared output must be returned.
 
 A parameter is `name: type`, with `[]` pairs for rank: `M[][]: real` is a two-dimensional real
-array. A function may not take the name of a built-in, nor `prec`. `main()` must take no inputs.
+array. A function may take the name of a built-in, and then that name is the program's throughout;
+`prec` it may not take, being read by the parser inside a print list before any function could
+resolve. `main()` must take no inputs.
 
 A function defined and never called produces a warning, not an error.
 
@@ -1016,8 +1027,12 @@ exist.
 | `len(A)` | 1 | element count of the first dimension; capacity for a string |
 | `int(x)` `real(x)` `char(x)` | 1 | conversions, see below |
 
-Argument counts are enforced exactly, for built-ins as for user functions. A user function may not
-take a built-in's name.
+Argument counts are enforced exactly, for built-ins as for user functions.
+
+**A user function may take a built-in's name, and wins.** `fun <real> = sqrt(x: real)` makes `sqrt`
+the program's for the whole file and the built-in is simply not there — the rule C gets from
+headers, where `sin` is `<math.h>`'s until a file declares its own, said here without headers to say
+it. A program that claims nothing gets all twenty. The one exception is `prec`, above.
 
 `len` on a string is **capacity**, not content length, so it is never `0` for a declared array and
 `real w[len(s)]` is always legal.
@@ -1027,8 +1042,13 @@ take a built-in's name.
 | `pi` | 3.141592653589793 |
 | `e` | 2.718281828459045 |
 
-`pi` and `e` are **read-only and reserved**: neither can be declared, assigned, taken as a parameter
-name, or used as a loop counter.
+`pi` and `e` are what those names mean **when the program has not claimed them**. A program that
+wants its own says so with a declaration or a parameter — `real pi` — and from then on the name is
+the program's for that whole body.
+
+What is refused is claiming one *by assignment*. Shalimar makes a name on first write, so a bare
+`pi : 3` would leave `? pi` meaning 3.14159 above that line and 3 below it: one name with two
+meanings in one function. Declaring it first says the shadowing was meant.
 
 **`trunc` is not `int`.** Both truncate toward zero, but `int()` returns an `int` and fails outside
 its range, while `trunc` stays `real` and so handles any magnitude:
@@ -1045,8 +1065,14 @@ rule. There is no `modf` either — builtins return exactly one value, and with 
 two lines: `i : trunc(x)` then `f : x - i`.
 
 > **2.x note.** Constants were resolved *last*, behind locals and globals, so a variable of the same
-> name shadowed them. That does not survive a checker which defines a variable on first assignment —
-> `pi : 3` would quietly overwrite the constant rather than shadow it. One name, one meaning.
+> name shadowed them. That was then made an outright reservation — neither could be declared,
+> assigned, taken as a parameter, or used as a counter — because a checker which defines a variable
+> on first assignment would let `pi : 3` quietly overwrite the constant rather than shadow it.
+>
+> The reservation was too wide. It cost every program the single letter `e`, which is the ordinary
+> name for an error, an element, an edge or an exponent. What was right in it was the specific
+> hazard, not the breadth: creation by assignment is refused and declaration is not, which keeps one
+> name to one meaning inside any one body while letting a program have the name at all.
 
 ### 12.1 Conversions
 
