@@ -100,7 +100,12 @@ ifeq ($(HOST),Darwin)
 else
 	$(MAKE) -C $(CC1_DIR) test
 endif
-	$(MAKE) -C $(SHC_DIR) SHC=$(OUT)/shc.exe test
+# LIBDIR too: Compiler-S's examples suite builds a C library from
+# Compiler-C/examples, and this is the only place that knows where Compiler-C
+# actually is on this machine - it is ~/ansicc on the Linux box. Without it
+# that check found nothing and said nothing.
+	$(MAKE) -C $(SHC_DIR) SHC=$(OUT)/shc.exe CC1=$(OUT)/cc1.exe \
+	    LIBDIR=$(abspath $(CC1_DIR))/examples/shalimar-library test
 # The converter's suite is differential and needs both compilers as oracles.
 # It is given the two just built into $(OUT), for the same reason the editor's
 # is below: those are the ones this build produced, and they are the ones
