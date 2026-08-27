@@ -284,6 +284,7 @@
 			buildPhases = (
 				424B8AF93D4B750A672BAC51 /* Sources */,
 				0C803EAFB2DE81B70F415949 /* Frameworks */,
+				25FAAB441A662624089BD1BD /* put the finished program in RStudio's directory */,
 			);
 			buildRules = (
 			);
@@ -354,6 +355,24 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		25FAAB441A662624089BD1BD /* put the finished program in RStudio's directory */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "put the finished program in RStudio's directory";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -e\ndest=\"$SRCROOT\"\nmkdir -p \"$dest\"\ncp -f \"$BUILT_PRODUCTS_DIR/$PRODUCT_NAME\" \"$dest/.$PRODUCT_NAME.new\"\nmv -f \"$dest/.$PRODUCT_NAME.new\" \"$dest/$PRODUCT_NAME\"\ncodesign --force --sign - \"$dest/$PRODUCT_NAME\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		424B8AF93D4B750A672BAC51 /* Sources */ = {

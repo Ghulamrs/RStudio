@@ -194,6 +194,9 @@ def projects():
                                ("src", "src/backend")),
             "headers": headers_under(os.path.join(SIBLINGS, "Compiler-C"), ("src",)),
             "include": "$(SRCROOT)/src $(SRCROOT)/lib",
+            # INCDIR = $(CURDIR)/lib in its Makefile. $(SRCROOT) is where the
+            # .xcodeproj sits, which is that same directory.
+            "defines": [("CC1_INCLUDE_DIR", "$(SRCROOT)/lib")],
         },
         {
             "product": "shc.exe",
@@ -206,6 +209,16 @@ def projects():
             "headers": headers_under(os.path.join(SIBLINGS, "Compiler-S"),
                                      ("src", "runtime")),
             "include": "$(SRCROOT)/src $(SRCROOT)/runtime",
+            # `make` builds shc.exe and both runtime archives; a project that
+            # built only the first would be the smaller program this script
+            # exists to prevent.
+            "script": shc_runtime_script(),
+            # The archives go with it, for the reason they were built beside it
+            # in the first place: shc looks for lib/ next to its own binary, so
+            # a copy that took the compiler and left the runtime would be the
+            # incomplete copy step this whole arrangement exists to avoid.
+            "install_extra": ('mkdir -p "$dest/lib"\n'
+                              'cp -f "$BUILT_PRODUCTS_DIR"/lib/*.a "$dest/lib/"\n'),
         },
         {
             "product": "c2s.exe",
@@ -235,11 +248,16 @@ def projects():
 # just as surely as one that is laxer; it simply fails instead of passing. So
 # the Xcode-only extras are turned off and the flag set is the Makefile's:
 # -Wall -Wextra -pedantic, as errors.
-# And the output goes outside the checkout. With no SYMROOT an Xcode build
+# And the intermediates go outside the checkout. With no SYMROOT an Xcode build
 # lands in <project>/build, which is how RStudio came to hold 92 object files
 # under a target name that had been renamed away months earlier - invisible to
 # make clean, because it is not make's. $(TMPDIR) is per-user and Xcode expands
 # it from the environment.
+#
+# A workspace build ignores SYMROOT in any case - the workspace arena wins, and
+# that is how these products come to sit under DerivedData at a path nobody can
+# type. Where they *end up* is the install phase's business, below; SYMROOT
+# still decides where a build of one .xcodeproj on its own goes.
 COMMON = """				ALWAYS_SEARCH_USER_PATHS = NO;
 				OBJROOT = "$(TMPDIR)/rstudio-xcode";
 				SYMROOT = "$(TMPDIR)/rstudio-xcode";
@@ -257,7 +275,38 @@ COMMON = """				ALWAYS_SEARCH_USER_PATHS = NO;
 					"-Wall",
 					"-Wextra",
 					"-pedantic",
-				);"""
+				);%s"""
+
+
+# A Makefile's -D flags are as much a part of what it builds as its source
+# list. cc1's CC1_INCLUDE_DIR is the one that matters here: it is the absolute
+# path to the lib/ holding the fifteen headers cc1 ships, and Driver.cpp
+# defaults it to "" when nobody defines it, so a project that forgets it builds
+# a compiler that runs, parses, and then cannot find <stdio.h> - reporting an
+# empty list of directories it looked in, which reads as a broken installation
+# rather than a project missing one line. That is what the workspace produced
+# from 2026-08-22 until 2026-08-27, and no build and no suite could see it,
+# because both compilers are built by make everywhere the suites run.
+#
+# The doubled backslashes are one level of pbxproj escaping over one level of
+# shell: what has to reach clang is -DCC1_INCLUDE_DIR="/some/path".
+# Relative to each project rather than written out, because the four are only
+# ever expected side by side - the same assumption workspace.mk and the
+# solution already make - and an absolute path here would be one machine's.
+def build_dir(spec):
+    """Where this project's finished program goes: RStudio's own root."""
+    back = os.path.relpath(HERE, spec["root"])
+    return "$(SRCROOT)" if back == "." else "$(SRCROOT)/" + back
+
+
+def defines_setting(spec):
+    defines = spec.get("defines", [])
+    if not defines:
+        return ""
+    quote = r'\\\"'
+    written = " ".join(name + "=" + quote + value + quote
+                       for name, value in defines)
+    return '\n\t\t\t\tGCC_PREPROCESSOR_DEFINITIONS = "%s";' % written
 
 
 def project_text(spec):
@@ -278,8 +327,17 @@ def project_text(spec):
     FRAMEWORKS = i("phase", "frameworks")
     PROJECT_CONFIGS = i("configlist", "project")
     TARGET_CONFIGS = i("configlist", "target")
+    SCRIPT_PHASE = i("phase", "script")
+    INSTALL_PHASE = i("phase", "install")
 
-    common = COMMON % (product, spec["include"])
+    # Order is the order they run in: shc's runtime after the compiler it
+    # belongs beside, then the copy that takes both to RStudio's directory.
+    # Only shc has a runtime, and it is the spec that says so rather than a
+    # name test here; all four are copied.
+    phases = []
+    script = spec.get("script")
+
+    common = COMMON % (product, spec["include"], defines_setting(spec))
 
     # Depending on a target in another project takes five objects per
     # dependency, and the remote identifiers have to be the ones that project
@@ -408,12 +466,16 @@ def project_text(spec):
     lines.append("\n/* Begin PBXNativeTarget section */\n")
     lines.append("\t\t%s /* %s */ = {\n\t\t\tisa = PBXNativeTarget;\n"
                  "\t\t\tbuildConfigurationList = %s;\n\t\t\tbuildPhases = (\n"
-                 "\t\t\t\t%s /* Sources */,\n\t\t\t\t%s /* Frameworks */,\n\t\t\t);\n"
+                 "\t\t\t\t%s /* Sources */,\n\t\t\t\t%s /* Frameworks */,\n%s%s\t\t\t);\n"
                  "\t\t\tbuildRules = (\n\t\t\t);\n\t\t\tdependencies = (\n%s\t\t\t);\n"
                  "\t\t\tname = %s;\n\t\t\tproductName = %s;\n"
                  "\t\t\tproductReference = %s /* %s */;\n"
                  "\t\t\tproductType = \"com.apple.product-type.tool\";\n\t\t};\n"
                  % (TARGET, product, TARGET_CONFIGS, SOURCES_PHASE, FRAMEWORKS,
+                    ("\t\t\t\t%s /* %s */,\n" % (SCRIPT_PHASE, script["name"])
+                     if script else ""),
+                    "\t\t\t\t%s /* %s */,\n" % (INSTALL_PHASE,
+                                              install_phase(spec)["name"]),
                     "".join("\t\t\t\t%s /* PBXTargetDependency */,\n" % d["dependency"]
                             for d in dep_ids),
                     product, product, PRODUCT, product))
@@ -446,6 +508,32 @@ def project_text(spec):
                      "\t\t\t);\n") if dep_ids else "",
                     TARGET, product))
     lines.append("/* End PBXProject section */\n")
+
+    if script:
+        phases.append((SCRIPT_PHASE, script))
+    phases.append((INSTALL_PHASE, install_phase(spec)))
+
+    def listed(paths):
+        return "".join("\t\t\t\t\"%s\",\n" % path for path in paths)
+    lines.append("\n/* Begin PBXShellScriptBuildPhase section */\n")
+    for phase_id, phase in phases:
+        lines.append("\t\t%s /* %s */ = {\n"
+                     "\t\t\tisa = PBXShellScriptBuildPhase;\n"
+                     "%s"
+                     "\t\t\tbuildActionMask = 2147483647;\n"
+                     "\t\t\tfiles = (\n\t\t\t);\n"
+                     "\t\t\tinputPaths = (\n%s\t\t\t);\n"
+                     "\t\t\tname = \"%s\";\n"
+                     "\t\t\toutputPaths = (\n%s\t\t\t);\n"
+                     "\t\t\trunOnlyForDeploymentPostprocessing = 0;\n"
+                     "\t\t\tshellPath = /bin/sh;\n"
+                     "\t\t\tshellScript = %s;\n\t\t};\n"
+                     % (phase_id,
+                        phase["name"],
+                        "\t\t\talwaysOutOfDate = 1;\n" if phase.get("always") else "",
+                        listed(phase["inputs"]), phase["name"],
+                        listed(phase["outputs"]), pbx_quoted(phase["shell"])))
+    lines.append("/* End PBXShellScriptBuildPhase section */\n")
 
     lines.append("\n/* Begin PBXSourcesBuildPhase section */\n")
     compiled = "".join("\t\t\t\t%s /* %s in Sources */,\n" % (i("build", n), n)
@@ -514,7 +602,23 @@ def guid(product):
 # reads as a disk problem - so the object directories are made first. And the
 # doubled backslash in /Fo is required: a single one before a closing quote
 # escapes the quote, and cl then answers "D8003: missing source filename".
-SHC_RUNTIME_SOURCES = ("Shortest", "Failure", "Numbers", "Array", "Console", "Runtime")
+# Read from Compiler-S's Makefile rather than written down, for the reason
+# every other list here is: a runtime file added there and forgotten here gives
+# an archive missing one object, and the link that fails names a symbol rather
+# than a file. RUNTIME_SOURCES is the release list; DEBUG_RUNTIME_SOURCES is
+# that plus runtime/Debug.cpp, and the $(RUNTIME_SOURCES) it opens with holds
+# no .cpp of its own, so the two add up rather than overlapping.
+def shc_runtime_sources():
+    """(release, debug) - the runtime's own sources, as bare names."""
+    root = os.path.join(SIBLINGS, "Compiler-S")
+    release = from_makefile(root, ("RUNTIME_SOURCES",))
+    debug = release + from_makefile(root, ("DEBUG_RUNTIME_SOURCES",))
+    for path in debug:
+        if not path.startswith("runtime/"):
+            sys.exit("shc runtime source outside runtime/: " + path)
+    strip = lambda names: tuple(n[len("runtime/"):-len(".cpp")] for n in names)
+    return strip(release), strip(debug)
+
 
 def shc_runtime_step():
     """The PostBuildEvent that puts shc's runtime in lib/ beside shc.exe."""
@@ -522,8 +626,9 @@ def shc_runtime_step():
         return " ".join('"$(ProjectDir)runtime\%s.cpp"' % n for n in names), \
                " ".join('"$(IntDir)%s\%s.obj"' % (into, n) for n in names)
 
-    release_src, release_obj = compiled(SHC_RUNTIME_SOURCES, "rt")
-    debug_src, debug_obj = compiled(SHC_RUNTIME_SOURCES + ("Debug",), "rtd")
+    release, debug = shc_runtime_sources()
+    release_src, release_obj = compiled(release, "rt")
+    debug_src, debug_obj = compiled(debug, "rtd")
     flags = ("/nologo /std:c++14 /W4 /WX /EHsc /permissive- /O2 "
              "/D_CRT_SECURE_NO_WARNINGS")
 
@@ -543,6 +648,140 @@ def shc_runtime_step():
         'if errorlevel 1 exit /b 1</Command>\n'
         '    </PostBuildEvent>\n'
         % (flags, release_src, release_obj, flags, debug_src, debug_obj))
+
+
+# The same job on the Mac, and it has to be done twice on the same principle:
+# a project that builds shc.exe and nothing else produces a compiler that
+# compiles, writes correct assembly, and then dies at the link naming an
+# archive that is not there. Windows got this on 2026-08-23 and the Xcode side
+# did not, because --check compares which .cpp a project builds and a build
+# phase is not a .cpp.
+#
+# $BUILT_PRODUCTS_DIR is where shc.exe itself lands, and shc looks for lib/
+# beside its own binary - so the archives go in without the editor, the
+# workspace or shc knowing anything about each other.
+#
+# The flags are Compiler-S's CXXFLAGS and not Xcode's: what make builds is what
+# this should build, and the runtime does not vary with the Debug/Release the
+# *compiler* was built as. Both archives are written in either configuration,
+# as `make all` writes both - a debug link takes the second, and shipping one
+# would leave exactly the half about to be used missing.
+#
+# arm64-darwin because Compiler-S's Makefile says TARGET ?= arm64-darwin for
+# any Darwin host, and the name has to be the one shc asks for.
+SHC_RUNTIME_FLAGS = "-std=c++14 -Wall -Wextra -Werror -pedantic -O2"
+SHC_RUNTIME_TARGET = "arm64-darwin"
+
+
+# **The four programs are copied into RStudio's own directory when they are
+# built.** That is the Mac half of one binary directory on every machine -
+# `make -f workspace.mk` builds all four into $(CURDIR) there and RStudio.sln
+# builds five into x64\\Release, while the workspace alone used to leave them
+# under DerivedData. The editor finds what it drives with path::besideProgram
+# before PATH, so this is also what makes a workspace-built RStudio.exe run the
+# compilers it was built with rather than whichever ones are on the machine.
+#
+# **Copied, and not built there, and that is not the preference it looks
+# like.** CONFIGURATION_BUILD_DIR does aim the link straight at this directory,
+# and it was tried first: it works until you build Debug after Release without
+# editing anything. Xcode plans a build before it runs it, decides the link is
+# up to date because the *other* configuration's binary is newer than every
+# input, and skips it - so the directory keeps the wrong build and says it
+# succeeded. Clearing the product in a phase does not help, because the plan
+# was already made: dsymutil then fails with `cannot parse the debug map ...
+# No such file or directory` and the build ends with three of the four
+# programs deleted. A copy has none of that in it. It always runs, it copies
+# the configuration that was actually built, and a link Xcode skipped is a
+# copy of a file that is already right.
+#
+# Debug and Release therefore land on each other here, as make's one build
+# does: what stands in this directory is what you built last.
+#
+# `mv` over `cp` for the last step because the destination may be running -
+# a rename replaces the directory entry and leaves the running image alone,
+# where writing through it is "Text file busy".
+#
+# **And the copy is signed here, because Xcode signs a target after its script
+# phases, not before.** A phase at the end of the list still runs before
+# CodeSign, so what it has to copy is the linker's output - and the linker was
+# given -no_adhoc_codesign precisely because Xcode meant to sign it later. On
+# arm64 an unsigned Mach-O does not run at all: the copy would land, look
+# right, and die with `Killed: 9`. First seen as a 22KB difference between the
+# copy and the product, which is a signature's worth of hashes.
+#
+# Ad-hoc, as `-` says, which is what the linker does for a `make` build and
+# what "Sign to Run Locally" means. The entitlements Xcode's own signature
+# carries are not reproduced; they are for debugging the product in Xcode, and
+# that is done in the build directory, not here.
+def install_phase(spec):
+    """Copies this project's finished program into RStudio's own directory."""
+    extra = spec.get("install_extra", "")
+    return {
+        "name": "put the finished program in RStudio's directory",
+        "shell": ("set -e\n"
+                  'dest="%s"\n' % build_dir(spec).replace("$(SRCROOT)", "$SRCROOT") +
+                  'mkdir -p "$dest"\n'
+                  'cp -f "$BUILT_PRODUCTS_DIR/$PRODUCT_NAME" "$dest/.$PRODUCT_NAME.new"\n'
+                  'mv -f "$dest/.$PRODUCT_NAME.new" "$dest/$PRODUCT_NAME"\n'
+                  'codesign --force --sign - "$dest/$PRODUCT_NAME"\n' + extra),
+        # It copies whatever was just built, so there is no up-to-date state
+        # for it to be in. Said out loud, because a phase with no outputs is a
+        # warning otherwise.
+        "always": True,
+        "inputs": [],
+        "outputs": [],
+    }
+
+
+def shc_runtime_phase():
+    """The build phase that puts shc's runtime archives in lib/ beside it."""
+    release, debug = shc_runtime_sources()
+
+    def archive(names, objects, into, extra, leaf):
+        return ("mkdir -p \"%s\"\n" % objects +
+                "".join('"$cxx" $flags %s-c "$SRCROOT/runtime/%s.cpp" '
+                        '-o "%s/%s.o"\n' % (extra, name, objects, name)
+                        for name in names) +
+                'rm -f "$lib/%s"\n' % leaf +
+                '"$ar" rcs "$lib/%s" "%s"/*.o\n' % (leaf, objects))
+
+    # rm before ar: `ar rcs` replaces members in an archive that is already
+    # there, so a source deleted from the Makefile would live on inside it.
+    return ("set -e\n"
+            'cxx="$(xcrun --find clang++)"\n'
+            'ar="$(xcrun --find ar)"\n'
+            'flags="%s"\n' % SHC_RUNTIME_FLAGS +
+            'lib="$BUILT_PRODUCTS_DIR/lib"\n'
+            'mkdir -p "$lib"\n' +
+            archive(release, "$DERIVED_FILE_DIR/runtime", "runtime", "",
+                    "shmrt-%s.a" % SHC_RUNTIME_TARGET) +
+            archive(debug, "$DERIVED_FILE_DIR/runtime-debug", "runtime-debug",
+                    "-DSHM_DEBUG=1 ", "shmrt-%s-debug.a" % SHC_RUNTIME_TARGET))
+
+
+def shc_runtime_script():
+    """The phase as project_text wants it: a name, a script, and its files."""
+    _, debug = shc_runtime_sources()
+    headers = ("shmrt", "Internal", "Shortest", "Debug")
+    return {
+        "name": "the Shalimar runtime, beside shc.exe",
+        "shell": shc_runtime_phase(),
+        # Named so Xcode can tell the phase is up to date and skip it. With no
+        # outputs it runs on every build and says so as a warning; with these
+        # it runs when a runtime source or header changes, which is the same
+        # rule make follows.
+        "inputs": (["$(SRCROOT)/runtime/%s.cpp" % n for n in debug] +
+                   ["$(SRCROOT)/runtime/%s.h" % n for n in headers]),
+        "outputs": ["$(BUILT_PRODUCTS_DIR)/lib/shmrt-%s.a" % SHC_RUNTIME_TARGET,
+                    "$(BUILT_PRODUCTS_DIR)/lib/shmrt-%s-debug.a" % SHC_RUNTIME_TARGET],
+    }
+
+
+def pbx_quoted(text):
+    """One pbxproj string: quotes, backslashes and newlines are escaped."""
+    return '"%s"' % (text.replace("\\", "\\\\")
+                         .replace('"', '\\"')
+                         .replace("\n", "\\n"))
 
 
 def vcxproj_text(product, sources, defines, extra=""):

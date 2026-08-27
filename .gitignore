@@ -36,13 +36,20 @@ gui.png
 # Xcode's own build directory, when the project is built in place
 build/
 
-# What a workspace build leaves here: the two compilers RStudio drives, built
-# into this directory rather than collected into it, and shc's runtime
-# archives - which live beside shc because that is where shc looks for them.
-# None of the three is this repository's to carry.
+# What a workspace build leaves here: the two compilers and the converter
+# RStudio drives, built into this directory rather than collected into it, and
+# shc's runtime archives - which live beside shc because that is where shc
+# looks for them. None of the four is this repository's to carry.
+#
+# c2s.exe was missing from this list until 2026-08-27 and sat untracked in the
+# root, which is the accident a `git add -A` turns into a committed binary.
+# The .dSYM bundles arrived with it: an Xcode Release build writes one beside
+# each program, and `RStudio.exe` above does not match `RStudio.exe.dSYM`.
 cc1.exe
 shc.exe
+c2s.exe
 lib/
+*.dSYM/
 
 # The same build, into bin/ instead, for anyone who would rather the checkout
 # stayed clean.
