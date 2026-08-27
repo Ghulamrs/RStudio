@@ -1870,10 +1870,17 @@ void convertingFromTheMenu(const std::string& rstudio, const std::string& c2s) {
     // opened an empty buffer named after a file that was never written and
     // said it had been converted, which is the report this case exists to
     // keep honest.
+    // #ifdef with an #else, and not the #ifndef guard that used to be here:
+    // c2s drops a guard round its own #define since 2026-08-27, so that file
+    // converts now and this case stopped testing a refusal at all. This one
+    // picks between two programs and nothing says which, which is what c2s
+    // will not decide for anybody.
     file::path asks = dir / "src" / "asks.c";
     writeFile(asks,
-              "#ifndef LIMIT\n"
+              "#ifdef LIMIT\n"
               "#define LIMIT 3\n"
+              "#else\n"
+              "#define LIMIT 4\n"
               "#endif\n"
               "int main(void)\n"
               "{\n"
@@ -1894,9 +1901,9 @@ void convertingFromTheMenu(const std::string& rstudio, const std::string& c2s) {
     // open project pane, so what the message *asks for* sat past the border
     // with no key in the editor able to reach it - nothing scrolls sideways
     // in there.
-    check(onScreen(questions, "must be resolved before conversion") ||
-              onScreen(questions, "nversion"),
-          "a line too long for the panel is wrapped, not cut");
+    // Proved on the grown screen below rather than here: what shows a wrap is
+    // the *tail* of a line, and the tail of the longest line here is off the
+    // bottom of seven rows.
 
     // And taller when it is asked for: Ctrl-W twice puts the cursor in the
     // panel - past the project pane - and shift-up grows it, which shows more
@@ -1913,6 +1920,14 @@ void convertingFromTheMenu(const std::string& rstudio, const std::string& c2s) {
           "seven rows do not reach the second question's hint");
     check(onScreen(grown, "remove both the #define"),
           "and eleven do, which is what the taller panel is for");
+
+    // That hint runs past 120 characters and the panel is 78 wide, so its
+    // last words are on screen only because the line wrapped. Cut at the
+    // border - which is what the panel did until 2026-08-27 - they were
+    // unreachable by any key, and it is the end of a diagnostic that says
+    // what to do about it.
+    check(onScreen(grown, "the #if that reads it"),
+          "and the end of a line too long for the panel, which is wrapped now");
 }
 
 void compilingShalimar(const std::string& rstudio, const std::string& shc) {

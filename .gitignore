@@ -21,6 +21,14 @@ tests/session.exe
 DerivedData/
 winforms/x64/
 
+# macOS "keep both" copies. Something in this tree makes them during ordinary
+# builds - `RStudio 2.exe`, `lib/shmrt-arm64-darwin 2.a` - and the cause has
+# never been established, so this only stops them being committed. Four were
+# sitting untracked in this root on 2026-08-27 after a workspace build, which
+# is the `git add -A` accident that has already happened here once. They also
+# break builds that glob: the Makefiles filter on `src/%.cpp` for this reason.
+* 2.*
+
 # Where a Windows build puts all five programs and shc's runtime: the
 # solution builds them here and build.bat's own editor joins them, so that
 # what the editor drives is beside it. None of it is this repository's.
