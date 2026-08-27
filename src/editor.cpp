@@ -1263,6 +1263,23 @@ void Editor::resizePanel(int by) {
     say("panel: " + number(panelRows_) + " rows");
 }
 
+// **What About says is meant to be read at once, and it is exactly seven
+// lines.** A seven-row panel held them until the panel began to wrap: the row
+// naming the three compilers is the long one, and where it takes two rows
+// "Islamabad, Pakistan" drops off the bottom of a block nobody thinks to
+// scroll. The Windows suite caught that and the Mac's did not - the row fits
+// in eighty columns and not in what cmd gives an ssh session - which is the
+// argument for asking for the room rather than assuming a height.
+void Editor::fitPanelTo(const std::vector<std::string>& lines) {
+    const size_t cols = static_cast<size_t>(screenCols_ > 2 ? screenCols_ - 2 : 1);
+    size_t rows = 0;
+    for (size_t i = 0; i < lines.size(); ++i) rows += rowsForLine(lines[i], cols);
+
+    int wanted = static_cast<int>(rows);
+    if (wanted > screenRows_ - 8) wanted = screenRows_ - 8;
+    if (wanted > panelWanted_) panelWanted_ = wanted;
+}
+
 void Editor::movePanel(int key) {
     const std::vector<std::string>& lines = panelLines();
     // A page is what is on screen, which is fewer lines than rows when they
@@ -2771,6 +2788,7 @@ void Editor::showAbout() {
     std::vector<std::string> said = about::lines();
     for (size_t i = 0; i < said.size(); ++i) console_.push_back(said[i]);
 
+    fitPanelTo(said);
     panelOff_ = 0;
     say(std::string(about::name()) + " " + about::version());
 }

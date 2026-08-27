@@ -54,7 +54,12 @@ std::string askVersion(const std::string& program) {
     return line;
 }
 
+// A column already passed still needs a gap. Without one the answers run
+// together - "cc1.exe - not beside this programshc.exe" - which happens only
+// where a cell is longer than its column, and all three are exactly when none
+// of the compilers is there to answer.
 void pad(std::string& row, std::size_t width) {
+    if (row.size() >= width) { row += "  "; return; }
     while (row.size() < width) row += ' ';
 }
 
@@ -64,11 +69,16 @@ std::string cell(const std::string& program) {
 }
 
 // **All three across one line.** One per line pushed the last line of the box
-// off the bottom of the panel, which shows seven and does not scroll for a
-// dialog - and the box was seven before the compilers were added to it, so
-// there was never room for three more. Three short answers fit the width with
-// room to spare, and a row that says "not beside this program" is longer but
-// only ever appears where the others are absent too.
+// off the bottom of the panel - the box was seven before the compilers were
+// added to it, so there was never room for three more. Three short answers fit
+// the width with room to spare, and a row that says "not beside this program"
+// is longer but only ever appears where the others are absent too.
+//
+// That long row now wraps rather than being cut, which costs the box a row it
+// did not cost before; Editor::fitPanelTo is what makes that safe, growing the
+// panel to hold whatever About puts in it. Found on the Windows box, where the
+// compilers are built into x64\Release and none of them is beside the console
+// editor at the root, so all three cells are the long form.
 void tools(std::vector<std::string>& said,
            const std::string& a, const std::string& b, const std::string& c) {
     std::string row = "  " + cell(a);

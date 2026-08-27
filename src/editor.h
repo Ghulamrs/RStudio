@@ -119,6 +119,7 @@ private:
     void moveTree(int key);
     void movePanel(int key);
     void resizePanel(int by);
+    void fitPanelTo(const std::vector<std::string>& lines);
     void cycleFocus();
 
     void insertChar(char c);
