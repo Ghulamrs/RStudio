@@ -153,7 +153,31 @@ $(OBJDIR)/%.o: src/%.cpp
 # The two pieces with a contract: the layout rules, and the reading of cc1's
 # diagnostic - which has to cope with a Windows path whose drive letter is
 # followed by a colon that is not a separator.
-test: tests/test
+# **A compiler named but not there is a mistake, not an absence**, and the two
+# have to be told apart because they look identical to a suite that skips.
+#
+# Empty is an absence: this machine has no cc1, those cases cannot run, and the
+# suite says so case by case and carries on. That is right and is kept.
+#
+# A path that does not exist is somebody having typed one - a stale directory, a
+# renamed binary, a build that did not happen. Skipping there turns a typo into
+# a green run of a smaller suite, which is the same fault as the one that made
+# these default to BINDIR: `make session CC1=/nowhere/cc1.exe` used to report
+# "205 checks, 0 failed" and look exactly like a pass.
+#
+# All three are reported before exiting rather than the first, because a wrong
+# path usually means the whole set is wrong and finding them one run at a time
+# is three runs.
+check-tools:
+	@bad=0; \
+	[ -z "$(CC1)" ] || [ -x "$(CC1)" ] || { echo "CC1 names '$(CC1)', which is not there." >&2; bad=1; }; \
+	[ -z "$(SHC)" ] || [ -x "$(SHC)" ] || { echo "SHC names '$(SHC)', which is not there." >&2; bad=1; }; \
+	[ -z "$(C2S)" ] || [ -x "$(C2S)" ] || { echo "C2S names '$(C2S)', which is not there." >&2; bad=1; }; \
+	[ $$bad -eq 0 ] || { \
+	    echo "  Name one that exists, or leave it unset - unset skips those cases on purpose." >&2; \
+	    exit 1; }
+
+test: tests/test check-tools
 	./tests/test
 
 tests/test: tests/test.cpp src/compile.cpp src/indent.cpp src/syntax.cpp \
@@ -175,7 +199,7 @@ tests/test: tests/test.cpp src/compile.cpp src/indent.cpp src/syntax.cpp \
 # CC1 and SHC name compilers for the build cases, and C2S the converter for
 # the Language menu's Convert; without them those cases are skipped rather
 # than failed.
-session: tests/session $(EDITOR)
+session: tests/session $(EDITOR) check-tools
 	CC1="$(CC1)" SHC="$(SHC)" C2S="$(C2S)" ./tests/session $(EDITOR)
 
 tests/session: tests/session.cpp src/path.cpp src/path.h
@@ -283,4 +307,4 @@ clean:
 	rm -rf $(OBJDIR) build
 	rm -f $(EDITOR) tests/test tests/session
 
-.PHONY: test session check confirm xcodeproj product clean
+.PHONY: check-tools test session check confirm xcodeproj product clean
