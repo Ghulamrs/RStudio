@@ -33,6 +33,13 @@ F8 carries on   F7 steps over   F6 steps into   F9 sets a breakpoint
 Ctrl-W puts the cursor in the panel; Enter on a variable sets it
 ```
 
+- **A line too long for the panel wraps** rather than being cut at the border.
+  Nothing scrolls sideways in here, so a cut line was a line you could not
+  read the end of - and the end is where a compiler puts what it wants done.
+- **Shift with up or down makes the panel taller or shorter**, seven rows to
+  start with. A taller panel shows more of what came before rather than blank
+  rows below, unless the view has been scrolled back, which is left where it
+  was put. The height lasts as long as the session.
 - **Enter on a variable** asks for a new value and writes it back. What the
   debugger says about a value it will not take is what the message line says.
 - **Enter on a frame** goes to that frame: its variables replace the ones shown

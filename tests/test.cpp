@@ -4127,22 +4127,23 @@ void theWindowStoppingShalimar() {
 // which are the ones that can be wrong without anybody noticing until a file
 // has been written over.
 void namingAConversion() {
-    checkEqual(editor::convertedName("prime.c", true), "prime.shm",
-               "a C file converts to .shm beside itself");
+    checkEqual(editor::convertedName("prime.c", true), "prime.shl",
+               "a C file converts to .shl beside itself");
     checkEqual(editor::convertedName("prime.shm", false), "prime.c",
                "and a Shalimar one back to .c");
     checkEqual(editor::convertedName("prime.shl", false), "prime.c",
-               ".shl is read, though .shm is what gets written");
+               "and .shl is what gets written, being the only suffix read as\n"
+               "               Shalimar - a written .shm opened as plain text");
 
     // The whole path is kept, not just the name: the converted file belongs
     // beside the original and not in whatever directory the editor was
     // started from.
-    checkEqual(editor::convertedName("/a/b/prime.c", true), "/a/b/prime.shm",
+    checkEqual(editor::convertedName("/a/b/prime.c", true), "/a/b/prime.shl",
                "the directory comes with it");
 
     // A dot in a directory name is not an extension of the file. Getting this
     // wrong would truncate the path and write somewhere else entirely.
-    checkEqual(editor::convertedName("/a.b/prime", true), "/a.b/prime.shm",
+    checkEqual(editor::convertedName("/a.b/prime", true), "/a.b/prime.shl",
                "a dot in a directory is not the file's extension");
     checkEqual(editor::convertedName("/a.b/prime.c", false), "/a.b/prime.c",
                "and the same file asked for in the direction it is already in");
@@ -4171,11 +4172,11 @@ void theConversionSeam() {
           "and neither has plain text");
 
     char* named = rstudio_converted_name("/a/b/prime.c", 1);
-    checkEqual(named, "/a/b/prime.shm", "the window is told the same name the editor uses");
+    checkEqual(named, "/a/b/prime.shl", "the window is told the same name the editor uses");
     rstudio_free(named);
 
     named = rstudio_converted_name("/a.b/prime", 1);
-    checkEqual(named, "/a.b/prime.shm", "including that a dot in a directory is not an extension");
+    checkEqual(named, "/a.b/prime.shl", "including that a dot in a directory is not an extension");
     rstudio_free(named);
 
     char* found = rstudio_find_converter();

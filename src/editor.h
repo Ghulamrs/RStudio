@@ -118,6 +118,7 @@ private:
     void moveCursor(int key);
     void moveTree(int key);
     void movePanel(int key);
+    void resizePanel(int by);
     void cycleFocus();
 
     void insertChar(char c);
@@ -223,6 +224,10 @@ private:
     size_t renderCol(const std::string& line, size_t col) const;
     void clampCursor();
     const std::vector<std::string>& panelLines() const;
+    // The panel wraps, so a line is not a row: these two are the arithmetic
+    // every scroll and every auto-scroll has to do instead of counting rows.
+    size_t panelLinesShowing(size_t from) const;
+    size_t panelTopForEnd() const;
 
     Terminal term_;
 
@@ -296,6 +301,10 @@ private:
 
     int screenRows_, screenCols_;
     int bodyRows_, panelRows_;
+    // What the panel was asked for, as against what the screen allows.
+    // layout() clamps the second from the first every draw, so a small
+    // terminal shrinks the panel without forgetting how tall it should be.
+    int panelWanted_;
     int treeCols_, sourceCols_, gutterCols_;
 
     std::vector<std::string> painted_;

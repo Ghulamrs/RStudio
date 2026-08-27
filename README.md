@@ -443,7 +443,9 @@ one - and the second suffix was dropped because `.shm` is not accepted
 everywhere a Shalimar file has to go. One name that travels beats two that do
 not. An app-written `.shm` opens as plain text; the Language menu reads it as
 Shalimar without renaming it, and renaming it to `.shl` is the permanent
-answer.
+answer. **Language ▸ Convert writes `.shl` for the same reason** - it wrote
+`.shm` until 2026-08-27, so the file the editor had just made opened as plain
+text in it, with no colouring and `cc1` behind Build.
 
 ### Shalimar is not C with fewer rules
 

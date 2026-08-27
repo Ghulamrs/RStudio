@@ -39,7 +39,11 @@ std::string convertedName(const std::string& sourcePath, bool toShalimar) {
     const std::string stem =
         dot == std::string::npos ? sourcePath : sourcePath.substr(0, dot);
 
-    return stem + (toShalimar ? ".shm" : ".c");
+    // .shl, which is the only suffix this editor reads as Shalimar. It
+    // wrote .shm until 2026-08-27 - shc takes either - and the file it made
+    // then opened as plain text in the editor that had just made it, with no
+    // colouring and the wrong compiler behind Build. One suffix that travels.
+    return stem + (toShalimar ? ".shl" : ".c");
 }
 
 Conversion convert(const std::string& converter, const std::string& sourcePath,
@@ -50,15 +54,38 @@ Conversion convert(const std::string& converter, const std::string& sourcePath,
         return result;
     }
 
+    // Written beside the output and moved into place only if it appears,
+    // because c2s's exit status cannot answer whether it wrote anything: 1 is
+    // both "written, with constructs marked BEYOND" and "refused, and nothing
+    // written" - which is what a `#ifndef` gets. Reading the status instead
+    // opened a file that had never been written and called it converted.
+    //
+    // Beside it, so the move cannot cross a device, and removed first, since a
+    // leftover from an interrupted run would be read as this run's work.
+    const std::string scratch = outputPath + ".new";
+    path::remove(scratch);
+
     const std::string command = "\"" + converter + "\" " +
                                 (toShalimar ? "--to-shalimar " : "--to-c ") +
-                                "\"" + sourcePath + "\" -o \"" + outputPath + "\"";
+                                "\"" + sourcePath + "\" -o \"" + scratch + "\"";
 
     result.status = runCaptured(command, result.output, sink, context);
     result.ran = result.status >= 0;
 
     result.ok = result.ran && result.status == 0;
-    if (result.ran && result.status != 2) result.produced = outputPath;
+
+    if (path::exists(scratch)) {
+        // std::rename replaces the destination on Unix and refuses on Windows,
+        // so the previous conversion is removed only when the move needs it -
+        // and never when this run wrote nothing.
+        bool placed = path::rename(scratch, outputPath);
+        if (!placed && path::exists(outputPath)) {
+            path::remove(outputPath);
+            placed = path::rename(scratch, outputPath);
+        }
+        if (placed) result.produced = outputPath;
+        else path::remove(scratch);
+    }
     return result;
 }
 

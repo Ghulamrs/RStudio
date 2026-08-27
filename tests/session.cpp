@@ -80,6 +80,7 @@ const std::string kCtrlDown = "\x1b[1;5B";
 const std::string kF4 = "\x1bOS";
 const std::string kF10 = "\x1b[21~";
 const std::string kDown = "\x1b[B";
+const std::string kShiftUp = "\x1b[1;2A";
 const std::string kRight = "\x1b[C";
 const std::string kLeft = "\x1b[D";
 const std::string kEnter = "\r";
@@ -1808,20 +1809,32 @@ void convertingFromTheMenu(const std::string& rstudio, const std::string& c2s) {
 
     std::string arguments = "\"" + source.string() + "\" --c2s \"" + c2s + "\"";
     Screen made = drive(rstudio, arguments, convert + ctrl('q'), dir);
-    check(file::exists(dir / "src" / "adder.shm"),
-          "a .c converts to a .shm beside it");
-    const std::string shalimar = readFile(dir / "src" / "adder.shm");
+    check(file::exists(dir / "src" / "adder.shl"),
+          "a .c converts to a .shl beside it");
+    const std::string shalimar = readFile(dir / "src" / "adder.shl");
     check(shalimar.find("fun <> = main()") != std::string::npos,
           "and what was written is Shalimar");
-    check(onScreen(made, "adder.shm"), "and the converted file is opened");
+    check(onScreen(made, "adder.shl"), "and the converted file is opened");
 
-    // And back again, from the .shm this time - so the round trip is driven
+    // **.shl and not .shm, and the screen is what says why.** The editor
+    // reads only .shl as Shalimar, so a written .shm opened as plain text in
+    // the editor that had just written it - no colouring, and Build behind
+    // the wrong compiler. Nothing else notices a suffix; this does.
+    check(onScreen(made, "Shalimar"),
+          "and it is Shalimar to the editor, not text with a suffix");
+
+    // And back again, from the .shl this time - so the round trip is driven
     // entirely from the menu, with the direction never named on either leg.
-    file::path back = dir / "src" / "adder.shm";
+    // The .c is removed first: it already held `int main`, so leaving it
+    // there let this pass without the second leg running at all, which is
+    // what it did from 2026-08-23 - when .shm stopped being read as Shalimar
+    // - until 2026-08-27.
+    file::path back = dir / "src" / "adder.shl";
+    file::remove(dir / "src" / "adder.c");
     arguments = "\"" + back.string() + "\" --c2s \"" + c2s + "\"";
     drive(rstudio, arguments, convert + ctrl('q'), dir);
     check(readFile(dir / "src" / "adder.c").find("int main") != std::string::npos,
-          "and a .shm converts back to C over the original");
+          "and a .shl converts back to C, over a file that has to be written");
 
     // The file whose suffix is wrong, which is the reason this item is in
     // the Language column at all. A .txt holding C is plain text until the
@@ -1837,7 +1850,7 @@ void convertingFromTheMenu(const std::string& rstudio, const std::string& c2s) {
     arguments = "\"" + odd.string() + "\" --c2s \"" + c2s + "\"";
 
     Screen refused = drive(rstudio, arguments, convert + ctrl('q'), dir);
-    check(!file::exists(dir / "src" / "hidden.shm"),
+    check(!file::exists(dir / "src" / "hidden.shl"),
           "plain text is not converted");
     check(onScreen(refused, "between C and Shalimar"),
           "and it says what it converts between instead");
@@ -1847,8 +1860,59 @@ void convertingFromTheMenu(const std::string& rstudio, const std::string& c2s) {
     // right five more from there lands five columns further on.
     const std::string convertAgain = kF10 + times(kDown, 6) + kEnter;
     drive(rstudio, arguments, asC + convertAgain + ctrl('q'), dir);
-    check(file::exists(dir / "src" / "hidden.shm"),
+    check(file::exists(dir / "src" / "hidden.shl"),
           "but the same file read as C converts");
+
+    // **What c2s refuses outright, which is not the same as what it converts
+    // badly.** A preprocessor directive stops the conversion before it
+    // starts: c2s writes no file and exits 1 - the same 1 it uses for a file
+    // it *did* write with constructs marked BEYOND. Believing that status
+    // opened an empty buffer named after a file that was never written and
+    // said it had been converted, which is the report this case exists to
+    // keep honest.
+    file::path asks = dir / "src" / "asks.c";
+    writeFile(asks,
+              "#ifndef LIMIT\n"
+              "#define LIMIT 3\n"
+              "#endif\n"
+              "int main(void)\n"
+              "{\n"
+              "    return LIMIT;\n"
+              "}\n");
+    arguments = "\"" + asks.string() + "\" --c2s \"" + c2s + "\"";
+
+    Screen questions = drive(rstudio, arguments, convert + ctrl('q'), dir);
+    check(!file::exists(dir / "src" / "asks.shl"),
+          "a file c2s refuses leaves nothing behind");
+    check(onScreen(questions, "not converted"),
+          "and the editor says so rather than claiming it wrote one");
+    check(!onScreen(questions, "BEYOND"),
+          "and does not offer the message for a file that was written");
+
+    // **The panel wraps, and this is the case that made it matter.** c2s's
+    // questions run past ninety columns and the panel is fifty-odd beside an
+    // open project pane, so what the message *asks for* sat past the border
+    // with no key in the editor able to reach it - nothing scrolls sideways
+    // in there.
+    check(onScreen(questions, "must be resolved before conversion") ||
+              onScreen(questions, "nversion"),
+          "a line too long for the panel is wrapped, not cut");
+
+    // And taller when it is asked for: Ctrl-W twice puts the cursor in the
+    // panel - past the project pane - and shift-up grows it, which shows more
+    // of what came before rather than blank rows underneath.
+    const std::string intoPanel = ctrl('w') + ctrl('w');
+    const std::string taller = times(kShiftUp, 4);
+    Screen grown = drive(rstudio, arguments, convert + intoPanel + taller + ctrl('q'), dir);
+    check(onScreen(grown, "panel: 11 rows"), "the panel grows when it is asked to");
+
+    // Named against the seven-row screen above rather than by eye: this is
+    // the hint for the second question, which is four rows further back than
+    // seven rows can reach.
+    check(!onScreen(questions, "remove both the #define"),
+          "seven rows do not reach the second question's hint");
+    check(onScreen(grown, "remove both the #define"),
+          "and eleven do, which is what the taller panel is for");
 }
 
 void compilingShalimar(const std::string& rstudio, const std::string& shc) {

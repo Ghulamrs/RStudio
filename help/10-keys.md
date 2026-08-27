@@ -19,9 +19,11 @@
 | `Ctrl-C` / `Ctrl-X` / `Ctrl-V` | copy / cut / paste | `Ctrl-Q` | leave |
 | shift + arrows | select | | |
 
-In the project pane, enter opens. In the panel, left and right change tab; on
-Console, enter goes to the line the compiler named; on Debug, enter on a frame
-looks at it and enter on the top line goes back.
+In the project pane, enter opens. In the panel, left and right change tab;
+**shift with up or down makes the panel taller or shorter**, which is where
+shift and an arrow do nothing else; on Console, enter goes to the line the
+compiler named; on Debug, enter on a frame looks at it and enter on the top
+line goes back.
 
 **`RStudio.exe` on Windows differs on ten keys deliberately** — `Ctrl+PageDown` and
 `Ctrl+PageUp` move between files there, because `F2` and `F3` are Rename and

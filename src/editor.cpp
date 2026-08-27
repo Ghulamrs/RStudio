@@ -118,6 +118,37 @@ void expandWithKinds(const std::string& s, const std::vector<unsigned char>& kin
     }
 }
 
+// What a line takes on screen, in columns, counted the way expandWithKinds
+// lays it out: tabs to the next stop, and a wide character as two.
+size_t shownWidth(const std::string& s) {
+    size_t column = 0;
+    for (size_t i = 0; i < s.size();) {
+        if (s[i] == '\t') {
+            do { ++column; } while (column % kTabStop != 0);
+            ++i;
+            continue;
+        }
+        size_t step = utf8::next(s, i);
+        if (step <= i) step = i + 1;
+        column += utf8::widthOf(utf8::codePointAt(s, i));
+        i = step;
+    }
+    return column;
+}
+
+// **The panel wraps rather than cutting, and that is the whole of why this
+// exists.** A compiler's line runs past ninety columns - c2s's questions
+// about a preprocessor directive are the longest - and the panel is
+// fifty-odd beside an open project pane. Everything past the border used to
+// be unreachable: no key scrolls sideways in there, so the half that said
+// *what* to fix was simply not readable. One line is now one or more rows,
+// which is what every other calculation about the panel has to know.
+size_t rowsForLine(const std::string& line, size_t cols) {
+    if (cols == 0) return 1;
+    const size_t wide = shownWidth(line);
+    return wide <= cols ? 1 : (wide + cols - 1) / cols;
+}
+
 std::string colouredWindow(const std::string& text,
                            const std::vector<unsigned char>& kinds,
                            size_t from, size_t width,
@@ -207,7 +238,7 @@ Editor::Editor()
       marked_(false), markRow_(0), markCol_(0),
       quitConfirm_(0), running_(true),
       screenRows_(24), screenCols_(80),
-      bodyRows_(14), panelRows_(kPanelRows),
+      bodyRows_(14), panelRows_(kPanelRows), panelWanted_(kPanelRows),
       treeCols_(kTreeWidth), sourceCols_(80), gutterCols_(4), paintedCols_(0),
       askChoice_(0) {
     frame_ = &kBoxFrame;
@@ -467,9 +498,38 @@ void Editor::openProject(const std::string& path) {
 void Editor::console(const std::string& line) {
     console_.push_back(line);
 
-    if (panelOpen_ && tab_ == TabConsole && console_.size() > static_cast<size_t>(panelRows_))
-        panelOff_ = console_.size() - static_cast<size_t>(panelRows_);
+    if (panelOpen_ && tab_ == TabConsole) panelOff_ = panelTopForEnd();
     refresh();
+}
+
+// How many lines are visible from `from` down, wrapping counted. At least
+// one, so that a line longer than the whole panel still scrolls past.
+size_t Editor::panelLinesShowing(size_t from) const {
+    const std::vector<std::string>& lines = panelLines();
+    const size_t cols = static_cast<size_t>(screenCols_ > 2 ? screenCols_ - 2 : 1);
+    size_t rows = 0, count = 0;
+    for (size_t i = from; i < lines.size() && rows < static_cast<size_t>(panelRows_); ++i) {
+        rows += rowsForLine(lines[i], cols);
+        ++count;
+    }
+    return count ? count : 1;
+}
+
+// The line to start at so that the last one is on screen - which is not
+// size() - panelRows_ once lines wrap, and was wrong by however many rows the
+// tail had wrapped onto.
+size_t Editor::panelTopForEnd() const {
+    const std::vector<std::string>& lines = panelLines();
+    if (lines.empty()) return 0;
+    const size_t cols = static_cast<size_t>(screenCols_ > 2 ? screenCols_ - 2 : 1);
+    size_t rows = 0, top = lines.size();
+    while (top > 0) {
+        const size_t next = rows + rowsForLine(lines[top - 1], cols);
+        if (next > static_cast<size_t>(panelRows_) && top < lines.size()) break;
+        rows = next;
+        --top;
+    }
+    return top;
 }
 
 const std::vector<std::string>& Editor::panelLines() const {
@@ -484,7 +544,7 @@ void Editor::layout() {
     if (screenCols_ < 40) screenCols_ = 40;
 
     int taken = 5;
-    panelRows_ = kPanelRows;
+    panelRows_ = panelWanted_;
     if (panelOpen_) {
 
         int room = screenRows_ - taken - 4;
@@ -781,19 +841,29 @@ void Editor::drawPanel(std::string& out) const {
     const std::vector<std::string>& lines = panelLines();
     Language panelLang = (tab_ == TabAssembly) ? LangAsm : LangPlain;
     size_t panelCols = static_cast<size_t>(screenCols_ > 2 ? screenCols_ - 2 : 1);
-    for (int y = 0; y < panelRows_; ++y) {
-        size_t row = panelOff_ + static_cast<size_t>(y);
-        out += frame_->down;
-        if (row >= lines.size()) {
-            out += std::string(panelCols, ' ');
-        } else {
-            SyntaxState panelState;
-            std::vector<unsigned char> kinds = highlight(lines[row], panelLang, panelState);
-            std::string text;
-            std::vector<unsigned char> spread;
-            expandWithKinds(lines[row], kinds, text, spread);
-            out += colouredWindow(text, spread, 0, panelCols, 0, 0);
+    int y = 0;
+    for (size_t row = panelOff_; row < lines.size() && y < panelRows_; ++row) {
+        SyntaxState panelState;
+        std::vector<unsigned char> kinds = highlight(lines[row], panelLang, panelState);
+        std::string text;
+        std::vector<unsigned char> spread;
+        expandWithKinds(lines[row], kinds, text, spread);
+
+        // The continuation rows are the same line drawn from further along,
+        // which is what colouredWindow already takes; nothing about the line
+        // is copied or split, so a wrapped line highlights as one thing.
+        const size_t segments = rowsForLine(lines[row], panelCols);
+        for (size_t seg = 0; seg < segments && y < panelRows_; ++seg, ++y) {
+            out += frame_->down;
+            out += colouredWindow(text, spread, seg * panelCols, panelCols, 0, 0);
+            out += "\x1b[m";
+            out += frame_->down;
+            out += "\x1b[K\r\n";
         }
+    }
+    for (; y < panelRows_; ++y) {
+        out += frame_->down;
+        out += std::string(panelCols, ' ');
         out += "\x1b[m";
         out += frame_->down;
         out += "\x1b[K\r\n";
@@ -1174,17 +1244,38 @@ void Editor::moveTree(int key) {
     }
 }
 
+// Growing and shrinking the bottom panel. Kept between draws in panelWanted_
+// rather than applied to panelRows_, which layout() overwrites from the
+// screen size every time it runs.
+void Editor::resizePanel(int by) {
+    if (!panelOpen_) { say("the panel is hidden - Ctrl-E shows it"); return; }
+    int wanted = panelWanted_ + by;
+    if (wanted < 2) wanted = 2;
+    if (wanted > screenRows_ - 8) wanted = screenRows_ - 8;
+    if (wanted < 2) wanted = 2;
+    panelWanted_ = wanted;
+    refresh();
+
+    // A taller panel should show more of what came before, not blank rows
+    // under the same top line. Anything already at the end is re-anchored
+    // there; a view scrolled back stays where it was put.
+    if (panelOff_ >= panelTopForEnd()) panelOff_ = panelTopForEnd();
+    say("panel: " + number(panelRows_) + " rows");
+}
+
 void Editor::movePanel(int key) {
     const std::vector<std::string>& lines = panelLines();
+    // A page is what is on screen, which is fewer lines than rows when they
+    // wrap - stepping by rows walked past whatever had wrapped.
     size_t step = (key == KEY_PAGE_UP || key == KEY_PAGE_DOWN)
-                      ? static_cast<size_t>(panelRows_) : 1;
+                      ? panelLinesShowing(panelOff_) : 1;
     switch (key) {
         case KEY_ARROW_UP:
         case KEY_PAGE_UP:   panelOff_ = (panelOff_ > step) ? panelOff_ - step : 0; break;
         case KEY_ARROW_DOWN:
         case KEY_PAGE_DOWN: if (panelOff_ + step < lines.size()) panelOff_ += step; break;
         case KEY_HOME:      panelOff_ = 0; break;
-        case KEY_END:       panelOff_ = lines.empty() ? 0 : lines.size() - 1; break;
+        case KEY_END:       panelOff_ = panelTopForEnd(); break;
         case KEY_ARROW_RIGHT:
             tab_ = static_cast<Tab>((tab_ + 1) % TabCount);
             panelOff_ = 0;
@@ -2040,8 +2131,17 @@ void Editor::convertFile() {
         return;
     }
 
+    // Nothing on disk, so nothing to open. The console holds why - the
+    // questions c2s asks about a preprocessor directive, or a file it could
+    // not read - and its last line is the summary, which is what the status
+    // line can hold. Until 2026-08-27 this branch was reached only for the
+    // unreadable file: a refusal was taken for a conversion, and the editor
+    // opened an empty buffer named after a file that had never been written
+    // and said it was written with parts marked BEYOND.
     if (result.produced.empty()) {
-        say("nothing was written - c2s could not read or write a file");
+        const std::string why = console_.empty() ? std::string("see the console")
+                                                 : console_.back();
+        say(baseName(buf_.path()) + " - not converted: " + why);
         return;
     }
 
@@ -3059,6 +3159,11 @@ void Editor::processKey(int key) {
         case KEY_SHIFT_PAGE_UP:
         case KEY_SHIFT_PAGE_DOWN:
             if (focus_ == FocusText) extendTo(key);
+            // Nothing in the panel is selected, so shift with an arrow is
+            // free there and is what resizes it: Ctrl-W, then shift-up for a
+            // taller panel. Documented in help/09-the-panel.md.
+            else if (focus_ == FocusPanel && key == KEY_SHIFT_UP) resizePanel(1);
+            else if (focus_ == FocusPanel && key == KEY_SHIFT_DOWN) resizePanel(-1);
             return;
 
         default: break;
