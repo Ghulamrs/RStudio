@@ -92,6 +92,33 @@ OBJ := $(patsubst src/%.cpp,$(OBJDIR)/%.o,$(SRC) $(SHM_SRC))
 BINDIR ?= .
 EDITOR := $(BINDIR)/RStudio.exe
 
+# **The compilers the checking drives, defaulted to the ones standing in BINDIR.**
+#
+# They were not defaulted to anything, so a plain `make check` ran 783 unit and
+# 162 session checks and said "0 failed" - while the full suite is 912 and 297.
+# 264 checks skipped, and the skipping is announced ("no shc named, so those
+# cases are not tried") but the total is not, so the headline reads like a pass.
+# That is the hazard in ../Compiler-C's verification notes wearing local clothes:
+# a green suite that tested less than the reader thinks.
+#
+# The absurd part was where the binaries were: BINDIR, the directory `confirm`
+# had just finished checking them into. Naming them is now the default rather
+# than something to remember on the command line.
+#
+# `$(wildcard)` and not a bare path, so a machine that genuinely has no cc1
+# still skips those cases with its own message rather than failing to find a
+# file - the behaviour before this, kept for the case it was right for. And
+# `?=`, so CC1 in the environment or on the command line still wins.
+CC1 ?= $(abspath $(wildcard $(BINDIR)/cc1.exe))
+SHC ?= $(abspath $(wildcard $(BINDIR)/shc.exe))
+C2S ?= $(abspath $(wildcard $(BINDIR)/c2s.exe))
+
+# Exported because the two suites read them differently: `session` is handed
+# them on its command line, and `test` picks them out of the environment.
+export CC1
+export SHC
+export C2S
+
 # Which Shalimar runtime this machine's shc builds, spelled the same way
 # Compiler-S/Makefile spells it. Named here because `confirm` below has to ask
 # for the archive by name, and a glob would pass on a directory holding some
