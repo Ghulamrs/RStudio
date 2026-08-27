@@ -21,6 +21,11 @@ tests/session.exe
 DerivedData/
 winforms/x64/
 
+# Where a Windows build puts all five programs and shc's runtime: the
+# solution builds them here and build.bat's own editor joins them, so that
+# what the editor drives is beside it. None of it is this repository's.
+x64/
+
 # Visual Studio's per-user project settings. Written the first time the window
 # is opened in the IDE, and nobody else's business.
 *.vcxproj.user

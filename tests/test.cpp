@@ -1290,6 +1290,15 @@ void whereTheProgramIs(const char* argv0) {
     check(p::exists(found), "and what comes back is really there");
     checkEqual(p::parent(found), where, "in the directory the program is in");
 
+    // And the name exactly as it was invoked, suffix and all. Windows used to
+    // append .exe unconditionally, so a caller naming "test.exe" - which is
+    // what the binaries are called on every machine now - was asking for
+    // test.exe.exe. About did that for all three compilers and reported them
+    // missing from the directory it was standing in.
+    const std::string asInvoked = p::filename(p::withSlashes(argv0 ? argv0 : ""));
+    check(!p::besideProgram(asInvoked).empty(),
+          "the name as it was invoked is found, suffix and all");
+
     check(p::besideProgram("").empty(), "nothing is beside nothing");
     check(p::besideProgram("cc1-nobody-has-installed").empty(),
           "a name that is not there is not answered with a path");

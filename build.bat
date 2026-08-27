@@ -37,8 +37,25 @@ if errorlevel 1 goto :fail
 
 if not exist obj mkdir obj
 
+rem **Into x64\Release, which is where the compilers are.** This built the
+rem console editor into the repository root until 2026-08-27, and an editor
+rem there has nothing beside it: the solution puts cc1.exe, shc.exe, c2s.exe
+rem and shc's lib\ in x64\Release, and RStudio finds what it drives with
+rem path::besideProgram before it looks at PATH. So a `build.bat` editor could
+rem not compile anything without $CC1 being named, and said so in its own About
+rem box - three times over, "not beside this program". The two ways of building
+rem the editor here now write to the same directory, which is what make does on
+rem Unix with BINDIR.
+rem
+rem The stale root copy goes with it. Two RStudioConsole.exe in one tree is a
+rem tree where nobody can say which one they ran, and this one would be the
+rem older every time from now on.
+if "%BINDIR%"=="" set BINDIR=x64\Release
+if not exist "%BINDIR%" mkdir "%BINDIR%"
+if exist RStudioConsole.exe del RStudioConsole.exe
+
 cl /nologo /std:c++14 /W4 /WX /EHsc /permissive- /O2 /D_CRT_SECURE_NO_WARNINGS ^
-   /Fe:RStudioConsole.exe /Fo:obj\ ^
+   /Fe:%BINDIR%\RStudioConsole.exe /Fo:obj\ ^
    src\main.cpp src\editor.cpp src\buffer.cpp src\compile.cpp src\convert.cpp ^
    src\indent.cpp src\menu.cpp src\tree.cpp src\syntax.cpp src\toolchain.cpp ^
    src\json.cpp src\project.cpp src\find.cpp src\utf8.cpp src\workspace.cpp src\symbols.cpp src\demangle_win.cpp ^
@@ -130,6 +147,7 @@ rem The product, as against the build: one directory holding what you would
 rem actually run, away from the project space it was compiled in. Both Windows
 rem variants land here side by side - the console one and the window - and
 rem is copied when msbuild has made it and passed over when it has not.
+if "%BINDIR%"=="" set BINDIR=x64\Release
 set PRODUCT=%USERPROFILE%\cc1-studio
 rem Emptied first, the same as the Makefile's rule and for the same reason: a
 rem binary that was renamed leaves its old self here, and a directory holding
@@ -142,7 +160,7 @@ if exist "%PRODUCT%\bin" rmdir /s /q "%PRODUCT%\bin"
 if exist "%PRODUCT%\examples" rmdir /s /q "%PRODUCT%\examples"
 if not exist "%PRODUCT%\bin" mkdir "%PRODUCT%\bin"
 if not exist "%PRODUCT%\examples" mkdir "%PRODUCT%\examples"
-copy /y RStudioConsole.exe "%PRODUCT%\bin\" >nul
+copy /y "%BINDIR%\RStudioConsole.exe" "%PRODUCT%\bin\" >nul
 if exist winforms\x64\Release\RStudio.exe copy /y winforms\x64\Release\RStudio.exe "%PRODUCT%\bin\" >nul
 
 rem And what the editor drives, from wherever the solution built it. This used
@@ -201,11 +219,11 @@ if not exist obj\harness mkdir obj\harness
 cl /nologo /std:c++14 /W4 /WX /EHsc /permissive- /D_CRT_SECURE_NO_WARNINGS ^
    /I src /Fe:session.exe /Fo:obj\harness\ tests\session.cpp src\path.cpp
 if errorlevel 1 goto :fail
-session.exe RStudioConsole.exe %CC1%
+session.exe %BINDIR%\RStudioConsole.exe %CC1%
 if errorlevel 1 goto :fail
 
 :done
-echo built RStudioConsole.exe
+echo built %BINDIR%\RStudioConsole.exe
 exit /b 0
 
 :findvcvars

@@ -315,16 +315,24 @@ std::string besideProgram(const std::string& name) {
     std::string where = programDirectory();
     if (where.empty()) return std::string();
 
+    // **The name as it was asked for first, and only then with `.exe`.** All
+    // four programs are called cc1.exe, shc.exe, c2s.exe and RStudio.exe on
+    // every machine now, so appending on Windows turned an honest "cc1.exe"
+    // into a search for cc1.exe.exe. The editor survived that by asking twice
+    // - "cc1.exe", then "cc1" - and About did not, reporting all three
+    // compilers absent while standing in the directory with them.
+    //
+    // The fallback stays for a bare name, which is what a caller that has
+    // never had to think about Windows writes.
+    std::string full = join(where, name);
+    if (exists(full) && !isDirectory(full)) return full;
+
 #ifdef _WIN32
-    std::string leaf = name + ".exe";
-#else
-    std::string leaf = name;
+    full = join(where, name + ".exe");
+    if (exists(full) && !isDirectory(full)) return full;
 #endif
 
-    std::string full = join(where, leaf);
-
-    if (!exists(full) || isDirectory(full)) return std::string();
-    return full;
+    return std::string();
 }
 
 std::vector<Entry> entries(const std::string& directory, bool* ok) {
