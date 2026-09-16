@@ -74,7 +74,7 @@ protected:
         }
     }
 
-    static String^ ProductName() { return "RStudio"; }
+    static String^ ProductName() { return "RIDE"; }
 
     ~MainForm() { this->!MainForm(); }
     !MainForm() {
@@ -2031,7 +2031,7 @@ private:
 
         OpenFileDialog^ pick = gcnew OpenFileDialog();
         pick->Title = "Open project file";
-        pick->Filter = "RStudio projects (*" + suffix + ")|*" + suffix +
+        pick->Filter = "RIDE projects (*" + suffix + ")|*" + suffix +
                        "|All files (*.*)|*.*";
         if (projectDirectory_ != nullptr) pick->InitialDirectory = projectDirectory_;
         if (pick->ShowDialog() != System::Windows::Forms::DialogResult::OK) {
@@ -2054,7 +2054,7 @@ private:
         SaveFileDialog^ pick = gcnew SaveFileDialog();
         pick->Title = "Save as project file";
         pick->FileName = offered;
-        pick->Filter = "RStudio projects (*" + suffix + ")|*" + suffix;
+        pick->Filter = "RIDE projects (*" + suffix + ")|*" + suffix;
         pick->InitialDirectory = FromUtf8(rstudio_project_root(project_));
         if (pick->ShowDialog() != System::Windows::Forms::DialogResult::OK) {
             what_->Text = "not saved";
